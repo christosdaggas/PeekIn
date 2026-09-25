@@ -15,13 +15,20 @@ pub enum Operation {
     ClearingSnapshots,
     Enrolling,
     Testing,
+    ApprovingInfrared,
+    WithdrawingInfrared,
 }
 
 impl Operation {
     pub fn is_write(self) -> bool {
         matches!(
             self,
-            Self::Saving | Self::Removing | Self::Resuming | Self::ClearingSnapshots
+            Self::Saving
+                | Self::Removing
+                | Self::Resuming
+                | Self::ClearingSnapshots
+                | Self::ApprovingInfrared
+                | Self::WithdrawingInfrared
         )
     }
 
@@ -36,6 +43,8 @@ impl Operation {
             Self::ClearingSnapshots => tr("Authorizing and deleting photos…"),
             Self::Enrolling => tr("Capturing face model…"),
             Self::Testing => tr("Running recognition test…"),
+            Self::ApprovingInfrared => tr("Approving the infrared camera…"),
+            Self::WithdrawingInfrared => tr("Authorizing and withdrawing the approval…"),
         }
     }
 }
@@ -543,6 +552,9 @@ mod tests {
         )
         .is_err());
         assert!(Operation::ClearingSnapshots.is_write() && !Operation::LoadingSnapshots.is_write());
+        assert!(
+            Operation::ApprovingInfrared.is_write() && Operation::WithdrawingInfrared.is_write()
+        );
     }
 
     #[test]

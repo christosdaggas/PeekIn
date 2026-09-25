@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:10+0300\n"
+"POT-Creation-Date: 2026-09-25 14:39+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -189,10 +189,89 @@ msgstr ""
 msgid "{camera} · recommended"
 msgstr ""
 
-msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; see “Physical infrared attestations” in the README"
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; approve it under “Infrared cameras” below"
 msgstr ""
 
 msgid "Used for face login; the away lock can use another one"
+msgstr ""
+
+msgid "Approved: face login may prefer it, and “Infrared camera only” accepts it"
+msgstr ""
+
+msgid "Not approved: face login treats it like a colour camera"
+msgstr ""
+
+msgid "Withdraw"
+msgstr ""
+
+msgid "Approve…"
+msgstr ""
+
+#, rust-format
+msgid "This camera cannot be approved: {error}"
+msgstr ""
+
+msgid "none"
+msgstr ""
+
+msgid "Starting the camera…"
+msgstr ""
+
+#, rust-format
+msgid "{camera} · {vid}:{pid} · serial {serial} · interface {interface}, index {index} · {driver}"
+msgstr ""
+
+msgid "Darken the room: an infrared camera lights your face with its own light. If the image stays dark, its emitter needs switching on first, e.g. with linux-enable-ir-emitter."
+msgstr ""
+
+msgid "I confirm that this is the camera's infrared sensor and that its infrared light turns on in a dark room"
+msgstr ""
+
+msgid "What was checked (saved with the approval)"
+msgstr ""
+
+#, rust-format
+msgid "{camera} ({vid}:{pid}, serial {serial}): infrared sensor and emitter checked in PeekIn Settings on {date}"
+msgstr ""
+
+msgid "Approve"
+msgstr ""
+
+msgid "Approve infrared camera"
+msgstr ""
+
+#, rust-format
+msgid "The camera cannot be shown: {error}"
+msgstr ""
+
+msgid "Waiting for the administrator password…"
+msgstr ""
+
+msgid "Infrared camera approved"
+msgstr ""
+
+#, rust-format
+msgid "Could not approve the camera: {error}"
+msgstr ""
+
+msgid "Approving the camera did not finish"
+msgstr ""
+
+msgid "Withdraw the approval?"
+msgstr ""
+
+#, rust-format
+msgid "{camera} then counts as a possible infrared camera again. With “Infrared camera only” on, face login stops until a camera is approved."
+msgstr ""
+
+msgid "Approval withdrawn"
+msgstr ""
+
+#, rust-format
+msgid "Could not withdraw the approval: {error}"
+msgstr ""
+
+msgid "Withdrawing the approval did not finish"
 msgstr ""
 
 msgid "No changes to apply"
@@ -275,9 +354,6 @@ msgid "Improve recognition: add samples to this model"
 msgstr ""
 
 msgid "Remove this model"
-msgstr ""
-
-msgid "Starting the camera…"
 msgstr ""
 
 msgid "Look straight at the camera. The green box shows that your face was found."
@@ -688,6 +764,12 @@ msgstr ""
 msgid "Use face login for"
 msgstr ""
 
+msgid "Infrared cameras"
+msgstr ""
+
+msgid "Approving tells PeekIn that a camera is a real infrared sensor. It applies to every user of this computer and needs the administrator password each time."
+msgstr ""
+
 msgid "Security level"
 msgstr ""
 
@@ -848,6 +930,12 @@ msgstr ""
 msgid "Face samples are inconsistent"
 msgstr ""
 
+msgid "The image is dark: the infrared emitter seems to be off"
+msgstr ""
+
+msgid "Infrared image received; check that the camera's own light lights your face"
+msgstr ""
+
 msgid "No face completed the identity and movement challenge before the timeout"
 msgstr ""
 
@@ -876,6 +964,12 @@ msgid "Capturing face model…"
 msgstr ""
 
 msgid "Running recognition test…"
+msgstr ""
+
+msgid "Approving the infrared camera…"
+msgstr ""
+
+msgid "Authorizing and withdrawing the approval…"
 msgstr ""
 
 msgid "not loaded"

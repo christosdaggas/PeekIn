@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 13:39+0300\n"
+"POT-Creation-Date: 2026-09-25 14:39+0300\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -188,11 +188,90 @@ msgstr "Αυτόματα · δεν βρέθηκε κάμερα"
 msgid "{camera} · recommended"
 msgstr "{camera} · προτεινόμενη"
 
-msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; see “Physical infrared attestations” in the README"
-msgstr "Είναι συνδεδεμένη υπέρυθρη κάμερα που δεν έχει εγκριθεί, οπότε η σύνδεση με πρόσωπο δεν την προτιμά ακόμη· δείτε «Physical infrared attestations» στο README"
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; approve it under “Infrared cameras” below"
+msgstr "Υπάρχει συνδεδεμένη υπέρυθρη κάμερα που δεν έχει εγκριθεί, οπότε η σύνδεση με πρόσωπο δεν την προτιμά ακόμα· εγκρίνετέ την στις «Υπέρυθρες κάμερες» παρακάτω"
 
 msgid "Used for face login; the away lock can use another one"
 msgstr "Χρησιμοποιείται για τη σύνδεση με πρόσωπο· το κλείδωμα απουσίας μπορεί να χρησιμοποιεί άλλη"
+
+msgid "Approved: face login may prefer it, and “Infrared camera only” accepts it"
+msgstr "Εγκεκριμένη: η σύνδεση με πρόσωπο μπορεί να την προτιμά, και το «Μόνο υπέρυθρη κάμερα» τη δέχεται"
+
+msgid "Not approved: face login treats it like a colour camera"
+msgstr "Μη εγκεκριμένη: η σύνδεση με πρόσωπο τη χειρίζεται σαν έγχρωμη κάμερα"
+
+msgid "Withdraw"
+msgstr "Ανάκληση"
+
+msgid "Approve…"
+msgstr "Έγκριση…"
+
+#, rust-format
+msgid "This camera cannot be approved: {error}"
+msgstr "Αυτή η κάμερα δεν μπορεί να εγκριθεί: {error}"
+
+msgid "none"
+msgstr "κανένα"
+
+msgid "Starting the camera…"
+msgstr "Εκκίνηση της κάμερας…"
+
+#, rust-format
+msgid "{camera} · {vid}:{pid} · serial {serial} · interface {interface}, index {index} · {driver}"
+msgstr "{camera} · {vid}:{pid} · σειριακός {serial} · διεπαφή {interface}, δείκτης {index} · {driver}"
+
+msgid "Darken the room: an infrared camera lights your face with its own light. If the image stays dark, its emitter needs switching on first, e.g. with linux-enable-ir-emitter."
+msgstr "Σκοτεινιάστε το δωμάτιο: μια υπέρυθρη κάμερα φωτίζει το πρόσωπό σας με το δικό της φως. Αν η εικόνα μένει σκοτεινή, πρέπει πρώτα να ενεργοποιηθεί ο εκπομπός της, π.χ. με το linux-enable-ir-emitter."
+
+msgid "I confirm that this is the camera's infrared sensor and that its infrared light turns on in a dark room"
+msgstr "Επιβεβαιώνω ότι αυτός είναι ο υπέρυθρος αισθητήρας της κάμερας και ότι το υπέρυθρο φως της ανάβει σε σκοτεινό δωμάτιο"
+
+msgid "What was checked (saved with the approval)"
+msgstr "Τι ελέγχθηκε (αποθηκεύεται με την έγκριση)"
+
+#, rust-format
+msgid "{camera} ({vid}:{pid}, serial {serial}): infrared sensor and emitter checked in PeekIn Settings on {date}"
+msgstr "{camera} ({vid}:{pid}, σειριακός {serial}): ο υπέρυθρος αισθητήρας και ο εκπομπός ελέγχθηκαν στις Ρυθμίσεις του PeekIn στις {date}"
+
+msgid "Approve"
+msgstr "Έγκριση"
+
+msgid "Approve infrared camera"
+msgstr "Έγκριση υπέρυθρης κάμερας"
+
+#, rust-format
+msgid "The camera cannot be shown: {error}"
+msgstr "Η κάμερα δεν μπορεί να εμφανιστεί: {error}"
+
+msgid "Waiting for the administrator password…"
+msgstr "Αναμονή για τον κωδικό του διαχειριστή…"
+
+msgid "Infrared camera approved"
+msgstr "Η υπέρυθρη κάμερα εγκρίθηκε"
+
+#, rust-format
+msgid "Could not approve the camera: {error}"
+msgstr "Η κάμερα δεν μπόρεσε να εγκριθεί: {error}"
+
+msgid "Approving the camera did not finish"
+msgstr "Η έγκριση της κάμερας δεν ολοκληρώθηκε"
+
+msgid "Withdraw the approval?"
+msgstr "Ανάκληση της έγκρισης;"
+
+#, rust-format
+msgid "{camera} then counts as a possible infrared camera again. With “Infrared camera only” on, face login stops until a camera is approved."
+msgstr "Η {camera} θα θεωρείται ξανά πιθανή υπέρυθρη κάμερα. Με ενεργό το «Μόνο υπέρυθρη κάμερα», η σύνδεση με πρόσωπο σταματά μέχρι να εγκριθεί μια κάμερα."
+
+msgid "Approval withdrawn"
+msgstr "Η έγκριση ανακλήθηκε"
+
+#, rust-format
+msgid "Could not withdraw the approval: {error}"
+msgstr "Η έγκριση δεν μπόρεσε να ανακληθεί: {error}"
+
+msgid "Withdrawing the approval did not finish"
+msgstr "Η ανάκληση της έγκρισης δεν ολοκληρώθηκε"
 
 msgid "No changes to apply"
 msgstr "Καμία αλλαγή για εφαρμογή"
@@ -275,9 +354,6 @@ msgstr "Βελτίωση αναγνώρισης: προσθήκη δειγμάτ
 
 msgid "Remove this model"
 msgstr "Αφαίρεση αυτού του μοντέλου"
-
-msgid "Starting the camera…"
-msgstr "Εκκίνηση της κάμερας…"
 
 msgid "Look straight at the camera. The green box shows that your face was found."
 msgstr "Κοιτάξτε ευθεία την κάμερα. Το πράσινο πλαίσιο δείχνει ότι βρέθηκε το πρόσωπό σας."
@@ -687,6 +763,12 @@ msgstr "Γενικά"
 msgid "Use face login for"
 msgstr "Σύνδεση με πρόσωπο για"
 
+msgid "Infrared cameras"
+msgstr "Υπέρυθρες κάμερες"
+
+msgid "Approving tells PeekIn that a camera is a real infrared sensor. It applies to every user of this computer and needs the administrator password each time."
+msgstr "Η έγκριση δηλώνει στο PeekIn ότι μια κάμερα είναι πραγματικός υπέρυθρος αισθητήρας. Ισχύει για όλους τους χρήστες αυτού του υπολογιστή και ζητά κάθε φορά τον κωδικό του διαχειριστή."
+
 msgid "Security level"
 msgstr "Επίπεδο ασφάλειας"
 
@@ -847,6 +929,12 @@ msgstr "Η εικόνα είναι θολή· μείνετε ακίνητοι"
 msgid "Face samples are inconsistent"
 msgstr "Τα δείγματα προσώπου δεν συμφωνούν μεταξύ τους"
 
+msgid "The image is dark: the infrared emitter seems to be off"
+msgstr "Η εικόνα είναι σκοτεινή: ο υπέρυθρος εκπομπός φαίνεται σβηστός"
+
+msgid "Infrared image received; check that the camera's own light lights your face"
+msgstr "Λήφθηκε υπέρυθρη εικόνα· ελέγξτε ότι το πρόσωπό σας φωτίζεται από το φως της ίδιας της κάμερας"
+
 msgid "No face completed the identity and movement challenge before the timeout"
 msgstr "Κανένα πρόσωπο δεν ολοκλήρωσε εγκαίρως τον έλεγχο ταυτότητας και κίνησης"
 
@@ -876,6 +964,12 @@ msgstr "Λήψη μοντέλου προσώπου…"
 
 msgid "Running recognition test…"
 msgstr "Εκτέλεση δοκιμής αναγνώρισης…"
+
+msgid "Approving the infrared camera…"
+msgstr "Έγκριση της υπέρυθρης κάμερας…"
+
+msgid "Authorizing and withdrawing the approval…"
+msgstr "Εξουσιοδότηση και ανάκληση της έγκρισης…"
 
 msgid "not loaded"
 msgstr "δεν φορτώθηκε"

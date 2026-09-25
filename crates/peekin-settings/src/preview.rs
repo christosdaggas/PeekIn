@@ -441,6 +441,67 @@ pub fn worker_main(config_dir: &Path, data_dir: &Path) -> Result<(), String> {
     sent
 }
 
+/// Hidden worker mode: frames from one camera for approving it as infrared.
+pub fn infrared_worker_main(
+    config_dir: &Path,
+    data_dir: &Path,
+    device: &str,
+) -> Result<(), String> {
+    std::thread::spawn(|| {
+        let mut byte = [0];
+        let _ = std::io::stdin().read(&mut byte);
+        unsafe { libc::_exit(0) }
+    });
+    if !peekin_core::management::valid_device_path(device) || device == "none" {
+        return Err("invalid camera".into());
+    }
+    let paths = PeekinPaths::from_dirs(config_dir.into(), data_dir.into());
+    let config = PeekinConfig::load(&paths.config_file_path())
+        .map_err(|e| e.to_string())?
+        .with_camera(device);
+    let mut source = OpenCvFaceSource::open(&config, &paths).map_err(|e| e.to_string())?;
+    source.set_keep_image(true);
+    let mut out = std::io::stdout();
+    let mut was_dark = None;
+    loop {
+        let stats = source.next_frame().map_err(|e| e.0)?;
+        let dark = !matches!(
+            classify_frame(&stats.hist, config.dark_threshold()),
+            FrameClass::Scan { .. }
+        );
+        if was_dark != Some(dark) {
+            was_dark = Some(dark);
+            let message = if dark {
+                tr_noop("The image is dark: the infrared emitter seems to be off")
+            } else {
+                tr_noop(
+                    "Infrared image received; check that the camera's own light lights your face",
+                )
+            };
+            write_packet(&mut out, Event::Quality(message.into())).map_err(|e| e.to_string())?;
+        }
+        if dark {
+            continue;
+        }
+        let faces = source.detect().map_err(|e| e.0)?;
+        if let Some((width, height, mut rgb)) = source.last_image_rgb() {
+            for face in &faces {
+                draw_rect(&mut rgb, width, height, face.rect, BOX_COLOUR);
+            }
+            mirror(&mut rgb, width, height);
+            let frame = Frame {
+                width,
+                height,
+                rgb,
+                faces: faces.len(),
+                verdict: None,
+                remaining: 0,
+            };
+            write_packet(&mut out, Event::Frame(frame)).map_err(|e| e.to_string())?;
+        }
+    }
+}
+
 pub fn test_worker_main(
     config_dir: &Path,
     data_dir: &Path,
@@ -827,6 +888,17 @@ pub fn start(config_dir: PathBuf, data_dir: PathBuf) -> (Events, Arc<Control>) {
         &data_dir.display().to_string(),
     ]);
     start_command(command, Duration::from_secs(120))
+}
+
+pub fn start_infrared(config_dir: &Path, data_dir: &Path, device: &str) -> (Events, Arc<Control>) {
+    let mut command = Command::new(std::env::current_exe().expect("current executable"));
+    command.args([
+        "--infrared-preview-worker",
+        &config_dir.display().to_string(),
+        &data_dir.display().to_string(),
+        device,
+    ]);
+    start_command(command, Duration::from_secs(300))
 }
 
 pub fn start_test_command(argv: &[String], seconds: u32) -> (Events, Arc<Control>) {

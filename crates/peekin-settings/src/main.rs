@@ -98,6 +98,9 @@ struct Ui {
     active_test: Rc<RefCell<Option<std::sync::Arc<preview::Control>>>>,
     active_enrollment: Rc<RefCell<Option<std::sync::Arc<preview::Control>>>>,
     enrollment_label: Rc<RefCell<String>>,
+    infrared_group: adw::PreferencesGroup,
+    infrared_rows: RefCell<Vec<gtk::Widget>>,
+    this: std::rc::Weak<Ui>,
 }
 
 impl Ui {
@@ -403,6 +406,7 @@ impl Ui {
         *self.cameras.borrow_mut() = cameras::list();
         self.ir_only.set_active(s.ir_only);
         self.fill_devices(&s.device_path);
+        self.fill_infrared();
 
         self.enabled.set_active(s.enabled);
         self.min_similarity.set_value(s.min_similarity);
@@ -530,7 +534,7 @@ impl Ui {
         self.device.set_subtitle(&if unapproved_ir {
             tr(
                 "An infrared camera is connected but not approved, so face login does not \
-                prefer it yet; see “Physical infrared attestations” in the README",
+                prefer it yet; approve it under “Infrared cameras” below",
             )
         } else {
             tr("Used for face login; the away lock can use another one")
@@ -540,6 +544,341 @@ impl Ui {
             .set_model(Some(&gtk::StringList::new(&label_refs)));
         self.device.set_selected(selected as u32);
         *self.devices.borrow_mut() = devices;
+    }
+
+    /// One row per infrared camera, to approve or withdraw it.
+    fn fill_infrared(&self) {
+        for row in self.infrared_rows.borrow_mut().drain(..) {
+            self.infrared_group.remove(&row);
+        }
+        let Some(ui) = self.this.upgrade() else {
+            return;
+        };
+        for camera in self.cameras.borrow().iter() {
+            let approved = match camera.kind {
+                cameras::CameraKind::VerifiedInfrared => true,
+                cameras::CameraKind::InfraredCandidate => false,
+                cameras::CameraKind::Colour => continue,
+            };
+            let row = adw::ActionRow::builder()
+                .title(glib::markup_escape_text(&format!(
+                    "{} ({})",
+                    camera.name, camera.node
+                )))
+                .subtitle(if approved {
+                    tr("Approved: face login may prefer it, and “Infrared camera only” accepts it")
+                } else {
+                    tr("Not approved: face login treats it like a colour camera")
+                })
+                .build();
+            let button = gtk::Button::builder()
+                .label(if approved {
+                    tr("Withdraw")
+                } else {
+                    tr("Approve…")
+                })
+                .valign(gtk::Align::Center)
+                .build();
+            button.add_css_class(if approved { "flat" } else { "suggested-action" });
+            let (ui, camera) = (ui.clone(), camera.clone());
+            button.connect_clicked(move |_| {
+                let (ui, camera) = (ui.clone(), camera.clone());
+                glib::spawn_future_local(async move {
+                    if approved {
+                        ui.withdraw_infrared(camera).await
+                    } else {
+                        ui.approve_infrared(camera).await
+                    }
+                });
+            });
+            row.add_suffix(&button);
+            self.infrared_group.add(&row);
+            self.infrared_rows.borrow_mut().push(row.upcast());
+        }
+        self.infrared_group
+            .set_visible(!self.infrared_rows.borrow().is_empty());
+    }
+
+    /// After an approval changed: reload everything unless edits would be lost.
+    fn reload_cameras(&self) {
+        if !self.is_dirty() {
+            self.load_settings();
+            return;
+        }
+        let current = self.read_widgets().device_path;
+        self.loading_settings.set(true);
+        *self.cameras.borrow_mut() = cameras::list();
+        self.fill_devices(&current);
+        self.loading_settings.set(false);
+        self.fill_infrared();
+        self.refresh_apply();
+    }
+
+    async fn approve_infrared(self: &Rc<Self>, camera: cameras::Camera) {
+        use peekin_core::ir_profile;
+        let candidate = match ir_profile::inspect(&camera.path) {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                self.toast(&tr_args(
+                    "This camera cannot be approved: {error}",
+                    &[("error", &error.to_string())],
+                ));
+                return;
+            }
+        };
+        if !self.begin_operation(Operation::ApprovingInfrared) {
+            return;
+        }
+        let id = &candidate.identity;
+        let serial = id.serial.clone().unwrap_or_else(|| tr("none"));
+        let picture = gtk::Picture::builder()
+            .content_fit(gtk::ContentFit::Contain)
+            .height_request(300)
+            .hexpand(true)
+            .build();
+        let frame = gtk::Frame::builder()
+            .child(&picture)
+            .css_classes(["card"])
+            .build();
+        let status = gtk::Label::builder()
+            .label(tr("Starting the camera…"))
+            .wrap(true)
+            .css_classes(["heading"])
+            .build();
+        let details = gtk::Label::builder()
+            .label(tr_args(
+                "{camera} · {vid}:{pid} · serial {serial} · interface {interface}, index {index} · {driver}",
+                &[
+                    ("camera", &candidate.name),
+                    ("vid", &id.vid),
+                    ("pid", &id.pid),
+                    ("serial", &serial),
+                    ("interface", &id.interface_number),
+                    ("index", &id.capture_index),
+                    ("driver", &id.driver),
+                ],
+            ))
+            .wrap(true)
+            .css_classes(["dim-label"])
+            .build();
+        let hint = gtk::Label::builder()
+            .label(tr(
+                "Darken the room: an infrared camera lights your face with its own light. \
+                 If the image stays dark, its emitter needs switching on first, e.g. with \
+                 linux-enable-ir-emitter.",
+            ))
+            .wrap(true)
+            .build();
+        let confirm_label = gtk::Label::builder()
+            .label(tr(
+                "I confirm that this is the camera's infrared sensor and that its infrared \
+                 light turns on in a dark room",
+            ))
+            .wrap(true)
+            .xalign(0.0)
+            .build();
+        let confirmed = gtk::CheckButton::builder().child(&confirm_label).build();
+        let date = glib::DateTime::now_local()
+            .and_then(|now| now.format("%Y-%m-%d"))
+            .map(|d| d.to_string())
+            .unwrap_or_default();
+        let evidence = adw::EntryRow::builder()
+            .title(tr("What was checked (saved with the approval)"))
+            .build();
+        evidence.set_text(&tr_args(
+            "{camera} ({vid}:{pid}, serial {serial}): infrared sensor and emitter checked in PeekIn Settings on {date}",
+            &[
+                ("camera", &candidate.name),
+                ("vid", &id.vid),
+                ("pid", &id.pid),
+                ("serial", &serial),
+                ("date", &date),
+            ],
+        ));
+        let fields = gtk::ListBox::builder()
+            .css_classes(["boxed-list"])
+            .selection_mode(gtk::SelectionMode::None)
+            .build();
+        fields.append(&evidence);
+        let approve = gtk::Button::builder()
+            .label(tr("Approve"))
+            .sensitive(false)
+            .halign(gtk::Align::Center)
+            .css_classes(["pill", "suggested-action"])
+            .build();
+        let update = {
+            let (confirmed, evidence, approve) =
+                (confirmed.clone(), evidence.clone(), approve.clone());
+            move || {
+                approve.set_sensitive(
+                    confirmed.is_active()
+                        && ir_profile::validate_evidence(&evidence.text()).is_ok(),
+                )
+            }
+        };
+        {
+            let update = update.clone();
+            confirmed.connect_toggled(move |_| update());
+        }
+        evidence.connect_changed(move |_| update());
+        let body = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(12)
+            .margin_top(12)
+            .margin_bottom(24)
+            .margin_start(24)
+            .margin_end(24)
+            .build();
+        for w in [
+            frame.upcast_ref::<gtk::Widget>(),
+            status.upcast_ref(),
+            details.upcast_ref(),
+            hint.upcast_ref(),
+            confirmed.upcast_ref(),
+            fields.upcast_ref(),
+            approve.upcast_ref(),
+        ] {
+            body.append(w);
+        }
+        let toolbar = adw::ToolbarView::new();
+        toolbar.add_top_bar(&adw::HeaderBar::new());
+        toolbar.set_content(Some(
+            &gtk::ScrolledWindow::builder()
+                .child(&body)
+                .propagate_natural_height(true)
+                .build(),
+        ));
+        let dialog = adw::Dialog::builder()
+            .title(tr("Approve infrared camera"))
+            .content_width(560)
+            .child(&toolbar)
+            .build();
+        let (actions, action_events) = async_channel::bounded(2);
+        {
+            let actions = actions.clone();
+            approve.connect_clicked(move |_| {
+                let _ = actions.try_send(true);
+            });
+        }
+        dialog.connect_closed(move |_| {
+            let _ = actions.try_send(false);
+        });
+
+        let config_dir = self
+            .backend
+            .config_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("/etc/peekin"));
+        let data_dir = self
+            .backend
+            .data_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("/usr/share/peekin"));
+        let (events, control) =
+            preview::start_infrared(&config_dir, &data_dir, &camera.path.display().to_string());
+        {
+            let (picture, status) = (picture.clone(), status.clone());
+            glib::spawn_future_local(async move {
+                while let Ok(event) = events.recv().await {
+                    match event {
+                        preview::Event::Frame(f) => {
+                            let bytes = glib::Bytes::from_owned(f.rgb);
+                            let texture = gtk::gdk::MemoryTexture::new(
+                                f.width,
+                                f.height,
+                                gtk::gdk::MemoryFormat::R8g8b8,
+                                &bytes,
+                                (f.width * 3) as usize,
+                            );
+                            picture.set_paintable(Some(&texture));
+                        }
+                        preview::Event::Quality(message) => status.set_label(&tr(&message)),
+                        preview::Event::Failed(error) | preview::Event::Finished(Err(error)) => {
+                            status.set_label(&tr_args(
+                                "The camera cannot be shown: {error}",
+                                &[("error", &tr(&error))],
+                            ));
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+        dialog.present(Some(&self.window));
+        let approved = action_events.recv().await == Ok(true);
+        // Free the camera before anything else needs it.
+        control
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+        if !approved {
+            self.end_operation();
+            return;
+        }
+        for w in [
+            approve.upcast_ref::<gtk::Widget>(),
+            confirmed.upcast_ref(),
+            evidence.upcast_ref(),
+        ] {
+            w.set_sensitive(false);
+        }
+        status.set_label(&tr("Waiting for the administrator password…"));
+        let argv = self
+            .backend
+            .management_argv("attest-ir", &[camera.path.display().to_string()]);
+        let text = format!("{}\n", evidence.text().trim());
+        let result = self.run_command(argv, text, true, |_| {}).await;
+        self.end_operation();
+        dialog.close();
+        self.toast(&match result.termination {
+            commands::Termination::Completed if result.exit_code == 0 => {
+                tr("Infrared camera approved")
+            }
+            commands::Termination::Completed => tr_args(
+                "Could not approve the camera: {error}",
+                &[("error", &error_summary(result.exit_code, &result.output))],
+            ),
+            _ => tr("Approving the camera did not finish"),
+        });
+        self.reload_cameras();
+    }
+
+    async fn withdraw_infrared(self: &Rc<Self>, camera: cameras::Camera) {
+        if !self
+            .confirm(
+                &tr("Withdraw the approval?"),
+                &tr_args(
+                    "{camera} then counts as a possible infrared camera again. With “Infrared \
+                     camera only” on, face login stops until a camera is approved.",
+                    &[("camera", &camera.name)],
+                ),
+                &tr("Withdraw"),
+                true,
+                None,
+            )
+            .await
+        {
+            return;
+        }
+        if !self.begin_operation(Operation::WithdrawingInfrared) {
+            return;
+        }
+        let argv = self
+            .backend
+            .management_argv("revoke-ir", &[camera.path.display().to_string()]);
+        let result = self
+            .run_command(argv, "revoke\n".into(), true, |_| {})
+            .await;
+        self.end_operation();
+        self.toast(&match result.termination {
+            commands::Termination::Completed if result.exit_code == 0 => tr("Approval withdrawn"),
+            commands::Termination::Completed => tr_args(
+                "Could not withdraw the approval: {error}",
+                &[("error", &error_summary(result.exit_code, &result.output))],
+            ),
+            _ => tr("Withdrawing the approval did not finish"),
+        });
+        self.reload_cameras();
     }
 
     async fn apply_settings(&self) -> bool {
@@ -1948,6 +2287,15 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
             brighten_screen.upcast_ref(),
         ],
     ));
+    let infrared_group = adw::PreferencesGroup::builder()
+        .title(tr("Infrared cameras"))
+        .description(tr(
+            "Approving tells PeekIn that a camera is a real infrared sensor. It applies to \
+             every user of this computer and needs the administrator password each time.",
+        ))
+        .visible(false)
+        .build();
+    settings_page.add(&infrared_group);
     let preset_names: Vec<String> = ui_state::Preset::ALL.iter().map(|p| p.name()).collect();
     let preset_refs: Vec<&str> = preset_names.iter().map(String::as_str).collect();
     let security_level = adw::ComboRow::builder()
@@ -2248,7 +2596,10 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     );
     window.add_breakpoint(compact);
 
-    let ui = Rc::new(Ui {
+    let ui = Rc::new_cyclic(|this| Ui {
+        this: this.clone(),
+        infrared_group: infrared_group.clone(),
+        infrared_rows: RefCell::new(Vec::new()),
         backend,
         window: window.clone(),
         toasts,
@@ -2564,6 +2915,27 @@ fn main() -> glib::ExitCode {
             }
         };
     }
+    if raw_args.get(1).map(String::as_str) == Some("--infrared-preview-worker") {
+        if let Err(error) = peekin_core::process::arm_parent_death() {
+            eprintln!("cannot arm preview parent-death guard: {error}");
+            return glib::ExitCode::FAILURE;
+        }
+        if raw_args.len() != 5 {
+            eprintln!("invalid infrared preview worker arguments");
+            return glib::ExitCode::FAILURE;
+        }
+        return match preview::infrared_worker_main(
+            std::path::Path::new(&raw_args[2]),
+            std::path::Path::new(&raw_args[3]),
+            &raw_args[4],
+        ) {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                preview::report_failure(e);
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
     if raw_args.get(1).map(String::as_str) == Some("--preview-test-worker") {
         if let Err(error) = peekin_core::process::arm_parent_death() {
             eprintln!("cannot arm test-worker parent-death guard: {error}");
@@ -2684,6 +3056,14 @@ mod gtk_tests {
         let ui = build_ui(&app, backend);
         assert!(ui.stack.child_by_name("setup").is_none());
         assert_eq!(ui.stack.visible_child_name().as_deref(), Some("settings"));
+        let infrared = ui
+            .cameras
+            .borrow()
+            .iter()
+            .filter(|c| c.kind != cameras::CameraKind::Colour)
+            .count();
+        assert_eq!(ui.infrared_rows.borrow().len(), infrared);
+        assert_eq!(ui.infrared_group.is_visible(), infrared > 0);
         let pump = || {
             let context = glib::MainContext::default();
             for _ in 0..30 {
