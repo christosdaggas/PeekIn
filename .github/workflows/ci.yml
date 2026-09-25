@@ -129,6 +129,10 @@ jobs:
           sesearch -A -s xdm_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
           sesearch -A -s local_login_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
           sesearch -A -s policykit_auth_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
+          # The worker starts its own process group (killed as one at the deadline).
+          for domain in xdm_t local_login_t policykit_auth_t; do
+            sesearch -A -s "$domain" -t "$domain" -c process -p setpgid "$policy" | grep -q setpgid
+          done
           # Failed-attempt counters: every PAM domain can create, rewrite and
           # remove them, and none gains write access to GDM's own state.
           for domain in xdm_t local_login_t policykit_auth_t; do

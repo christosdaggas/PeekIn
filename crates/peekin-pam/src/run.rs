@@ -16,6 +16,11 @@ const POLL: Duration = Duration::from_millis(20);
 const KILL_GRACE: Duration = Duration::from_secs(2);
 const STDERR_LIMIT: usize = 8 * 1024;
 const STDOUT_LIMIT: usize = 256;
+/// Reads per pipe per poll: at most 16 × 4 KiB = 64 KiB, about one pipe
+/// buffer. A worker flooding its output can then never keep the loop from
+/// reaching its deadline check; what is not read yet stays in the pipe (the
+/// worker blocks writing) until the next poll, 20 ms later. Past the limits
+/// the output is read and dropped, so the worker is never stalled for good.
 const DRAIN_BUDGET: usize = 16;
 
 #[derive(Debug, Clone, Copy)]
@@ -161,7 +166,19 @@ fn wait_until(
     }
 }
 
-/// Runs the worker with a minimal fixed environment and no stdin, killing it at `deadline`.
+/// SIGKILL to the worker's process group. Only called before the worker is
+/// reaped: until then its PID, which is the group ID, cannot be reused.
+fn kill_group(child: &mut Child) {
+    let group = child.id() as libc::pid_t;
+    // SAFETY: kill has no memory preconditions; the group is the worker's own.
+    if group > 0 && unsafe { libc::kill(-group, libc::SIGKILL) } != 0 {
+        // The group is gone already, or never formed: end the worker itself.
+        let _ = child.kill();
+    }
+}
+
+/// Runs the worker with a minimal fixed environment and no stdin, killing it
+/// and everything it started at `deadline`.
 pub fn run_compare(
     compare: &Path,
     config_dir: &Path,
@@ -192,6 +209,11 @@ pub fn run_compare(
     let (cpu_soft, cpu_hard) = worker_cpu_limit(deadline);
     unsafe {
         command.pre_exec(move || {
+            // Its own process group, so the deadline ends everything it
+            // started, as the settings helper does for its test worker.
+            if libc::setpgid(0, 0) != 0 {
+                return Err(io::Error::last_os_error());
+            }
             if parent_euid == 0 {
                 if libc::setgroups(groups.len(), groups.as_ptr()) != 0
                     || libc::setgid(identity.gid) != 0
@@ -255,7 +277,7 @@ pub fn run_compare(
     let end = match wait_until(&mut child, &mut output, started + deadline) {
         Ok(Some(status)) => RunEnd::Exited(child_end(status)),
         Ok(None) => {
-            let _ = child.kill();
+            kill_group(&mut child);
             match wait_until(&mut child, &mut output, Instant::now() + KILL_GRACE) {
                 Ok(Some(_)) => RunEnd::TimedOut { reaped: true },
                 _ => RunEnd::TimedOut { reaped: false },
@@ -297,6 +319,11 @@ mod tests {
                     "echo low-light; echo low-light; echo not-low-light; exit 0",
                 ),
                 ("quiet.sh", "echo low-lights; echo x-low-light; exit 0"),
+                // Leaves a grandchild behind, as a stuck camera helper might.
+                (
+                    "family.sh",
+                    "sleep 30 & echo $! > \"$0.pid\"; exec sleep 30",
+                ),
             ] {
                 let p = dir.join(name);
                 std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
@@ -379,6 +406,35 @@ mod tests {
         let r = run(&p, 300);
         assert!(matches!(r.end, RunEnd::TimedOut { reaped: true }), "{r:?}");
         assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn the_whole_process_group_is_killed_at_the_deadline() {
+        let p = script("family.sh");
+        let r = run(&p, 300);
+        assert!(matches!(r.end, RunEnd::TimedOut { reaped: true }), "{r:?}");
+        let pid_file = p.with_extension("sh.pid");
+        let pid: i32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        // Gone, or a zombie waiting for its new parent to reap it.
+        let alive = || {
+            std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|stat| {
+                stat.rsplit_once(')')
+                    .is_some_and(|(_, rest)| !rest.trim_start().starts_with('Z'))
+            })
+        };
+        let until = Instant::now() + Duration::from_secs(2);
+        while alive() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let survived = alive();
+        if survived {
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+        }
+        assert!(!survived, "the worker's child outlived the deadline");
     }
 
     #[test]

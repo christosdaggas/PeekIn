@@ -25,6 +25,7 @@ require {
     attribute non_auth_file_type;
     class chr_file { getattr open read write ioctl map };
     class capability { setuid setgid };
+    class process setpgid;
     class dir { getattr search open read write add_name remove_name };
     class file { getattr open read write create lock unlink setattr };
 }
@@ -42,6 +43,9 @@ allow xdm_t v4l_device_t:chr_file map;
 allow local_login_t v4l_device_t:chr_file { getattr open read write ioctl map };
 allow policykit_auth_t v4l_device_t:chr_file { getattr open read write ioctl map };
 allow policykit_auth_t self:capability { setuid setgid };
+# The worker puts itself in its own process group, so that PAM can end it
+# and everything it started at the deadline.
+allow { xdm_t local_login_t policykit_auth_t } self:process setpgid;
 
 # Exactly what peekin_core::lockout and ::activity do: create and flock
 # a file, rewrite it in place (ftruncate is checked as write), unlink a
