@@ -11,6 +11,7 @@ use crate::PeekinConfig;
 use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -106,11 +107,22 @@ pub fn key_description() -> &'static str {
 }
 
 fn run(tool: &Path, args: &[&str], input: &[u8]) -> io::Result<Vec<u8>> {
-    let mut child = Command::new(tool)
+    let mut command = Command::new(tool);
+    command
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    // The tool creates the encrypted copy itself, in a directory the worker
+    // group may read: private from the start, not only after the chmod.
+    // SAFETY: umask is async-signal-safe and affects only the child.
+    unsafe {
+        command.pre_exec(|| {
+            libc::umask(0o077);
+            Ok(())
+        });
+    }
+    let mut child = command
         .spawn()
         .map_err(|e| io::Error::other(format!("cannot run {}: {e}", tool.display())))?;
     // A tool that fails early stops reading; its exit status says why.
@@ -442,7 +454,7 @@ mod tests {
                  encrypt) name=$2; shift 2; extra=''\n\
                  while [ $# -gt 2 ]; do extra=\"$extra $1\"; shift; done\n\
                  [ -e \"${2%/*}/FAIL-ENCRYPT\" ] && { echo 'encryption refused' >&2; exit 1; }\n\
-                 { echo \"SEALED $name$extra\"; cat; } > \"$2\" ;;\n\
+                 { echo \"SEALED $name$extra\"; cat; } > \"$2\"; stat -c %a \"$2\" > \"$0.mode\" ;;\n\
                  decrypt) read -r tag name rest < \"$3\"; [ \"$tag $name\" = \"SEALED $2\" ] || exit 1; tail -n +2 \"$3\" ;;\n\
                  esac\n",
             )
@@ -856,6 +868,26 @@ mod tests {
 
     fn first_line(path: PathBuf) -> String {
         read(path).lines().next().unwrap_or_default().to_string()
+    }
+
+    /// The tool writes the encrypted copy itself, in the models directory
+    /// the worker group can read: never readable by others, even briefly.
+    #[test]
+    fn the_tool_creates_its_output_private() {
+        let (root, sealed, run, tool) = setup("umask");
+        let (uid, gid) = me();
+        replace_models_with(
+            &tool,
+            &run,
+            Some((&sealed, &SealPolicy::default())),
+            "alice",
+            Some(&[model(0)]),
+            uid,
+            gid,
+        )
+        .unwrap();
+        assert_eq!(read(tool.with_extension("mode")).trim(), "600");
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
