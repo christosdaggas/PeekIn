@@ -168,14 +168,14 @@ impl SessionSettings {
         )
     }
 
+    /// Replace the file atomically (fsync, no temporary file left on
+    /// failure), private to the user.
     pub fn save(&self, path: &Path) -> io::Result<()> {
         let dir = path
             .parent()
             .ok_or_else(|| io::Error::other("no parent directory"))?;
-        std::fs::create_dir_all(dir)?;
-        let tmp = path.with_extension("ini.tmp");
-        std::fs::write(&tmp, self.to_ini())?;
-        std::fs::rename(tmp, path)
+        crate::fsutil::create_dir_all_mode(dir, 0o700)?;
+        crate::fsutil::atomic_write(path, self.to_ini().as_bytes(), Some(0o600))
     }
 }
 
@@ -283,6 +283,33 @@ mod tests {
             SessionSettings::default(),
             "invalid values keep defaults"
         );
+    }
+
+    #[test]
+    fn settings_are_saved_atomically_and_privately() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("peekin-session-save-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let path = root.join("peekin/session.ini");
+        let on = SessionSettings {
+            lock_when_away: true,
+            ..SessionSettings::default()
+        };
+        on.save(&path).unwrap();
+        assert_eq!(SessionSettings::load(&path), on);
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        // A save that cannot replace the file leaves it and nothing else behind.
+        let blocked = root.join("blocked/session.ini");
+        std::fs::create_dir_all(blocked.join("in-the-way")).unwrap();
+        assert!(SessionSettings::default().save(&blocked).is_err());
+        let left: Vec<_> = std::fs::read_dir(blocked.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(left, ["session.ini"], "temporary file left behind");
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
