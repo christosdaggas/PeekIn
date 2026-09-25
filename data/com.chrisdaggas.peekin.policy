@@ -84,4 +84,22 @@
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
     <annotate key="org.freedesktop.policykit.exec.argv1">test</annotate>
   </action>
+  <action id="com.chrisdaggas.peekin.ir-attest">
+    <description>Approve an infrared camera for face login</description>
+    <description xml:lang="el">Έγκριση υπέρυθρης κάμερας για τη σύνδεση με πρόσωπο</description>
+    <message>Authentication is required to approve an infrared camera for every user of this computer</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για την έγκριση υπέρυθρης κάμερας για όλους τους χρήστες αυτού του υπολογιστή</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">attest-ir</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.ir-revoke">
+    <description>Withdraw the approval of an infrared camera</description>
+    <description xml:lang="el">Ανάκληση της έγκρισης υπέρυθρης κάμερας</description>
+    <message>Authentication is required to withdraw the approval of an infrared camera</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για την ανάκληση της έγκρισης υπέρυθρης κάμερας</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">revoke-ir</annotate>
+  </action>
 </policyconfig>

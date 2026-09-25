@@ -55,12 +55,15 @@ impl Backend {
             out.extend(args.iter().cloned());
             out
         } else {
-            let command = match operation {
-                "enroll" => "import-model",
-                "add-samples" => "import-samples",
-                other => other,
+            let mut command_args: Vec<String> = match operation {
+                "enroll" => vec!["import-model".into()],
+                "add-samples" => vec!["import-samples".into()],
+                "attest-ir" => ["cameras", "--save", "--evidence", "-", "--attest"]
+                    .map(String::from)
+                    .to_vec(),
+                "revoke-ir" => vec!["cameras".into(), "--revoke".into()],
+                other => vec![other.into()],
             };
-            let mut command_args = vec![command.to_string()];
             command_args.extend(args.iter().cloned());
             command_args.extend(["-U".into(), self.user.clone()]);
             self.argv(&command_args)
@@ -121,6 +124,15 @@ mod tests {
             ["pkexec", "/usr/libexec/peekin/peekin-helper", "remove", "7"]
         );
         assert!(!management.iter().any(|a| a == "-U" || a == "--config-dir"));
+        assert_eq!(
+            b.management_argv("attest-ir", &["/dev/video2".into()]),
+            [
+                "pkexec",
+                "/usr/libexec/peekin/peekin-helper",
+                "attest-ir",
+                "/dev/video2"
+            ]
+        );
     }
 
     #[test]
@@ -149,6 +161,20 @@ mod tests {
         );
         assert_eq!(b.env(), [("EUID_CHECK_SKIP", "1")]);
         assert_eq!(b.config_file(), PathBuf::from("/tmp/h/etc/config.ini"));
+        let attest = b.management_argv("attest-ir", &["/dev/video2".into()]);
+        assert_eq!(
+            attest[5..],
+            [
+                "cameras",
+                "--save",
+                "--evidence",
+                "-",
+                "--attest",
+                "/dev/video2",
+                "-U",
+                "alice"
+            ]
+        );
     }
 
     #[test]

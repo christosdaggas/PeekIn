@@ -1,10 +1,10 @@
 //! Narrow pkexec entry point for the settings app: no path, editor or arbitrary-user switches.
 
 use anyhow::{anyhow, bail, Context, Result};
-use peekin_core::lockout;
 use peekin_core::management::{apply_settings, revision, SettingsUpdate};
 use peekin_core::models::{self, FaceModel, ModelError, EMBEDDING_FORMAT};
 use peekin_core::snapshots;
+use peekin_core::{ir_profile, lockout};
 use peekin_core::{PeekinConfig, PeekinPaths};
 use std::ffi::CStr;
 use std::io::{Read, Write};
@@ -417,6 +417,10 @@ fn seal(paths: &PeekinPaths, user: &str) -> Result<()> {
     )
 }
 
+fn camera_path(path: &str) -> bool {
+    path != "none" && peekin_core::management::valid_device_path(path)
+}
+
 fn ready_for_write() -> Result<()> {
     println!("READY");
     std::io::stdout().flush()?;
@@ -550,6 +554,25 @@ fn main() -> Result<()> {
             lockout::reset(Path::new(lockout::STATE_DIR), &user)?;
             println!("reset");
         }
+        "attest-ir" if rest.len() == 1 && camera_path(&rest[0]) => {
+            ready_for_write()?;
+            let evidence = input(4096)?;
+            // The identity is read here, as root, never taken from the caller.
+            let candidate = ir_profile::inspect(Path::new(&rest[0]))?;
+            match ir_profile::Store::system().attest(&candidate.identity, &evidence, true)? {
+                ir_profile::Attested::Added => println!("attested"),
+                ir_profile::Attested::AlreadyAttested => println!("already attested"),
+            }
+        }
+        "revoke-ir" if rest.len() == 1 && camera_path(&rest[0]) => {
+            ready_for_write()?;
+            if input(16)? != "revoke\n" {
+                bail!("revoke confirmation token missing");
+            }
+            let candidate = ir_profile::inspect(Path::new(&rest[0]))?;
+            let removed = ir_profile::Store::system().revoke(&candidate.identity)?;
+            println!("removed {removed}");
+        }
         "test" if rest.len() == 1 => test_broker(&user, rest[0].parse()?)?,
         _ => bail!("unsupported helper operation or arguments"),
     }
@@ -559,6 +582,25 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_camera_nodes_reach_attestation() {
+        for ok in [
+            "/dev/video2",
+            "/dev/v4l/by-id/usb-Logitech_BRIO-video-index2",
+        ] {
+            assert!(camera_path(ok), "{ok}");
+        }
+        for bad in [
+            "none",
+            "/etc/passwd",
+            "/dev/v4l/by-id/../../etc",
+            "/dev/video",
+            "video2",
+        ] {
+            assert!(!camera_path(bad), "{bad}");
+        }
+    }
     use std::io::Cursor;
     use std::os::fd::FromRawFd;
 

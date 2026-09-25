@@ -71,7 +71,8 @@ enum Command {
         /// Add the attestation to /etc/peekin/ir-profiles.json (root).
         #[arg(long, requires_all = ["attest", "evidence"])]
         save: bool,
-        /// How you checked that this is the infrared sensor and its emitter lights up.
+        /// How you checked that this is the infrared sensor and its emitter lights up
+        /// ("-" reads it from stdin).
         #[arg(long, requires = "save")]
         evidence: Option<String>,
         /// Attest every unit of this model instead of this serial number.
@@ -753,8 +754,15 @@ fn cmd_attest(
         return Ok(());
     }
     require_root("Saving an attestation")?;
-    let evidence = evidence.unwrap_or_default();
-    match Store::system().attest(id, evidence, pin_serial)? {
+    let evidence = match evidence.unwrap_or_default() {
+        "-" => {
+            let mut text = String::new();
+            io::Read::read_to_string(&mut io::Read::take(io::stdin(), 4096), &mut text)?;
+            text
+        }
+        given => given.to_string(),
+    };
+    match Store::system().attest(id, &evidence, pin_serial)? {
         Attested::Added => println!("Attestation added to {}", ir_profile::PROFILES),
         Attested::AlreadyAttested => println!("This camera is already attested"),
     }
