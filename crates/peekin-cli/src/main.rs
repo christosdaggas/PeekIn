@@ -63,8 +63,23 @@ enum Command {
     /// List cameras usable for face authentication (infrared first).
     Cameras {
         /// Print only the path of the preferred camera.
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["attest", "revoke"])]
         best: bool,
+        /// Show the attestation of this infrared camera, for review.
+        #[arg(long, value_name = "CAMERA", conflicts_with = "revoke")]
+        attest: Option<PathBuf>,
+        /// Add the attestation to /etc/peekin/ir-profiles.json (root).
+        #[arg(long, requires_all = ["attest", "evidence"])]
+        save: bool,
+        /// How you checked that this is the infrared sensor and its emitter lights up.
+        #[arg(long, requires = "save")]
+        evidence: Option<String>,
+        /// Attest every unit of this model instead of this serial number.
+        #[arg(long, requires = "attest")]
+        any_unit: bool,
+        /// Remove the attestation of this camera (root).
+        #[arg(long, value_name = "CAMERA")]
+        revoke: Option<PathBuf>,
     },
     /// Remove all face models for a user.
     Clear,
@@ -705,6 +720,71 @@ fn cmd_apply_settings(paths: &PeekinPaths) -> Result<()> {
     Ok(())
 }
 
+fn require_root(what: &str) -> Result<()> {
+    // SAFETY: geteuid has no preconditions.
+    if unsafe { libc::geteuid() } != 0 {
+        bail!("{what} needs root:\n\n\tsudo peekin cameras ...");
+    }
+    Ok(())
+}
+
+fn cmd_attest(
+    camera: &std::path::Path,
+    save: bool,
+    evidence: Option<&str>,
+    pin_serial: bool,
+) -> Result<()> {
+    use peekin_core::ir_profile::{self, Attested, Store};
+    let candidate = ir_profile::inspect(camera)?;
+    let id = &candidate.identity;
+    let serial = id.serial.as_deref().unwrap_or("none");
+    println!(
+        "{} ({}:{}, serial {serial}, interface {}, index {}, {})",
+        candidate.name, id.vid, id.pid, id.interface_number, id.capture_index, id.driver
+    );
+    if !save {
+        let placeholder =
+            "<how you checked that this is the infrared sensor and its emitter lights up>";
+        println!("{}", ir_profile::profile_json(id, placeholder, pin_serial));
+        println!(
+            "\nSave it with:\n\n\tsudo peekin cameras --attest {} --save --evidence \"...\"",
+            camera.display()
+        );
+        return Ok(());
+    }
+    require_root("Saving an attestation")?;
+    let evidence = evidence.unwrap_or_default();
+    match Store::system().attest(id, evidence, pin_serial)? {
+        Attested::Added => println!("Attestation added to {}", ir_profile::PROFILES),
+        Attested::AlreadyAttested => println!("This camera is already attested"),
+    }
+    if peekin_core::cameras::kind_of(camera)
+        != Some(peekin_core::cameras::CameraKind::VerifiedInfrared)
+    {
+        bail!(
+            "{} is still not verified; check {}",
+            camera.display(),
+            ir_profile::PROFILES
+        );
+    }
+    println!(
+        "{} is now an administrator-approved infrared camera",
+        camera.display()
+    );
+    Ok(())
+}
+
+fn cmd_revoke(camera: &std::path::Path) -> Result<()> {
+    use peekin_core::ir_profile::{self, Store};
+    require_root("Removing an attestation")?;
+    let candidate = ir_profile::inspect(camera)?;
+    match Store::system().revoke(&candidate.identity)? {
+        0 => println!("{} was not attested", camera.display()),
+        n => println!("Removed {n} attestation(s) of {}", camera.display()),
+    }
+    Ok(())
+}
+
 fn cmd_cameras(best_only: bool, plain: bool) -> Result<()> {
     use peekin_core::cameras;
     let list = cameras::list();
@@ -746,7 +826,21 @@ fn cmd_cameras(best_only: bool, plain: bool) -> Result<()> {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    if let Command::Cameras { best } = &cli.command {
+    if let Command::Cameras {
+        best,
+        attest,
+        save,
+        evidence,
+        any_unit,
+        revoke,
+    } = &cli.command
+    {
+        if let Some(camera) = attest {
+            return cmd_attest(camera, *save, evidence.as_deref(), !*any_unit);
+        }
+        if let Some(camera) = revoke {
+            return cmd_revoke(camera);
+        }
         return cmd_cameras(*best, cli.plain);
     }
     if let Command::PamSetup { action } = &cli.command {

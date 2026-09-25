@@ -353,7 +353,11 @@ fn check_camera(report: &mut Report, config: &PeekinConfig, account: Option<&Ser
         report.add(
             Level::Fail,
             "camera",
-            "ir_only = true but this node has no administrator attestation in /etc/peekin/ir-profiles.json",
+            format!(
+                "ir_only = true but this node has no administrator attestation in \
+                 /etc/peekin/ir-profiles.json; review it with: sudo peekin cameras --attest {}",
+                device.display()
+            ),
         );
     }
     if !config.movement_required(kind) && kind != Some(CameraKind::VerifiedInfrared) {
