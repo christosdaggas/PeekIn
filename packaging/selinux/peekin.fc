@@ -1,0 +1,11 @@
+# Failed face attempt counters, written by pam_peekin.so from the GDM
+# login/lock screen (xdm_t), the text console (local_login_t) and the polkit
+# helper (policykit_auth_t). See peekin.te.
+/var/lib/peekin/failures(/.*)?	system_u:object_r:peekin_var_lib_t:s0
+# History of attempts, one file per user (same writers).
+/var/lib/peekin-activity(/.*)?	system_u:object_r:peekin_var_lib_t:s0
+# Decrypted face models, in memory (read by the same three domains).
+/run/peekin(/.*)?	system_u:object_r:peekin_run_t:s0
+# Photos of failed attempts, written by the recognition worker, which runs in
+# the same three domains (see peekin.te).
+/var/log/peekin(/.*)?	system_u:object_r:peekin_log_t:s0

@@ -1,0 +1,963 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the peekin package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: peekin\n"
+"Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
+"POT-Creation-Date: 2026-09-25 14:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+msgid "administrator-approved infrared"
+msgstr ""
+
+msgid "possible infrared (not approved)"
+msgstr ""
+
+msgid "colour"
+msgstr ""
+
+msgid "LEFT"
+msgstr ""
+
+msgid "RIGHT"
+msgstr ""
+
+#, rust-format
+msgid "Face check: look at the camera, then turn your head {steps}, facing the camera again after each turn."
+msgstr ""
+
+msgid "Face check: look at the camera."
+msgstr ""
+
+msgid "Look straight at the camera"
+msgstr ""
+
+msgid "Turn your head LEFT"
+msgstr ""
+
+msgid "Turn your head RIGHT"
+msgstr ""
+
+msgid "Turn your head as instructed"
+msgstr ""
+
+msgid "Look straight at the camera again"
+msgstr ""
+
+msgid "Movement challenge completed"
+msgstr ""
+
+msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
+msgstr ""
+
+#, rust-format
+msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
+msgstr ""
+
+msgid "Face recognition timed out; use your password"
+msgstr ""
+
+msgid "Face not recognised in time; use your password"
+msgstr ""
+
+msgid "Face authentication is unavailable (see the system log); use your password"
+msgstr ""
+
+msgid "Camera image too dark; use your password"
+msgstr ""
+
+msgid "The camera could not be opened; use your password"
+msgstr ""
+
+msgid "Head movement did not follow the instructions; use your password"
+msgstr ""
+
+msgid "No face seen; use your password"
+msgstr ""
+
+#, rust-format
+msgid "Unknown error: {code}"
+msgstr ""
+
+msgid "Face authentication failed unexpectedly; use your password"
+msgstr ""
+
+#, rust-format
+msgid "Face recognised: {username}"
+msgstr ""
+
+msgid "Authorization was cancelled"
+msgstr ""
+
+#, rust-format
+msgid "Cannot run {program}: {error}"
+msgstr ""
+
+msgid "Operation cancelled"
+msgstr ""
+
+msgid "Operation timed out. Reload to check whether the change was saved."
+msgstr ""
+
+msgid "Command worker stopped unexpectedly"
+msgstr ""
+
+msgid "Another operation is already running"
+msgstr ""
+
+msgid "Unsaved system-wide settings"
+msgstr ""
+
+msgid "Save these settings before opening the camera, discard them, or cancel. Camera operations always use the settings on disk."
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Discard"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+#, rust-format
+msgid "Cannot read settings: {e}"
+msgstr ""
+
+msgid "not installed: config.ini is missing"
+msgstr ""
+
+msgid "settings read failed"
+msgstr ""
+
+msgid "invalid configuration"
+msgstr ""
+
+msgid "invalid security settings"
+msgstr ""
+
+msgid "automatic selection found no camera"
+msgstr ""
+
+msgid "configured device missing"
+msgstr ""
+
+msgid "device is not a usable camera"
+msgstr ""
+
+msgid "IR profile not verified"
+msgstr ""
+
+#, rust-format
+msgid "automatic: {camera}"
+msgstr ""
+
+msgid "configured device present"
+msgstr ""
+
+msgid "saved; disabled system-wide"
+msgstr ""
+
+msgid "saved and enabled"
+msgstr ""
+
+msgid "sudo/GDM rules present; administrator review required"
+msgstr ""
+
+msgid "validated sudo/GDM rules not detected"
+msgstr ""
+
+#, rust-format
+msgid "Automatic · now {camera}"
+msgstr ""
+
+msgid "Automatic · no camera found"
+msgstr ""
+
+#, rust-format
+msgid "{camera} · recommended"
+msgstr ""
+
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; see “Physical infrared attestations” in the README"
+msgstr ""
+
+msgid "Used for face login; the away lock can use another one"
+msgstr ""
+
+msgid "No changes to apply"
+msgstr ""
+
+msgid "Save cancelled; your edits are still here"
+msgstr ""
+
+msgid "Save timed out; checked disk and kept any unsaved edits"
+msgstr ""
+
+msgid "Settings saved"
+msgstr ""
+
+#, rust-format
+msgid "Could not save: {error}"
+msgstr ""
+
+msgid "load cancelled"
+msgstr ""
+
+msgid "Model loading cancelled"
+msgstr ""
+
+msgid "load timed out"
+msgstr ""
+
+msgid "Model loading timed out"
+msgstr ""
+
+msgid "not available in development mode"
+msgstr ""
+
+msgid "authorization/read failed"
+msgstr ""
+
+msgid "invalid helper response"
+msgstr ""
+
+msgid "none; password fallback"
+msgstr ""
+
+msgid "No face models yet"
+msgstr ""
+
+msgid "Use “Add” to enroll your face"
+msgstr ""
+
+msgid "Face models are locked"
+msgstr ""
+
+#, rust-format
+msgid "For you: {value}."
+msgstr ""
+
+msgid "Needs a face model with two samples."
+msgstr ""
+
+msgid "Could not read model metadata"
+msgstr ""
+
+#, rust-format
+msgid "{n} usable sample; Test required"
+msgid_plural "{n} usable samples; Test required"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "no valid current embeddings"
+msgstr ""
+
+#, rust-format
+msgid "Added {created} · last used {when}"
+msgstr ""
+
+#, rust-format
+msgid "Added {created} · not used yet"
+msgstr ""
+
+msgid "Improve recognition: add samples to this model"
+msgstr ""
+
+msgid "Remove this model"
+msgstr ""
+
+msgid "Starting the camera…"
+msgstr ""
+
+msgid "Look straight at the camera. The green box shows that your face was found."
+msgstr ""
+
+msgid "Label (optional), e.g. “With glasses”"
+msgstr ""
+
+msgid "Capture"
+msgstr ""
+
+msgid "Add samples where recognition fails, e.g. in dim light or with glasses. The green box shows that your face was found."
+msgstr ""
+
+#, rust-format
+msgid "Improve “{label}”"
+msgstr ""
+
+msgid "Add a face model"
+msgstr ""
+
+msgid "Hold still…"
+msgstr ""
+
+msgid "Taking 5 samples of your face."
+msgstr ""
+
+msgid "No face found — move into the camera's view"
+msgstr ""
+
+msgid "Face found — press Capture"
+msgstr ""
+
+msgid "More than one face — only you should be in view"
+msgstr ""
+
+#, rust-format
+msgid "Sample {n} of {total}"
+msgstr ""
+
+#, rust-format
+msgid "Could not add the model: {e}"
+msgstr ""
+
+msgid "Your label has been kept. Check the camera and press Retry."
+msgstr ""
+
+msgid "Retry capture"
+msgstr ""
+
+msgid "Saving…"
+msgstr ""
+
+msgid "Your password may be requested to store the model."
+msgstr ""
+
+msgid "Face model improved"
+msgstr ""
+
+msgid "Face model added"
+msgstr ""
+
+msgid "Save cancelled before handoff"
+msgstr ""
+
+msgid "Save timed out; model list will be reloaded when this dialog closes"
+msgstr ""
+
+#, rust-format
+msgid "Could not confirm model save: {detail}"
+msgstr ""
+
+msgid "The model list will be reconciled from disk. Captured samples remain available for retry until this dialog closes."
+msgstr ""
+
+msgid "Retry save"
+msgstr ""
+
+#, rust-format
+msgid "“{label}” will be deleted. If this is your last usable model, face authentication for your account stops and the password remains available."
+msgstr ""
+
+msgid "Remove face model?"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Removal cancelled; reloading models"
+msgstr ""
+
+msgid "Removal timed out; reloading models to check whether it committed"
+msgstr ""
+
+#, rust-format
+msgid "Could not remove model: {e}"
+msgstr ""
+
+msgid "Model removed; removing the last usable model disables face authentication for your account"
+msgstr ""
+
+msgid "Resume cancelled"
+msgstr ""
+
+msgid "Resume timed out"
+msgstr ""
+
+msgid "Face login resumed"
+msgstr ""
+
+#, rust-format
+msgid "Could not resume face login: {error}"
+msgstr ""
+
+msgid "The history cannot be read"
+msgstr ""
+
+msgid "No face login attempts yet"
+msgstr ""
+
+msgid "Same as face login"
+msgstr ""
+
+msgid "Any colour camera"
+msgstr ""
+
+msgid "Any infrared camera"
+msgstr ""
+
+msgid "No photos of failed attempts"
+msgstr ""
+
+#, rust-format
+msgid "Photo of a failed attempt, {time}"
+msgstr ""
+
+msgid "Delete all photos?"
+msgstr ""
+
+msgid "The photos of failed attempts on your account will be deleted."
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Photos deleted"
+msgstr ""
+
+#, rust-format
+msgid "Could not delete the photos: {error}"
+msgstr ""
+
+msgid "Deleting the photos did not finish"
+msgstr ""
+
+msgid "Starting camera…"
+msgstr ""
+
+#, rust-format
+msgid "Live camera frame containing {n} detected face"
+msgid_plural "Live camera frame containing {n} detected faces"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Starting camera"
+msgstr ""
+
+msgid "Image too dark"
+msgstr ""
+
+msgid "Camera covered or unavailable"
+msgstr ""
+
+msgid "No face found"
+msgstr ""
+
+msgid "Multiple faces; sequence reset"
+msgstr ""
+
+msgid "No match"
+msgstr ""
+
+#, rust-format
+msgid "No match ({score})"
+msgstr ""
+
+#, rust-format
+msgid "Matching frame {n} of {total} ({score})"
+msgstr ""
+
+#, rust-format
+msgid "{instruction} · stage {n} of {total}"
+msgstr ""
+
+#, rust-format
+msgid "Accepted after {n} consistent frames ({score})"
+msgstr ""
+
+#, rust-format
+msgid "{n} second remaining"
+msgid_plural "{n} seconds remaining"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Identity and movement challenge passed. This is not proof against interactive replay or masks."
+msgstr ""
+
+msgid "Face recognised (head-movement check is off). A photo of you could also pass this check."
+msgstr ""
+
+msgid "Test stopped"
+msgstr ""
+
+msgid "Run another test"
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+#, rust-format
+msgid "{path} (not found)"
+msgstr ""
+
+msgid "Raise the match threshold from your own enrollment samples; it is never lowered. Stricter against other faces, but may reject yours more often."
+msgstr ""
+
+msgid "Seconds to look for your face before asking for the password (default 3). The head-movement check gets up to 8 more seconds"
+msgstr ""
+
+msgid "10 s is the default of Linux Hello before 1.3, kept by the upgrade. The default is now 3 s. The head-movement check gets up to 8 more seconds"
+msgstr ""
+
+msgid "Look. Recognize. Unlock."
+msgstr ""
+
+#, rust-format
+msgid "Version {version}"
+msgstr ""
+
+msgid "What it does"
+msgstr ""
+
+msgid "PeekIn is face authentication for Linux. It unlocks sudo, the GNOME lock screen and the login screen when you look at the camera, and your password always keeps working. A random head-movement check makes photos harder to use, your face data is encrypted with the TPM, and nothing leaves your computer. Face recognition is a convenience, not a replacement for your password."
+msgstr ""
+
+msgid "Author"
+msgstr ""
+
+msgid "Design and development"
+msgstr ""
+
+msgid "Website"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "License"
+msgstr ""
+
+msgid "MIT; the face models: MIT (YuNet) and Apache-2.0 (SFace)"
+msgstr ""
+
+msgid "Copyright"
+msgstr ""
+
+msgid "could not read failed attempts"
+msgstr ""
+
+msgid "Face authentication"
+msgstr ""
+
+msgid "Offer face unlock for sudo, the lock screen and login"
+msgstr ""
+
+msgid "Camera"
+msgstr ""
+
+msgid "Infrared camera only"
+msgstr ""
+
+msgid "Require an administrator-attested physical IR profile. Infrared alone does not prove liveness."
+msgstr ""
+
+msgid "Match threshold"
+msgstr ""
+
+msgid "Higher is stricter. Default 0.363; calibrate on your hardware"
+msgstr ""
+
+msgid "Scan time"
+msgstr ""
+
+msgid "Dark frame threshold"
+msgstr ""
+
+msgid "Frames darker than this (percent) are skipped"
+msgstr ""
+
+msgid "Announce face scan"
+msgstr ""
+
+msgid "Show a message before the face scan"
+msgstr ""
+
+msgid "Confirm recognition"
+msgstr ""
+
+msgid "Show “Face recognised: …” after a match"
+msgstr ""
+
+msgid "Disable for remote sessions"
+msgstr ""
+
+msgid "Never scan for SSH logins"
+msgstr ""
+
+msgid "Disable when the lid is closed"
+msgstr ""
+
+msgid "The camera cannot see you"
+msgstr ""
+
+msgid "Head-movement check"
+msgstr ""
+
+msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+msgstr ""
+
+msgid "Personal threshold"
+msgstr ""
+
+msgid "Save photos of failed attempts"
+msgstr ""
+
+msgid "When a face is seen but not accepted, keep a photo of it (the newest 20). Only you and administrators can see them, on the Face models page"
+msgstr ""
+
+msgid "Light up the screen in the dark"
+msgstr ""
+
+msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
+msgstr ""
+
+msgid "Keep it on without an infrared camera"
+msgstr ""
+
+msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+msgstr ""
+
+msgid "sudo in a terminal"
+msgstr ""
+
+msgid "Also sudo -i"
+msgstr ""
+
+msgid "Login screen"
+msgstr ""
+
+msgid "After starting the computer. The keyring stays locked until you enter your password"
+msgstr ""
+
+msgid "Lock screen"
+msgstr ""
+
+msgid "Unlocking a session that is already running"
+msgstr ""
+
+msgid "Administrator dialogs"
+msgstr ""
+
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr ""
+
+msgid "Text console login"
+msgstr ""
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr ""
+
+msgid "System-wide settings; per-user face models."
+msgstr ""
+
+msgid "Configuration"
+msgstr ""
+
+msgid "Checking settings…"
+msgstr ""
+
+msgid "PAM integration"
+msgstr ""
+
+msgid "Face models"
+msgstr ""
+
+msgid "Failed face attempts"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Allow face login again now"
+msgstr ""
+
+msgid "General"
+msgstr ""
+
+msgid "Use face login for"
+msgstr ""
+
+msgid "Security level"
+msgstr ""
+
+msgid "Recognition"
+msgstr ""
+
+msgid "Messages and safety"
+msgstr ""
+
+msgid "Lock when you walk away"
+msgstr ""
+
+msgid "After the time below without keyboard or mouse input, the camera looks for a face; with nobody there for 10 seconds the screen locks. The camera light is on while it looks"
+msgstr ""
+
+msgid "Lock after"
+msgstr ""
+
+msgid "Seconds without input before the camera looks"
+msgstr ""
+
+msgid "It only needs to see that someone is there, so it can differ from the face login camera, e.g. the colour camera while face login uses the infrared one"
+msgstr ""
+
+msgid "Tell me about failed attempts"
+msgstr ""
+
+msgid "After you unlock, a notification when faces were rejected while you were away"
+msgstr ""
+
+msgid "For this account only; changes are saved right away."
+msgstr ""
+
+msgid "Walk-away lock"
+msgstr ""
+
+msgid "Notifications"
+msgstr ""
+
+msgid "System status"
+msgstr ""
+
+#, rust-format
+msgid "Face models for {user}"
+msgstr ""
+
+msgid "Each model holds several samples of your face. Add one per look, e.g. with and without glasses."
+msgstr ""
+
+msgid "Load models"
+msgstr ""
+
+msgid "Add"
+msgstr ""
+
+msgid "Activity"
+msgstr ""
+
+msgid "The latest face login attempts on your account."
+msgstr ""
+
+msgid "Photos of failed attempts"
+msgstr ""
+
+msgid "Faces that were seen but not accepted, when “Save photos of failed attempts” is on."
+msgstr ""
+
+msgid "Show"
+msgstr ""
+
+msgid "Delete all"
+msgstr ""
+
+msgid "Run recognition and movement test"
+msgstr ""
+
+msgid "Stop"
+msgstr ""
+
+msgid "Live camera test preview"
+msgstr ""
+
+msgid "Ready to test"
+msgstr ""
+
+msgid "Look at the camera. Each line shows whether a face was found and how closely it matches yours."
+msgstr ""
+
+msgid "Diagnostic details"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Test"
+msgstr ""
+
+msgid "Away lock"
+msgstr ""
+
+msgid "About"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Reload saved settings"
+msgstr ""
+
+msgid "Cancelling…"
+msgstr ""
+
+msgid "Finishing authorized change…"
+msgstr ""
+
+msgid "Discard unsaved settings?"
+msgstr ""
+
+msgid "Reload the current settings from disk. Unsaved changes will be discarded."
+msgstr ""
+
+msgid "Reload"
+msgstr ""
+
+msgid "Please wait for the authorized change to finish before closing."
+msgstr ""
+
+msgid "Models are only readable by an administrator"
+msgstr ""
+
+msgid "Use the refresh button to load them (asks for your password)"
+msgstr ""
+
+msgid "Waiting for camera exposure…"
+msgstr ""
+
+msgid "Camera appears covered"
+msgstr ""
+
+msgid "Image is too dark"
+msgstr ""
+
+msgid "Move your face into view"
+msgstr ""
+
+msgid "Only one person may be visible"
+msgstr ""
+
+msgid "Hold still and face the camera"
+msgstr ""
+
+msgid "Move closer to the camera"
+msgstr ""
+
+msgid "Image is blurry; hold still"
+msgstr ""
+
+msgid "Face samples are inconsistent"
+msgstr ""
+
+msgid "No face completed the identity and movement challenge before the timeout"
+msgstr ""
+
+msgid "No enrolled face was recognised before the timeout"
+msgstr ""
+
+msgid "Authorizing and loading models…"
+msgstr ""
+
+msgid "Authorizing and saving…"
+msgstr ""
+
+msgid "Authorizing and removing model…"
+msgstr ""
+
+msgid "Authorizing and resuming face login…"
+msgstr ""
+
+msgid "Authorizing and loading photos…"
+msgstr ""
+
+msgid "Authorizing and deleting photos…"
+msgstr ""
+
+msgid "Capturing face model…"
+msgstr ""
+
+msgid "Running recognition test…"
+msgstr ""
+
+msgid "not loaded"
+msgstr ""
+
+msgid "not checked"
+msgstr ""
+
+msgid "Fast"
+msgstr ""
+
+msgid "Balanced"
+msgstr ""
+
+msgid "Secure"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Just look at the camera. Head turns only without an approved infrared camera. About 1 stranger in 240 could match your face model"
+msgstr ""
+
+msgid "Head turns after recognising you. About 1 stranger in 240 could match your face model; a photo alone does not unlock"
+msgstr ""
+
+msgid "Head turns and a stricter match: about 1 stranger in 5,700 or fewer. Your own face may be rejected a little more often"
+msgstr ""
+
+msgid "Your own combination of the settings below"
+msgstr ""
+
+msgid "Administrator dialog"
+msgstr ""
+
+msgid "Text console"
+msgstr ""
+
+msgid "Recognised"
+msgstr ""
+
+msgid "Face not recognised"
+msgstr ""
+
+msgid "Head movement not followed"
+msgstr ""
+
+msgid "No face seen"
+msgstr ""
+
+msgid "Camera not available"
+msgstr ""
+
+msgid "Face login paused"
+msgstr ""
+
+#, rust-format
+msgid "face login paused after {failures} failed attempts until {resume_at}; your password still works"
+msgstr ""
+
+msgid "no recent failed attempts"
+msgstr ""
+
+#, rust-format
+msgid "{n} recent failed attempt"
+msgid_plural "{n} recent failed attempts"
+msgstr[0] ""
+msgstr[1] ""
+
+#, rust-format
+msgid "{recent}; no limit"
+msgstr ""
+
+#, rust-format
+msgid "{recent}; pauses after {limit}"
+msgstr ""
+
+#, rust-format
+msgid "{n} failed face attempt while you were away"
+msgid_plural "{n} failed face attempts while you were away"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Open PeekIn to see when and where (Face models, Activity)."
+msgstr ""

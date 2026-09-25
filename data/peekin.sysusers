@@ -1,0 +1,6 @@
+# Dedicated account that runs face recognition for PAM (no login, no home).
+# It reads the face model store (group peekin). Membership in "video"
+# (camera access) is added by system-setup rather than with an "m" line here,
+# which would make the package require group(video) from another package.
+#Type Name        ID  GECOS                              Home         Shell
+u     peekin -   "PeekIn recognition service"  /nonexistent /usr/sbin/nologin

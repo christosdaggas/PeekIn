@@ -1,0 +1,94 @@
+.TH PEEKIN-SESSION 1 2026-09-25 "PeekIn 1.0.0" "User Commands"
+.SH NAME
+peekin-session \- walk-away lock and notices of failed face attempts
+.SH SYNOPSIS
+.B /usr/libexec/peekin/peekin-session
+.br
+.B /usr/libexec/peekin/peekin-session \-\-dry\-run
+.RB [ \-\-away
+.IR seconds ]
+.br
+.B /usr/libexec/peekin/peekin-session \-\-check\-camera
+.SH DESCRIPTION
+The per-user helper of PeekIn.
+It runs in every GNOME session as the systemd user service
+.BR peekin-session.service ,
+as the user, and does two things:
+.TP
+.B Notices of failed attempts
+After the screen is unlocked, a desktop notification tells how many faces
+were rejected (wrong face, or the head movement not followed) since the last
+notice.
+It reads the user's own history in
+.IR /var/lib/peekin-activity .
+.TP
+.B Walk-away lock
+Off by default.
+When there has been no keyboard or mouse input for the away time, the camera
+looks for a face every few seconds; with nobody in front of it for 10 seconds
+the screen locks.
+The camera is only used while there is no input, and is released as soon as
+there is.
+A busy camera (for example in a video call), a picture too dark to tell, and
+a video that keeps the desktop from going idle never lead to a lock.
+The helper only locks; unlocking always goes through
+.BR pam_peekin (8)
+or the password.
+.PP
+Both are set per user on the settings app's
+.B Away lock
+page, stored in
+.IR ~/.config/peekin/session.ini :
+.BR lock_when_away " (false), " away_secs " (60, 30 to 600), "
+.BR notify_failed_attempts " (true) and"
+.BR camera :
+.B same
+(the face login camera, the default),
+.B colour
+(the first colour camera),
+.B infrared
+(the first infrared camera, approved or not) or a device such as
+.IR /dev/v4l/by-id/\&... .
+The walk-away lock authenticates no one, so it may use a different camera than
+face login, and ignores
+.BR ir_only .
+With no camera of the chosen kind connected it never locks.
+The file is read again every few seconds.
+.SH OPTIONS
+.TP
+.B \-\-dry\-run
+Print every decision (idle time, camera result) and never lock, with the
+walk-away lock treated as on.
+.TP
+.BI \-\-away " seconds"
+With
+.BR \-\-dry\-run :
+use this away time instead of the setting.
+.TP
+.B \-\-check\-camera
+Look for a face once, with the camera chosen for the walk-away lock, and print
+.BR Face ,
+.B NoFace
+or
+.B Unknown
+(too dark, or the camera unavailable; exit status 1).
+.SH FILES
+.I ~/.config/peekin/session.ini
+.br
+.I ~/.local/state/peekin/notified
+\- the newest attempt already told about
+.br
+.I /var/lib/peekin-activity/
+.SH NOTES
+Stop it for one session with
+.BR "systemctl \-\-user stop peekin-session" ,
+or for good with
+.BR "systemctl \-\-user disable peekin-session" .
+Logs:
+.BR "journalctl \-\-user \-u peekin-session" .
+It uses GNOME's session bus interfaces (idle monitor, screen saver, session
+manager, notifications).
+.SH SEE ALSO
+.BR peekin-settings (1),
+.BR peekin-config (5),
+.BR pam_peekin (8)

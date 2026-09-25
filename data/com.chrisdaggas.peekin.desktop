@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=PeekIn
+GenericName=Face Authentication
+GenericName[el]=Πιστοποίηση με πρόσωπο
+Comment=Look. Recognize. Unlock. Face authentication for Linux
+Comment[el]=Κοίτα. Αναγνώρισε. Ξεκλείδωσε. Πιστοποίηση με πρόσωπο για Linux
+Exec=peekin-settings
+Icon=com.chrisdaggas.peekin
+Terminal=false
+Categories=GTK;GNOME;Settings;Security;
+Keywords=face;unlock;camera;login;biometric;
+Keywords[el]=πρόσωπο;ξεκλείδωμα;κάμερα;σύνδεση;βιομετρικά;
+StartupNotify=true

@@ -1,0 +1,962 @@
+# Greek translations for peekin package.
+# Copyright (C) 2026 THE peekin'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the peekin package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: peekin\n"
+"Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
+"POT-Creation-Date: 2026-09-25 13:39+0300\n"
+"PO-Revision-Date: 2026-09-25 11:11+0300\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: el\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "administrator-approved infrared"
+msgstr "υπέρυθρη εγκεκριμένη από διαχειριστή"
+
+msgid "possible infrared (not approved)"
+msgstr "πιθανώς υπέρυθρη (μη εγκεκριμένη)"
+
+msgid "colour"
+msgstr "έγχρωμη"
+
+msgid "LEFT"
+msgstr "ΑΡΙΣΤΕΡΑ"
+
+msgid "RIGHT"
+msgstr "ΔΕΞΙΑ"
+
+#, rust-format
+msgid "Face check: look at the camera, then turn your head {steps}, facing the camera again after each turn."
+msgstr "Έλεγχος προσώπου: κοιτάξτε την κάμερα και μετά γυρίστε το κεφάλι {steps}, κοιτάζοντας ξανά την κάμερα μετά από κάθε στροφή."
+
+msgid "Face check: look at the camera."
+msgstr "Έλεγχος προσώπου: κοιτάξτε την κάμερα."
+
+msgid "Look straight at the camera"
+msgstr "Κοιτάξτε ευθεία την κάμερα"
+
+msgid "Turn your head LEFT"
+msgstr "Γυρίστε το κεφάλι ΑΡΙΣΤΕΡΑ"
+
+msgid "Turn your head RIGHT"
+msgstr "Γυρίστε το κεφάλι ΔΕΞΙΑ"
+
+msgid "Turn your head as instructed"
+msgstr "Γυρίστε το κεφάλι όπως σας ζητήθηκε"
+
+msgid "Look straight at the camera again"
+msgstr "Κοιτάξτε ξανά ευθεία την κάμερα"
+
+msgid "Movement challenge completed"
+msgstr "Ο έλεγχος κίνησης ολοκληρώθηκε"
+
+msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
+msgstr "Ο έλεγχος κίνησης απέτυχε (λάθος σειρά, παράλειψη βήματος ή πολύ αργά)· χρησιμοποιήστε τον κωδικό σας ή δοκιμάστε ξανά"
+
+#, rust-format
+msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
+msgstr "Η σύνδεση με πρόσωπο έχει παύσει μετά από πολλές αποτυχημένες προσπάθειες ({minutes} λεπτά)· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "Face recognition timed out; use your password"
+msgstr "Ο χρόνος αναγνώρισης προσώπου έληξε· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "Face not recognised in time; use your password"
+msgstr "Το πρόσωπο δεν αναγνωρίστηκε εγκαίρως· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "Face authentication is unavailable (see the system log); use your password"
+msgstr "Η πιστοποίηση με πρόσωπο δεν είναι διαθέσιμη (δείτε το αρχείο καταγραφής του συστήματος)· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "Camera image too dark; use your password"
+msgstr "Η εικόνα της κάμερας είναι πολύ σκοτεινή· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "The camera could not be opened; use your password"
+msgstr "Δεν ήταν δυνατό να ανοίξει η κάμερα· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "Head movement did not follow the instructions; use your password"
+msgstr "Η κίνηση του κεφαλιού δεν ακολούθησε τις οδηγίες· χρησιμοποιήστε τον κωδικό σας"
+
+msgid "No face seen; use your password"
+msgstr "Δεν εντοπίστηκε πρόσωπο· χρησιμοποιήστε τον κωδικό σας"
+
+#, rust-format
+msgid "Unknown error: {code}"
+msgstr "Άγνωστο σφάλμα: {code}"
+
+msgid "Face authentication failed unexpectedly; use your password"
+msgstr "Η πιστοποίηση με πρόσωπο απέτυχε απροσδόκητα· χρησιμοποιήστε τον κωδικό σας"
+
+#, rust-format
+msgid "Face recognised: {username}"
+msgstr "Αναγνωρίστηκε το πρόσωπο: {username}"
+
+msgid "Authorization was cancelled"
+msgstr "Η εξουσιοδότηση ακυρώθηκε"
+
+#, rust-format
+msgid "Cannot run {program}: {error}"
+msgstr "Αδύνατη η εκτέλεση του {program}: {error}"
+
+msgid "Operation cancelled"
+msgstr "Η λειτουργία ακυρώθηκε"
+
+msgid "Operation timed out. Reload to check whether the change was saved."
+msgstr "Ο χρόνος της λειτουργίας έληξε. Κάντε επαναφόρτωση για να δείτε αν αποθηκεύτηκε η αλλαγή."
+
+msgid "Command worker stopped unexpectedly"
+msgstr "Η διεργασία εκτέλεσης εντολών σταμάτησε απροσδόκητα"
+
+msgid "Another operation is already running"
+msgstr "Εκτελείται ήδη άλλη λειτουργία"
+
+msgid "Unsaved system-wide settings"
+msgstr "Μη αποθηκευμένες ρυθμίσεις συστήματος"
+
+msgid "Save these settings before opening the camera, discard them, or cancel. Camera operations always use the settings on disk."
+msgstr "Αποθηκεύστε αυτές τις ρυθμίσεις πριν ανοίξετε την κάμερα, απορρίψτε τις ή ακυρώστε. Οι λειτουργίες της κάμερας χρησιμοποιούν πάντα τις αποθηκευμένες ρυθμίσεις."
+
+msgid "Cancel"
+msgstr "Ακύρωση"
+
+msgid "Discard"
+msgstr "Απόρριψη"
+
+msgid "Save"
+msgstr "Αποθήκευση"
+
+#, rust-format
+msgid "Cannot read settings: {e}"
+msgstr "Αδύνατη η ανάγνωση των ρυθμίσεων: {e}"
+
+msgid "not installed: config.ini is missing"
+msgstr "δεν είναι εγκατεστημένο: λείπει το config.ini"
+
+msgid "settings read failed"
+msgstr "αποτυχία ανάγνωσης ρυθμίσεων"
+
+msgid "invalid configuration"
+msgstr "μη έγκυρες ρυθμίσεις"
+
+msgid "invalid security settings"
+msgstr "μη έγκυρες ρυθμίσεις ασφαλείας"
+
+msgid "automatic selection found no camera"
+msgstr "η αυτόματη επιλογή δεν βρήκε κάμερα"
+
+msgid "configured device missing"
+msgstr "η ρυθμισμένη συσκευή λείπει"
+
+msgid "device is not a usable camera"
+msgstr "η συσκευή δεν είναι κατάλληλη κάμερα"
+
+msgid "IR profile not verified"
+msgstr "το προφίλ της υπέρυθρης κάμερας δεν έχει επαληθευτεί"
+
+#, rust-format
+msgid "automatic: {camera}"
+msgstr "αυτόματα: {camera}"
+
+msgid "configured device present"
+msgstr "η ρυθμισμένη συσκευή υπάρχει"
+
+msgid "saved; disabled system-wide"
+msgstr "αποθηκεύτηκε· απενεργοποιημένο σε όλο το σύστημα"
+
+msgid "saved and enabled"
+msgstr "αποθηκεύτηκε και είναι ενεργό"
+
+msgid "sudo/GDM rules present; administrator review required"
+msgstr "οι κανόνες sudo/GDM υπάρχουν· απαιτείται έλεγχος από διαχειριστή"
+
+msgid "validated sudo/GDM rules not detected"
+msgstr "δεν εντοπίστηκαν επικυρωμένοι κανόνες sudo/GDM"
+
+#, rust-format
+msgid "Automatic · now {camera}"
+msgstr "Αυτόματα · τώρα {camera}"
+
+msgid "Automatic · no camera found"
+msgstr "Αυτόματα · δεν βρέθηκε κάμερα"
+
+#, rust-format
+msgid "{camera} · recommended"
+msgstr "{camera} · προτεινόμενη"
+
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; see “Physical infrared attestations” in the README"
+msgstr "Είναι συνδεδεμένη υπέρυθρη κάμερα που δεν έχει εγκριθεί, οπότε η σύνδεση με πρόσωπο δεν την προτιμά ακόμη· δείτε «Physical infrared attestations» στο README"
+
+msgid "Used for face login; the away lock can use another one"
+msgstr "Χρησιμοποιείται για τη σύνδεση με πρόσωπο· το κλείδωμα απουσίας μπορεί να χρησιμοποιεί άλλη"
+
+msgid "No changes to apply"
+msgstr "Καμία αλλαγή για εφαρμογή"
+
+msgid "Save cancelled; your edits are still here"
+msgstr "Η αποθήκευση ακυρώθηκε· οι αλλαγές σας παραμένουν"
+
+msgid "Save timed out; checked disk and kept any unsaved edits"
+msgstr "Ο χρόνος αποθήκευσης έληξε· ελέγχθηκε ο δίσκος και διατηρήθηκαν οι μη αποθηκευμένες αλλαγές"
+
+msgid "Settings saved"
+msgstr "Οι ρυθμίσεις αποθηκεύτηκαν"
+
+#, rust-format
+msgid "Could not save: {error}"
+msgstr "Αδύνατη η αποθήκευση: {error}"
+
+msgid "load cancelled"
+msgstr "η φόρτωση ακυρώθηκε"
+
+msgid "Model loading cancelled"
+msgstr "Η φόρτωση των μοντέλων ακυρώθηκε"
+
+msgid "load timed out"
+msgstr "ο χρόνος φόρτωσης έληξε"
+
+msgid "Model loading timed out"
+msgstr "Ο χρόνος φόρτωσης των μοντέλων έληξε"
+
+msgid "not available in development mode"
+msgstr "μη διαθέσιμο σε λειτουργία ανάπτυξης"
+
+msgid "authorization/read failed"
+msgstr "αποτυχία εξουσιοδότησης/ανάγνωσης"
+
+msgid "invalid helper response"
+msgstr "μη έγκυρη απάντηση του βοηθητικού προγράμματος"
+
+msgid "none; password fallback"
+msgstr "κανένα· χρησιμοποιείται ο κωδικός"
+
+msgid "No face models yet"
+msgstr "Δεν υπάρχουν ακόμη μοντέλα προσώπου"
+
+msgid "Use “Add” to enroll your face"
+msgstr "Πατήστε «Προσθήκη» για να καταχωρίσετε το πρόσωπό σας"
+
+msgid "Face models are locked"
+msgstr "Τα μοντέλα προσώπου είναι κλειδωμένα"
+
+#, rust-format
+msgid "For you: {value}."
+msgstr "Για εσάς: {value}."
+
+msgid "Needs a face model with two samples."
+msgstr "Χρειάζεται μοντέλο προσώπου με δύο δείγματα."
+
+msgid "Could not read model metadata"
+msgstr "Αδύνατη η ανάγνωση των στοιχείων των μοντέλων"
+
+#, rust-format
+msgid "{n} usable sample; Test required"
+msgid_plural "{n} usable samples; Test required"
+msgstr[0] "{n} χρησιμοποιήσιμο δείγμα· απαιτείται δοκιμή"
+msgstr[1] "{n} χρησιμοποιήσιμα δείγματα· απαιτείται δοκιμή"
+
+msgid "no valid current embeddings"
+msgstr "κανένα έγκυρο τρέχον δείγμα"
+
+#, rust-format
+msgid "Added {created} · last used {when}"
+msgstr "Προστέθηκε {created} · τελευταία χρήση {when}"
+
+#, rust-format
+msgid "Added {created} · not used yet"
+msgstr "Προστέθηκε {created} · δεν έχει χρησιμοποιηθεί ακόμη"
+
+msgid "Improve recognition: add samples to this model"
+msgstr "Βελτίωση αναγνώρισης: προσθήκη δειγμάτων σε αυτό το μοντέλο"
+
+msgid "Remove this model"
+msgstr "Αφαίρεση αυτού του μοντέλου"
+
+msgid "Starting the camera…"
+msgstr "Εκκίνηση της κάμερας…"
+
+msgid "Look straight at the camera. The green box shows that your face was found."
+msgstr "Κοιτάξτε ευθεία την κάμερα. Το πράσινο πλαίσιο δείχνει ότι βρέθηκε το πρόσωπό σας."
+
+msgid "Label (optional), e.g. “With glasses”"
+msgstr "Ετικέτα (προαιρετικά), π.χ. «Με γυαλιά»"
+
+msgid "Capture"
+msgstr "Λήψη"
+
+msgid "Add samples where recognition fails, e.g. in dim light or with glasses. The green box shows that your face was found."
+msgstr "Προσθέστε δείγματα εκεί που αποτυγχάνει η αναγνώριση, π.χ. σε χαμηλό φωτισμό ή με γυαλιά. Το πράσινο πλαίσιο δείχνει ότι βρέθηκε το πρόσωπό σας."
+
+#, rust-format
+msgid "Improve “{label}”"
+msgstr "Βελτίωση του «{label}»"
+
+msgid "Add a face model"
+msgstr "Προσθήκη μοντέλου προσώπου"
+
+msgid "Hold still…"
+msgstr "Μείνετε ακίνητοι…"
+
+msgid "Taking 5 samples of your face."
+msgstr "Λήψη 5 δειγμάτων του προσώπου σας."
+
+msgid "No face found — move into the camera's view"
+msgstr "Δεν βρέθηκε πρόσωπο — μπείτε στο οπτικό πεδίο της κάμερας"
+
+msgid "Face found — press Capture"
+msgstr "Βρέθηκε πρόσωπο — πατήστε «Λήψη»"
+
+msgid "More than one face — only you should be in view"
+msgstr "Περισσότερα από ένα πρόσωπα — μόνο εσείς πρέπει να φαίνεστε"
+
+#, rust-format
+msgid "Sample {n} of {total}"
+msgstr "Δείγμα {n} από {total}"
+
+#, rust-format
+msgid "Could not add the model: {e}"
+msgstr "Αδύνατη η προσθήκη του μοντέλου: {e}"
+
+msgid "Your label has been kept. Check the camera and press Retry."
+msgstr "Η ετικέτα σας διατηρήθηκε. Ελέγξτε την κάμερα και πατήστε «Νέα λήψη»."
+
+msgid "Retry capture"
+msgstr "Νέα λήψη"
+
+msgid "Saving…"
+msgstr "Αποθήκευση…"
+
+msgid "Your password may be requested to store the model."
+msgstr "Ίσως ζητηθεί ο κωδικός σας για την αποθήκευση του μοντέλου."
+
+msgid "Face model improved"
+msgstr "Το μοντέλο προσώπου βελτιώθηκε"
+
+msgid "Face model added"
+msgstr "Το μοντέλο προσώπου προστέθηκε"
+
+msgid "Save cancelled before handoff"
+msgstr "Η αποθήκευση ακυρώθηκε πριν από την παράδοση"
+
+msgid "Save timed out; model list will be reloaded when this dialog closes"
+msgstr "Ο χρόνος αποθήκευσης έληξε· η λίστα μοντέλων θα φορτωθεί ξανά όταν κλείσει αυτό το παράθυρο"
+
+#, rust-format
+msgid "Could not confirm model save: {detail}"
+msgstr "Αδύνατη η επιβεβαίωση της αποθήκευσης του μοντέλου: {detail}"
+
+msgid "The model list will be reconciled from disk. Captured samples remain available for retry until this dialog closes."
+msgstr "Η λίστα μοντέλων θα ενημερωθεί από τον δίσκο. Τα δείγματα που λήφθηκαν μένουν διαθέσιμα για νέα προσπάθεια μέχρι να κλείσει αυτό το παράθυρο."
+
+msgid "Retry save"
+msgstr "Νέα αποθήκευση"
+
+#, rust-format
+msgid "“{label}” will be deleted. If this is your last usable model, face authentication for your account stops and the password remains available."
+msgstr "Το «{label}» θα διαγραφεί. Αν είναι το τελευταίο χρησιμοποιήσιμο μοντέλο σας, η πιστοποίηση με πρόσωπο για τον λογαριασμό σας σταματά και παραμένει διαθέσιμος ο κωδικός."
+
+msgid "Remove face model?"
+msgstr "Αφαίρεση μοντέλου προσώπου;"
+
+msgid "Remove"
+msgstr "Αφαίρεση"
+
+msgid "Removal cancelled; reloading models"
+msgstr "Η αφαίρεση ακυρώθηκε· επαναφόρτωση μοντέλων"
+
+msgid "Removal timed out; reloading models to check whether it committed"
+msgstr "Ο χρόνος αφαίρεσης έληξε· επαναφόρτωση μοντέλων για να ελεγχθεί αν ολοκληρώθηκε"
+
+#, rust-format
+msgid "Could not remove model: {e}"
+msgstr "Αδύνατη η αφαίρεση του μοντέλου: {e}"
+
+msgid "Model removed; removing the last usable model disables face authentication for your account"
+msgstr "Το μοντέλο αφαιρέθηκε· η αφαίρεση του τελευταίου χρησιμοποιήσιμου μοντέλου απενεργοποιεί την πιστοποίηση με πρόσωπο για τον λογαριασμό σας"
+
+msgid "Resume cancelled"
+msgstr "Η επανενεργοποίηση ακυρώθηκε"
+
+msgid "Resume timed out"
+msgstr "Ο χρόνος επανενεργοποίησης έληξε"
+
+msgid "Face login resumed"
+msgstr "Η σύνδεση με πρόσωπο ενεργοποιήθηκε ξανά"
+
+#, rust-format
+msgid "Could not resume face login: {error}"
+msgstr "Αδύνατη η επανενεργοποίηση της σύνδεσης με πρόσωπο: {error}"
+
+msgid "The history cannot be read"
+msgstr "Δεν είναι δυνατή η ανάγνωση του ιστορικού"
+
+msgid "No face login attempts yet"
+msgstr "Δεν υπάρχουν ακόμη προσπάθειες σύνδεσης με πρόσωπο"
+
+msgid "Same as face login"
+msgstr "Ίδια με τη σύνδεση με πρόσωπο"
+
+msgid "Any colour camera"
+msgstr "Οποιαδήποτε έγχρωμη κάμερα"
+
+msgid "Any infrared camera"
+msgstr "Οποιαδήποτε υπέρυθρη κάμερα"
+
+msgid "No photos of failed attempts"
+msgstr "Δεν υπάρχουν φωτογραφίες αποτυχημένων προσπαθειών"
+
+#, rust-format
+msgid "Photo of a failed attempt, {time}"
+msgstr "Φωτογραφία αποτυχημένης προσπάθειας, {time}"
+
+msgid "Delete all photos?"
+msgstr "Διαγραφή όλων των φωτογραφιών;"
+
+msgid "The photos of failed attempts on your account will be deleted."
+msgstr "Οι φωτογραφίες των αποτυχημένων προσπαθειών στον λογαριασμό σας θα διαγραφούν."
+
+msgid "Delete"
+msgstr "Διαγραφή"
+
+msgid "Photos deleted"
+msgstr "Οι φωτογραφίες διαγράφηκαν"
+
+#, rust-format
+msgid "Could not delete the photos: {error}"
+msgstr "Αδύνατη η διαγραφή των φωτογραφιών: {error}"
+
+msgid "Deleting the photos did not finish"
+msgstr "Η διαγραφή των φωτογραφιών δεν ολοκληρώθηκε"
+
+msgid "Starting camera…"
+msgstr "Εκκίνηση κάμερας…"
+
+#, rust-format
+msgid "Live camera frame containing {n} detected face"
+msgid_plural "Live camera frame containing {n} detected faces"
+msgstr[0] "Ζωντανό καρέ κάμερας με {n} πρόσωπο που εντοπίστηκε"
+msgstr[1] "Ζωντανό καρέ κάμερας με {n} πρόσωπα που εντοπίστηκαν"
+
+msgid "Starting camera"
+msgstr "Εκκίνηση κάμερας"
+
+msgid "Image too dark"
+msgstr "Πολύ σκοτεινή εικόνα"
+
+msgid "Camera covered or unavailable"
+msgstr "Η κάμερα είναι καλυμμένη ή μη διαθέσιμη"
+
+msgid "No face found"
+msgstr "Δεν βρέθηκε πρόσωπο"
+
+msgid "Multiple faces; sequence reset"
+msgstr "Πολλά πρόσωπα· η σειρά ξεκινά από την αρχή"
+
+msgid "No match"
+msgstr "Καμία αντιστοίχιση"
+
+#, rust-format
+msgid "No match ({score})"
+msgstr "Καμία αντιστοίχιση ({score})"
+
+#, rust-format
+msgid "Matching frame {n} of {total} ({score})"
+msgstr "Καρέ αντιστοίχισης {n} από {total} ({score})"
+
+#, rust-format
+msgid "{instruction} · stage {n} of {total}"
+msgstr "{instruction} · βήμα {n} από {total}"
+
+#, rust-format
+msgid "Accepted after {n} consistent frames ({score})"
+msgstr "Αποδεκτό μετά από {n} συνεπή καρέ ({score})"
+
+#, rust-format
+msgid "{n} second remaining"
+msgid_plural "{n} seconds remaining"
+msgstr[0] "απομένει {n} δευτερόλεπτο"
+msgstr[1] "απομένουν {n} δευτερόλεπτα"
+
+msgid "Identity and movement challenge passed. This is not proof against interactive replay or masks."
+msgstr "Η ταυτότητα και ο έλεγχος κίνησης επιβεβαιώθηκαν. Αυτό δεν προστατεύει από διαδραστική αναπαραγωγή ή μάσκες."
+
+msgid "Face recognised (head-movement check is off). A photo of you could also pass this check."
+msgstr "Το πρόσωπο αναγνωρίστηκε (ο έλεγχος κίνησης κεφαλιού είναι κλειστός). Μια φωτογραφία σας θα μπορούσε επίσης να περάσει αυτόν τον έλεγχο."
+
+msgid "Test stopped"
+msgstr "Η δοκιμή σταμάτησε"
+
+msgid "Run another test"
+msgstr "Νέα δοκιμή"
+
+msgid "Automatic"
+msgstr "Αυτόματα"
+
+#, rust-format
+msgid "{path} (not found)"
+msgstr "{path} (δεν βρέθηκε)"
+
+msgid "Raise the match threshold from your own enrollment samples; it is never lowered. Stricter against other faces, but may reject yours more often."
+msgstr "Αυξάνει το όριο αντιστοίχισης με βάση τα δικά σας δείγματα καταχώρισης· δεν το μειώνει ποτέ. Πιο αυστηρό απέναντι σε άλλα πρόσωπα, αλλά μπορεί να απορρίπτει πιο συχνά το δικό σας."
+
+msgid "Seconds to look for your face before asking for the password (default 3). The head-movement check gets up to 8 more seconds"
+msgstr "Δευτερόλεπτα αναζήτησης του προσώπου σας πριν ζητηθεί ο κωδικός (προεπιλογή 3). Ο έλεγχος κίνησης κεφαλιού έχει έως 8 επιπλέον δευτερόλεπτα"
+
+msgid "10 s is the default of Linux Hello before 1.3, kept by the upgrade. The default is now 3 s. The head-movement check gets up to 8 more seconds"
+msgstr "Τα 10 δευτ. είναι η προεπιλογή του Linux Hello πριν από την 1.3 και διατηρήθηκαν στην αναβάθμιση. Η προεπιλογή είναι πλέον 3 δευτ. Ο έλεγχος κίνησης κεφαλιού έχει έως 8 επιπλέον δευτερόλεπτα"
+
+msgid "Look. Recognize. Unlock."
+msgstr "Κοίτα. Αναγνώρισε. Ξεκλείδωσε."
+
+#, rust-format
+msgid "Version {version}"
+msgstr "Έκδοση {version}"
+
+msgid "What it does"
+msgstr "Τι κάνει"
+
+msgid "PeekIn is face authentication for Linux. It unlocks sudo, the GNOME lock screen and the login screen when you look at the camera, and your password always keeps working. A random head-movement check makes photos harder to use, your face data is encrypted with the TPM, and nothing leaves your computer. Face recognition is a convenience, not a replacement for your password."
+msgstr "Το PeekIn είναι πιστοποίηση με πρόσωπο για Linux. Ξεκλειδώνει το sudo, την οθόνη κλειδώματος του GNOME και την οθόνη σύνδεσης όταν κοιτάτε την κάμερα, και ο κωδικός σας λειτουργεί πάντα. Ένας τυχαίος έλεγχος κίνησης κεφαλιού δυσκολεύει τη χρήση φωτογραφιών, τα δεδομένα του προσώπου σας κρυπτογραφούνται με το TPM και τίποτα δεν φεύγει από τον υπολογιστή σας. Η αναγνώριση προσώπου είναι ευκολία, όχι αντικατάσταση του κωδικού σας."
+
+msgid "Author"
+msgstr "Δημιουργός"
+
+msgid "Design and development"
+msgstr "Σχεδιασμός και ανάπτυξη"
+
+msgid "Website"
+msgstr "Ιστότοπος"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "License"
+msgstr "Άδεια χρήσης"
+
+msgid "MIT; the face models: MIT (YuNet) and Apache-2.0 (SFace)"
+msgstr "MIT· τα μοντέλα προσώπου: MIT (YuNet) και Apache-2.0 (SFace)"
+
+msgid "Copyright"
+msgstr "Πνευματικά δικαιώματα"
+
+msgid "could not read failed attempts"
+msgstr "αδύνατη η ανάγνωση των αποτυχημένων προσπαθειών"
+
+msgid "Face authentication"
+msgstr "Πιστοποίηση με πρόσωπο"
+
+msgid "Offer face unlock for sudo, the lock screen and login"
+msgstr "Ξεκλείδωμα με πρόσωπο για sudo, την οθόνη κλειδώματος και τη σύνδεση"
+
+msgid "Camera"
+msgstr "Κάμερα"
+
+msgid "Infrared camera only"
+msgstr "Μόνο υπέρυθρη κάμερα"
+
+msgid "Require an administrator-attested physical IR profile. Infrared alone does not prove liveness."
+msgstr "Απαιτεί προφίλ υπέρυθρης κάμερας πιστοποιημένο από διαχειριστή. Το υπέρυθρο από μόνο του δεν αποδεικνύει ότι πρόκειται για ζωντανό πρόσωπο."
+
+msgid "Match threshold"
+msgstr "Όριο αντιστοίχισης"
+
+msgid "Higher is stricter. Default 0.363; calibrate on your hardware"
+msgstr "Υψηλότερο σημαίνει αυστηρότερο. Προεπιλογή 0.363· ρυθμίστε το για το υλικό σας"
+
+msgid "Scan time"
+msgstr "Χρόνος σάρωσης"
+
+msgid "Dark frame threshold"
+msgstr "Όριο σκοτεινού καρέ"
+
+msgid "Frames darker than this (percent) are skipped"
+msgstr "Καρέ πιο σκοτεινά από αυτό (ποσοστό) παραλείπονται"
+
+msgid "Announce face scan"
+msgstr "Ανακοίνωση σάρωσης προσώπου"
+
+msgid "Show a message before the face scan"
+msgstr "Εμφάνιση μηνύματος πριν από τη σάρωση προσώπου"
+
+msgid "Confirm recognition"
+msgstr "Επιβεβαίωση αναγνώρισης"
+
+msgid "Show “Face recognised: …” after a match"
+msgstr "Εμφάνιση «Αναγνωρίστηκε το πρόσωπο: …» μετά από αντιστοίχιση"
+
+msgid "Disable for remote sessions"
+msgstr "Απενεργοποίηση για απομακρυσμένες συνεδρίες"
+
+msgid "Never scan for SSH logins"
+msgstr "Καμία σάρωση για συνδέσεις SSH"
+
+msgid "Disable when the lid is closed"
+msgstr "Απενεργοποίηση με κλειστό καπάκι"
+
+msgid "The camera cannot see you"
+msgstr "Η κάμερα δεν μπορεί να σας δει"
+
+msgid "Head-movement check"
+msgstr "Έλεγχος κίνησης κεφαλιού"
+
+msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+msgstr "Ζητά μια τυχαία σειρά από στροφές του κεφαλιού αφού σας αναγνωρίσει. Απενεργοποιήστε το για ξεκλείδωμα μόνο κοιτάζοντας την κάμερα: πιο γρήγορο, αλλά μια φωτογραφία σας είναι πιθανότερο να λειτουργήσει"
+
+msgid "Personal threshold"
+msgstr "Προσωπικό όριο"
+
+msgid "Save photos of failed attempts"
+msgstr "Αποθήκευση φωτογραφιών αποτυχημένων προσπαθειών"
+
+msgid "When a face is seen but not accepted, keep a photo of it (the newest 20). Only you and administrators can see them, on the Face models page"
+msgstr "Όταν εντοπιστεί πρόσωπο που δεν γίνεται δεκτό, κρατείται μια φωτογραφία του (οι 20 πιο πρόσφατες). Μόνο εσείς και οι διαχειριστές μπορείτε να τις δείτε, στη σελίδα «Μοντέλα προσώπου»"
+
+msgid "Light up the screen in the dark"
+msgstr "Φωτισμός από την οθόνη στο σκοτάδι"
+
+msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
+msgstr "Ανεβάζει τη φωτεινότητα της οθόνης του φορητού στο μέγιστο όσο η έγχρωμη κάμερα σαρώνει ένα σκοτεινό δωμάτιο και μετά την επαναφέρει"
+
+msgid "Keep it on without an infrared camera"
+msgstr "Ενεργός χωρίς υπέρυθρη κάμερα"
+
+msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+msgstr "Όταν ο έλεγχος κίνησης κεφαλιού είναι κλειστός, ζητείται παρ' όλα αυτά, εκτός αν χρησιμοποιείται υπέρυθρη κάμερα εγκεκριμένη από διαχειριστή. Έτσι μια φωτογραφία σε χαρτί ή κινητό δεν μπορεί να ξεκλειδώσει μέσω της έγχρωμης κάμερας"
+
+msgid "sudo in a terminal"
+msgstr "sudo σε τερματικό"
+
+msgid "Also sudo -i"
+msgstr "Και sudo -i"
+
+msgid "Login screen"
+msgstr "Οθόνη σύνδεσης"
+
+msgid "After starting the computer. The keyring stays locked until you enter your password"
+msgstr "Μετά την εκκίνηση του υπολογιστή. Η κλειδοθήκη μένει κλειδωμένη μέχρι να δώσετε τον κωδικό σας"
+
+msgid "Lock screen"
+msgstr "Οθόνη κλειδώματος"
+
+msgid "Unlocking a session that is already running"
+msgstr "Ξεκλείδωμα συνεδρίας που ήδη εκτελείται"
+
+msgid "Administrator dialogs"
+msgstr "Παράθυρα διαχειριστή"
+
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Παράθυρα κωδικού εφαρμογών και pkexec (πειραματικό)"
+
+msgid "Text console login"
+msgstr "Σύνδεση σε κονσόλα κειμένου"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Σύνδεση σε τοπικό τερματικό κειμένου, π.χ. Ctrl+Alt+F3 (πειραματικό)"
+
+msgid "System-wide settings; per-user face models."
+msgstr "Ρυθμίσεις για όλο το σύστημα· μοντέλα προσώπου ανά χρήστη."
+
+msgid "Configuration"
+msgstr "Ρυθμίσεις"
+
+msgid "Checking settings…"
+msgstr "Έλεγχος ρυθμίσεων…"
+
+msgid "PAM integration"
+msgstr "Ενσωμάτωση PAM"
+
+msgid "Face models"
+msgstr "Μοντέλα προσώπου"
+
+msgid "Failed face attempts"
+msgstr "Αποτυχημένες προσπάθειες προσώπου"
+
+msgid "Resume"
+msgstr "Επανενεργοποίηση"
+
+msgid "Allow face login again now"
+msgstr "Να επιτραπεί ξανά τώρα η σύνδεση με πρόσωπο"
+
+msgid "General"
+msgstr "Γενικά"
+
+msgid "Use face login for"
+msgstr "Σύνδεση με πρόσωπο για"
+
+msgid "Security level"
+msgstr "Επίπεδο ασφάλειας"
+
+msgid "Recognition"
+msgstr "Αναγνώριση"
+
+msgid "Messages and safety"
+msgstr "Μηνύματα και ασφάλεια"
+
+msgid "Lock when you walk away"
+msgstr "Κλείδωμα όταν απομακρύνεστε"
+
+msgid "After the time below without keyboard or mouse input, the camera looks for a face; with nobody there for 10 seconds the screen locks. The camera light is on while it looks"
+msgstr "Μετά τον παρακάτω χρόνο χωρίς χρήση πληκτρολογίου ή ποντικιού, η κάμερα αναζητά πρόσωπο· αν δεν υπάρχει κανείς για 10 δευτερόλεπτα, η οθόνη κλειδώνει. Η λυχνία της κάμερας ανάβει όσο γίνεται η αναζήτηση"
+
+msgid "Lock after"
+msgstr "Κλείδωμα μετά από"
+
+msgid "Seconds without input before the camera looks"
+msgstr "Δευτερόλεπτα χωρίς χρήση πριν αρχίσει η αναζήτηση από την κάμερα"
+
+msgid "It only needs to see that someone is there, so it can differ from the face login camera, e.g. the colour camera while face login uses the infrared one"
+msgstr "Χρειάζεται μόνο να βλέπει ότι υπάρχει κάποιος, οπότε μπορεί να διαφέρει από την κάμερα της σύνδεσης, π.χ. η έγχρωμη ενώ η σύνδεση χρησιμοποιεί την υπέρυθρη"
+
+msgid "Tell me about failed attempts"
+msgstr "Ειδοποίηση για αποτυχημένες προσπάθειες"
+
+msgid "After you unlock, a notification when faces were rejected while you were away"
+msgstr "Μετά το ξεκλείδωμα, ειδοποίηση όταν απορρίφθηκαν πρόσωπα όσο λείπατε"
+
+msgid "For this account only; changes are saved right away."
+msgstr "Μόνο για αυτόν τον λογαριασμό· οι αλλαγές αποθηκεύονται αμέσως."
+
+msgid "Walk-away lock"
+msgstr "Κλείδωμα απουσίας"
+
+msgid "Notifications"
+msgstr "Ειδοποιήσεις"
+
+msgid "System status"
+msgstr "Κατάσταση συστήματος"
+
+#, rust-format
+msgid "Face models for {user}"
+msgstr "Μοντέλα προσώπου για τον χρήστη {user}"
+
+msgid "Each model holds several samples of your face. Add one per look, e.g. with and without glasses."
+msgstr "Κάθε μοντέλο περιέχει πολλά δείγματα του προσώπου σας. Προσθέστε ένα για κάθε εμφάνιση, π.χ. με και χωρίς γυαλιά."
+
+msgid "Load models"
+msgstr "Φόρτωση μοντέλων"
+
+msgid "Add"
+msgstr "Προσθήκη"
+
+msgid "Activity"
+msgstr "Δραστηριότητα"
+
+msgid "The latest face login attempts on your account."
+msgstr "Οι πιο πρόσφατες προσπάθειες σύνδεσης με πρόσωπο στον λογαριασμό σας."
+
+msgid "Photos of failed attempts"
+msgstr "Φωτογραφίες αποτυχημένων προσπαθειών"
+
+msgid "Faces that were seen but not accepted, when “Save photos of failed attempts” is on."
+msgstr "Πρόσωπα που εντοπίστηκαν αλλά δεν έγιναν δεκτά, όταν είναι ενεργή η «Αποθήκευση φωτογραφιών αποτυχημένων προσπαθειών»."
+
+msgid "Show"
+msgstr "Εμφάνιση"
+
+msgid "Delete all"
+msgstr "Διαγραφή όλων"
+
+msgid "Run recognition and movement test"
+msgstr "Δοκιμή αναγνώρισης και κίνησης"
+
+msgid "Stop"
+msgstr "Διακοπή"
+
+msgid "Live camera test preview"
+msgstr "Ζωντανή προεπισκόπηση δοκιμής κάμερας"
+
+msgid "Ready to test"
+msgstr "Έτοιμο για δοκιμή"
+
+msgid "Look at the camera. Each line shows whether a face was found and how closely it matches yours."
+msgstr "Κοιτάξτε την κάμερα. Κάθε γραμμή δείχνει αν βρέθηκε πρόσωπο και πόσο μοιάζει με το δικό σας."
+
+msgid "Diagnostic details"
+msgstr "Διαγνωστικές λεπτομέρειες"
+
+msgid "Settings"
+msgstr "Ρυθμίσεις"
+
+msgid "Test"
+msgstr "Δοκιμή"
+
+msgid "Away lock"
+msgstr "Κλείδωμα απουσίας"
+
+msgid "About"
+msgstr "Σχετικά"
+
+msgid "Apply"
+msgstr "Εφαρμογή"
+
+msgid "Reload saved settings"
+msgstr "Επαναφόρτωση αποθηκευμένων ρυθμίσεων"
+
+msgid "Cancelling…"
+msgstr "Ακύρωση…"
+
+msgid "Finishing authorized change…"
+msgstr "Ολοκλήρωση εξουσιοδοτημένης αλλαγής…"
+
+msgid "Discard unsaved settings?"
+msgstr "Απόρριψη μη αποθηκευμένων ρυθμίσεων;"
+
+msgid "Reload the current settings from disk. Unsaved changes will be discarded."
+msgstr "Επαναφόρτωση των τρεχουσών ρυθμίσεων από τον δίσκο. Οι μη αποθηκευμένες αλλαγές θα χαθούν."
+
+msgid "Reload"
+msgstr "Επαναφόρτωση"
+
+msgid "Please wait for the authorized change to finish before closing."
+msgstr "Περιμένετε να ολοκληρωθεί η εξουσιοδοτημένη αλλαγή πριν κλείσετε."
+
+msgid "Models are only readable by an administrator"
+msgstr "Τα μοντέλα μπορεί να τα διαβάσει μόνο διαχειριστής"
+
+msgid "Use the refresh button to load them (asks for your password)"
+msgstr "Πατήστε το κουμπί ανανέωσης για να φορτωθούν (θα ζητηθεί ο κωδικός σας)"
+
+msgid "Waiting for camera exposure…"
+msgstr "Αναμονή για την έκθεση της κάμερας…"
+
+msgid "Camera appears covered"
+msgstr "Η κάμερα φαίνεται καλυμμένη"
+
+msgid "Image is too dark"
+msgstr "Η εικόνα είναι πολύ σκοτεινή"
+
+msgid "Move your face into view"
+msgstr "Φέρτε το πρόσωπό σας στο πλάνο"
+
+msgid "Only one person may be visible"
+msgstr "Πρέπει να φαίνεται μόνο ένα άτομο"
+
+msgid "Hold still and face the camera"
+msgstr "Μείνετε ακίνητοι και κοιτάξτε την κάμερα"
+
+msgid "Move closer to the camera"
+msgstr "Πλησιάστε την κάμερα"
+
+msgid "Image is blurry; hold still"
+msgstr "Η εικόνα είναι θολή· μείνετε ακίνητοι"
+
+msgid "Face samples are inconsistent"
+msgstr "Τα δείγματα προσώπου δεν συμφωνούν μεταξύ τους"
+
+msgid "No face completed the identity and movement challenge before the timeout"
+msgstr "Κανένα πρόσωπο δεν ολοκλήρωσε εγκαίρως τον έλεγχο ταυτότητας και κίνησης"
+
+msgid "No enrolled face was recognised before the timeout"
+msgstr "Κανένα καταχωρισμένο πρόσωπο δεν αναγνωρίστηκε εγκαίρως"
+
+msgid "Authorizing and loading models…"
+msgstr "Εξουσιοδότηση και φόρτωση μοντέλων…"
+
+msgid "Authorizing and saving…"
+msgstr "Εξουσιοδότηση και αποθήκευση…"
+
+msgid "Authorizing and removing model…"
+msgstr "Εξουσιοδότηση και αφαίρεση μοντέλου…"
+
+msgid "Authorizing and resuming face login…"
+msgstr "Εξουσιοδότηση και επανενεργοποίηση της σύνδεσης με πρόσωπο…"
+
+msgid "Authorizing and loading photos…"
+msgstr "Εξουσιοδότηση και φόρτωση φωτογραφιών…"
+
+msgid "Authorizing and deleting photos…"
+msgstr "Εξουσιοδότηση και διαγραφή φωτογραφιών…"
+
+msgid "Capturing face model…"
+msgstr "Λήψη μοντέλου προσώπου…"
+
+msgid "Running recognition test…"
+msgstr "Εκτέλεση δοκιμής αναγνώρισης…"
+
+msgid "not loaded"
+msgstr "δεν φορτώθηκε"
+
+msgid "not checked"
+msgstr "δεν ελέγχθηκε"
+
+msgid "Fast"
+msgstr "Γρήγορο"
+
+msgid "Balanced"
+msgstr "Ισορροπημένο"
+
+msgid "Secure"
+msgstr "Ασφαλές"
+
+msgid "Custom"
+msgstr "Προσαρμοσμένο"
+
+msgid "Just look at the camera. Head turns only without an approved infrared camera. About 1 stranger in 240 could match your face model"
+msgstr "Αρκεί να κοιτάξετε την κάμερα. Στροφές κεφαλιού μόνο χωρίς εγκεκριμένη υπέρυθρη κάμερα. Περίπου 1 στους 240 αγνώστους θα μπορούσε να ταιριάξει με το μοντέλο προσώπου σας"
+
+msgid "Head turns after recognising you. About 1 stranger in 240 could match your face model; a photo alone does not unlock"
+msgstr "Στροφές κεφαλιού αφού σας αναγνωρίσει. Περίπου 1 στους 240 αγνώστους θα μπορούσε να ταιριάξει με το μοντέλο προσώπου σας· μια φωτογραφία μόνη της δεν ξεκλειδώνει"
+
+msgid "Head turns and a stricter match: about 1 stranger in 5,700 or fewer. Your own face may be rejected a little more often"
+msgstr "Στροφές κεφαλιού και αυστηρότερη αντιστοίχιση: περίπου 1 στους 5.700 αγνώστους ή λιγότεροι. Το δικό σας πρόσωπο μπορεί να απορρίπτεται λίγο πιο συχνά"
+
+msgid "Your own combination of the settings below"
+msgstr "Δικός σας συνδυασμός των παρακάτω ρυθμίσεων"
+
+msgid "Administrator dialog"
+msgstr "Παράθυρο διαχειριστή"
+
+msgid "Text console"
+msgstr "Κονσόλα κειμένου"
+
+msgid "Recognised"
+msgstr "Αναγνωρίστηκε"
+
+msgid "Face not recognised"
+msgstr "Το πρόσωπο δεν αναγνωρίστηκε"
+
+msgid "Head movement not followed"
+msgstr "Η κίνηση του κεφαλιού δεν ακολουθήθηκε"
+
+msgid "No face seen"
+msgstr "Δεν εντοπίστηκε πρόσωπο"
+
+msgid "Camera not available"
+msgstr "Η κάμερα δεν είναι διαθέσιμη"
+
+msgid "Face login paused"
+msgstr "Η σύνδεση με πρόσωπο είναι σε παύση"
+
+#, rust-format
+msgid "face login paused after {failures} failed attempts until {resume_at}; your password still works"
+msgstr "η σύνδεση με πρόσωπο έχει παύσει μετά από {failures} αποτυχημένες προσπάθειες έως τις {resume_at}· ο κωδικός σας λειτουργεί κανονικά"
+
+msgid "no recent failed attempts"
+msgstr "καμία πρόσφατη αποτυχημένη προσπάθεια"
+
+#, rust-format
+msgid "{n} recent failed attempt"
+msgid_plural "{n} recent failed attempts"
+msgstr[0] "{n} πρόσφατη αποτυχημένη προσπάθεια"
+msgstr[1] "{n} πρόσφατες αποτυχημένες προσπάθειες"
+
+#, rust-format
+msgid "{recent}; no limit"
+msgstr "{recent}· χωρίς όριο"
+
+#, rust-format
+msgid "{recent}; pauses after {limit}"
+msgstr "{recent}· παύση μετά από {limit}"
+
+#, rust-format
+msgid "{n} failed face attempt while you were away"
+msgid_plural "{n} failed face attempts while you were away"
+msgstr[0] "{n} αποτυχημένη προσπάθεια προσώπου όσο λείπατε"
+msgstr[1] "{n} αποτυχημένες προσπάθειες προσώπου όσο λείπατε"
+
+msgid "Open PeekIn to see when and where (Face models, Activity)."
+msgstr "Ανοίξτε το PeekIn για να δείτε πότε και πού («Μοντέλα προσώπου», «Δραστηριότητα»)."

@@ -1,0 +1,23 @@
+[package]
+name = "peekin-vision"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Camera capture and face recognition (OpenCV YuNet + SFace) for PeekIn"
+license.workspace = true
+homepage.workspace = true
+
+[[bin]]
+name = "peekin-compare"
+path = "src/bin/peekin-compare.rs"
+
+[[bin]]
+name = "peekin-session"
+path = "src/bin/peekin-session.rs"
+
+[dependencies]
+peekin-core = { path = "../peekin-core" }
+opencv = { version = "0.100", default-features = false, features = ["objdetect", "dnn", "videoio", "imgproc", "imgcodecs"] }
+thiserror = "1"
+libc = "0.2"

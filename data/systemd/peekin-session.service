@@ -1,0 +1,17 @@
+[Unit]
+Description=PeekIn session helper (notice of failed face attempts, walk-away lock)
+Documentation=man:peekin-session(1)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/libexec/peekin/peekin-session
+Restart=on-failure
+RestartSec=10
+# Runs as the user; it only reads its own history and settings, the camera
+# (while there is no input and the walk-away lock is on) and the session bus.
+NoNewPrivileges=yes
+Nice=10
+
+[Install]
+WantedBy=graphical-session.target

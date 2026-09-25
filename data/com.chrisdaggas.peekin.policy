@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>Christos A. Daggas</vendor>
+  <action id="com.chrisdaggas.peekin.metadata">
+    <description>Read PeekIn readiness metadata</description>
+    <description xml:lang="el">Ανάγνωση της κατάστασης ετοιμότητας του PeekIn</description>
+    <message>Authentication is required to inspect PeekIn readiness</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για τον έλεγχο της ετοιμότητας του PeekIn</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin_keep</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">metadata</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.settings">
+    <description>Change system-wide PeekIn security settings</description>
+    <description xml:lang="el">Αλλαγή των ρυθμίσεων ασφαλείας του PeekIn για όλο το σύστημα</description>
+    <message>Fresh administrator authentication is required to change face authentication security</message>
+    <message xml:lang="el">Απαιτείται νέα πιστοποίηση διαχειριστή για την αλλαγή της ασφάλειας της πιστοποίησης με πρόσωπο</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">apply-settings</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.enroll">
+    <description>Store a face model for the signed-in user</description>
+    <description xml:lang="el">Αποθήκευση μοντέλου προσώπου για τον συνδεδεμένο χρήστη</description>
+    <message>Fresh administrator authentication is required to enroll your face</message>
+    <message xml:lang="el">Απαιτείται νέα πιστοποίηση διαχειριστή για την καταχώριση του προσώπου σας</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">enroll</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.add-samples">
+    <description>Add samples to a face model of the signed-in user</description>
+    <description xml:lang="el">Προσθήκη δειγμάτων σε μοντέλο προσώπου του συνδεδεμένου χρήστη</description>
+    <message>Fresh administrator authentication is required to improve your face model</message>
+    <message xml:lang="el">Απαιτείται νέα πιστοποίηση διαχειριστή για τη βελτίωση του μοντέλου προσώπου σας</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">add-samples</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.remove">
+    <description>Remove a face model for the signed-in user</description>
+    <description xml:lang="el">Αφαίρεση μοντέλου προσώπου του συνδεδεμένου χρήστη</description>
+    <message>Fresh administrator authentication is required to remove your face model</message>
+    <message xml:lang="el">Απαιτείται νέα πιστοποίηση διαχειριστή για την αφαίρεση του μοντέλου προσώπου σας</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">remove</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.reset-attempts">
+    <description>Resume face login after failed attempts</description>
+    <description xml:lang="el">Επανενεργοποίηση της σύνδεσης με πρόσωπο μετά από αποτυχημένες προσπάθειες</description>
+    <message>Authentication is required to resume face login for your account</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για την επανενεργοποίηση της σύνδεσης με πρόσωπο στον λογαριασμό σας</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">reset-attempts</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.snapshots">
+    <description>View photos of failed face attempts on your account</description>
+    <description xml:lang="el">Προβολή φωτογραφιών από αποτυχημένες προσπάθειες προσώπου στον λογαριασμό σας</description>
+    <message>Authentication is required to view photos of failed face attempts</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για την προβολή φωτογραφιών από αποτυχημένες προσπάθειες προσώπου</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin_keep</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">snapshots</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.clear-snapshots">
+    <description>Delete photos of failed face attempts on your account</description>
+    <description xml:lang="el">Διαγραφή φωτογραφιών από αποτυχημένες προσπάθειες προσώπου στον λογαριασμό σας</description>
+    <message>Authentication is required to delete photos of failed face attempts</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για τη διαγραφή φωτογραφιών από αποτυχημένες προσπάθειες προσώπου</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">clear-snapshots</annotate>
+  </action>
+  <action id="com.chrisdaggas.peekin.test">
+    <description>Test face authentication for the signed-in user</description>
+    <description xml:lang="el">Δοκιμή της πιστοποίησης με πρόσωπο για τον συνδεδεμένο χρήστη</description>
+    <message>Authentication is required to test protected face models</message>
+    <message xml:lang="el">Απαιτείται πιστοποίηση για τη δοκιμή των προστατευμένων μοντέλων προσώπου</message>
+    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin_keep</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/peekin/peekin-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">test</annotate>
+  </action>
+</policyconfig>

@@ -1,0 +1,18 @@
+[package]
+name = "peekin-pam"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "pam_peekin.so: PAM module for PeekIn face authentication"
+license.workspace = true
+homepage.workspace = true
+
+[lib]
+name = "pam_peekin"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+peekin-core = { path = "../peekin-core" }
+thiserror = "1"
+libc = "0.2"

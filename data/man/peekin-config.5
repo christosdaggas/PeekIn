@@ -1,0 +1,209 @@
+.TH PEEKIN-CONFIG 5 2026-09-25 "PeekIn 1.0.0" "File Formats"
+.SH NAME
+peekin-config \- face authentication settings, /etc/peekin/config.ini
+.SH DESCRIPTION
+.I /etc/peekin/config.ini
+holds the system-wide settings of PeekIn, in INI format:
+.RB [ section ]
+headers and
+.IB key " = " value
+lines; lines starting with
+.B #
+are comments.
+Change it with
+.BR peekin-settings (1),
+.BI "peekin set " "key value"
+or
+.BR "peekin config" .
+Booleans are
+.BR true / false
+(also yes/no, on/off, 1/0).
+.PP
+An invalid value of a security setting (marked
+.B security
+below) turns face authentication off until it is fixed; the password is used
+instead.
+.BR "peekin doctor"
+reports every invalid value.
+.SH [core]
+.TP
+.BR disabled " = false"
+.B security.
+Turn face authentication off everywhere.
+The
+.BR peekin (1)
+command still works.
+.TP
+.BR movement_challenge " = true"
+.B security.
+After recognising the face, ask for a random sequence of three head turns.
+Off: unlock by looking at the camera, which is faster but lets a photo of the
+user work more easily.
+.TP
+.BR require_movement_without_ir " = true"
+.B security.
+With
+.B movement_challenge
+off, still ask for the head turns unless the camera in use is an
+administrator-approved infrared camera (see
+.BR ir_only ).
+A photo on paper or a phone then cannot unlock with a colour camera.
+.TP
+.BR max_failed_attempts " = 5"
+.B security.
+After this many rejected faces in a row (face not recognised, or head
+movement not followed) face login pauses for 15 minutes or until the user
+logs in with the password.
+0 turns the limit off.
+.TP
+.BR detection_notice " = true"
+Show the face-check message before scanning.
+.TP
+.BR no_confirmation " = false"
+Do not show \(lqFace recognised: \&...\(rq after a match.
+.TP
+.BR abort_if_ssh " = true"
+.B security.
+Never scan in an SSH session.
+.TP
+.BR abort_if_lid_closed " = true"
+.B security.
+Never scan while the laptop lid is closed.
+.TP
+.BR workaround " = off"
+Only
+.B off
+is supported: the scan runs first and the password prompt follows if it fails.
+.SH [services]
+Where face authentication may be used.
+All are
+.BR security .
+.TP
+.BR sudo " = true"
+sudo and sudo \-i in a terminal.
+.TP
+.BR login_screen " = true"
+The GDM login screen after starting the computer.
+The keyring stays locked until the password is entered.
+.TP
+.BR lock_screen " = true"
+Unlocking a running GNOME session.
+.TP
+.BR polkit " = false"
+Password dialogs of applications and pkexec (experimental).
+.TP
+.BR console " = false"
+Logging in on a local text console (experimental).
+.SH [video]
+.TP
+.BR device_path " = none"
+The camera.
+.B none
+chooses one each time: an administrator-approved infrared camera first, then
+a colour camera.
+Otherwise a device path such as
+.IR /dev/v4l/by-id/\&... .
+.TP
+.BR ir_only " = false"
+.B security.
+Accept only capture nodes attested in
+.IR /etc/peekin/ir-profiles.json ,
+which pins the camera's physical USB identity.
+This is not liveness detection.
+.TP
+.BR min_similarity " = 0.363"
+.B security.
+How similar a live face must be to an enrolled one (cosine similarity, 0.2 to
+1.0).
+Higher is stricter.
+Measured on LFW with a 5-sample face model, about 1 stranger in 240 matches at
+0.363, 1 in 5,700 at 0.45 and 1 in 51,000 at 0.50 (see
+.IR THRESHOLDS.md ).
+.TP
+.BR personal_threshold " = false"
+.B security.
+Raise
+.B min_similarity
+for each user from their own enrollment: the least similar pair of samples
+within one face model, minus 0.30, at most 0.50.
+It never lowers the threshold.
+Measured error rates:
+.IR /usr/share/doc/peekin/THRESHOLDS.md .
+.TP
+.BR timeout " = 3"
+.B security.
+Seconds to look for the face before the password is asked for, 1 to 10.
+The head-movement check gets up to 8 more seconds.
+.TP
+.BR dark_threshold " = 80"
+Skip a frame when more than this percentage of its pixels are in the darkest
+eighth of the brightness range.
+Infrared cameras often alternate lit and unlit frames.
+.TP
+.BR brighten_screen " = true"
+In a dark room, raise the built-in screen to full brightness while a colour
+camera scans, and restore it afterwards.
+Not on the text console or in polkit dialogs.
+.TP
+.BR frame_width " = 640, " frame_height " = 480"
+Capture size; \-1 uses the camera's default.
+.TP
+.BR max_height " = 320"
+Largest image height given to the face detector; larger frames are scaled
+down.
+.TP
+.BR force_mjpeg " = false"
+Capture Motion JPEG, for cameras whose raw frames decode badly.
+.TP
+.BR exposure " = \-1"
+Fixed exposure value, disabling automatic exposure; \-1 keeps it automatic.
+.TP
+.BR device_fps " = \-1"
+Capture frame rate; \-1 keeps the camera's default.
+Some infrared emitters only work at a particular rate.
+.TP
+.BR rotate " = 0"
+0: landscape only; 1: landscape and portrait; 2: portrait only.
+.TP
+.BR warn_no_device " = true"
+Log a warning when the camera is missing.
+.SH [snapshots]
+.TP
+.BR save_failed " = false"
+Keep a JPEG photo each time a face is seen but not accepted (wrong face, or the
+head movement not followed), in
+.IR /var/log/peekin .
+Only root and the
+.B peekin
+service account can read them; the settings app shows each user the photos of
+attempts on their own account, after administrator authentication.
+Attempts without a face, camera errors and successful logins are never kept.
+.TP
+.BR keep " = 20"
+How many photos to keep, 1 to 100; the oldest are deleted.
+.SH [debug]
+.TP
+.BR end_report " = false"
+Log a timing report for every attempt.
+.SH COMPATIBILITY KEYS
+These older keys are accepted so existing files still load.
+.BR use_cnn ,
+.BR certainty ,
+.BR timeout_notice ,
+.BR suppress_unknown ,
+.BR verbose_stamps " and"
+.B gtk_stdout
+have no effect.
+.B [snapshots] save_successful
+is not supported and is ignored with a log message.
+.B [rubberstamps] enabled
+= true turns face authentication off, because rubber stamps are not
+supported.
+.SH FILES
+.I /etc/peekin/config.ini
+.br
+.I /etc/peekin/ir-profiles.json
+.SH SEE ALSO
+.BR peekin (1),
+.BR peekin-settings (1),
+.BR pam_peekin (8)

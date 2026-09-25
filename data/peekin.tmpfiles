@@ -1,0 +1,3 @@
+# Decrypted face models, in memory only (see peekin-models.service).
+d /run/peekin 0755 root root -
+d /run/peekin/models 0750 root peekin -

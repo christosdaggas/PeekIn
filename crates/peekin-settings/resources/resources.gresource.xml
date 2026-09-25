@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/com/chrisdaggas/peekin">
+    <file alias="icons/scalable/apps/com.chrisdaggas.peekin.svg" preprocess="xml-stripblanks">hicolor/scalable/apps/com.chrisdaggas.peekin.svg</file>
+  </gresource>
+</gresources>

@@ -1,0 +1,61 @@
+module peekin 1.0;
+
+# The GDM lock screen / login runs PAM in xdm_t. It may already open and
+# ioctl video devices, but not mmap their buffers, which V4L2 streaming
+# (and therefore peekin-compare) needs:
+#   avc: denied { map } for comm="peekin-compare" path="/dev/video0"
+#        scontext=xdm_t tcontext=v4l_device_t tclass=chr_file
+#
+# The optional places ([services] console / polkit) run PAM in the text
+# console login (local_login_t) and in the polkit authentication helper
+# (policykit_auth_t). The recognition worker inherits that domain, drops to
+# the peekin account and streams from the camera.
+#
+# pam_peekin.so itself keeps the failed-attempt counters in
+# /var/lib/peekin/failures from all three domains. They get a type of
+# their own, so no domain gains access to another program's state (the
+# counters used to share xdm_var_lib_t with /var/lib/gdm).
+require {
+    type xdm_t;
+    type local_login_t;
+    type policykit_auth_t;
+    type v4l_device_t;
+    attribute file_type;
+    attribute non_security_file_type;
+    attribute non_auth_file_type;
+    class chr_file { getattr open read write ioctl map };
+    class capability { setuid setgid };
+    class dir { getattr search open read write add_name remove_name };
+    class file { getattr open read write create lock unlink setattr };
+}
+
+type peekin_var_lib_t;
+type peekin_log_t;
+type peekin_run_t;
+# What the files_type() interface does: an ordinary file type that the
+# relabelling tools (restorecon, rpm) may manage.
+typeattribute peekin_var_lib_t file_type, non_security_file_type, non_auth_file_type;
+typeattribute peekin_log_t file_type, non_security_file_type, non_auth_file_type;
+typeattribute peekin_run_t file_type, non_security_file_type, non_auth_file_type;
+
+allow xdm_t v4l_device_t:chr_file map;
+allow local_login_t v4l_device_t:chr_file { getattr open read write ioctl map };
+allow policykit_auth_t v4l_device_t:chr_file { getattr open read write ioctl map };
+allow policykit_auth_t self:capability { setuid setgid };
+
+# Exactly what peekin_core::lockout and ::activity do: create and flock
+# a file, rewrite it in place (ftruncate is checked as write), unlink a
+# counter on success, and give a history file its user's read ACL (setattr).
+allow { xdm_t local_login_t policykit_auth_t } peekin_var_lib_t:dir { getattr search write add_name remove_name };
+allow { xdm_t local_login_t policykit_auth_t } peekin_var_lib_t:file { getattr open read write create lock unlink setattr };
+
+# The decrypted face models in /run/peekin/models: PAM checks the worker can
+# read them, the worker reads them. Read only; they are written by root
+# (peekin unseal-models, the polkit helper, the CLI).
+allow { xdm_t local_login_t policykit_auth_t } peekin_run_t:dir { getattr search open read };
+allow { xdm_t local_login_t policykit_auth_t } peekin_run_t:file { getattr open read };
+
+# [snapshots] save_failed: the worker stores a JPEG and deletes the oldest
+# beyond `keep`, which needs the directory listing.
+allow { xdm_t local_login_t policykit_auth_t } peekin_log_t:dir { getattr search open read write add_name remove_name };
+allow { xdm_t local_login_t policykit_auth_t } peekin_log_t:file { getattr open write create unlink };

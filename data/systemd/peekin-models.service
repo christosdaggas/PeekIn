@@ -1,0 +1,16 @@
+[Unit]
+Description=PeekIn: decrypt the face models into memory
+Documentation=man:peekin(1)
+# The face models are encrypted with the TPM (and the host key); login
+# screens read the decrypted copies in /run/peekin/models.
+Wants=tpm2.target
+After=tpm2.target local-fs.target systemd-tmpfiles-setup.service
+Before=display-manager.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/peekin unseal-models
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "crates/peekin-core",
+    "crates/peekin-vision",
+    "crates/peekin-cli",
+    "crates/peekin-pam",
+    "crates/peekin-settings",
+]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.92"
+authors = ["Christos A. Daggas <info@chrisdaggas.com>"]
+license = "MIT"
+homepage = "https://chrisdaggas.com"

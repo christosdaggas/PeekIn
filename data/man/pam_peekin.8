@@ -1,0 +1,123 @@
+.TH PAM_PEEKIN 8 2026-09-25 "PeekIn 1.0.0" "System Administration"
+.SH NAME
+pam_peekin \- PAM module for face authentication
+.SH SYNOPSIS
+.B auth [success=done default=ignore] pam_peekin.so
+.RI [ option ...]
+.SH DESCRIPTION
+.B pam_peekin
+recognises the user's face with the camera.
+It runs
+.I /usr/libexec/peekin/peekin-compare
+as the unprivileged
+.B peekin
+account, with a hard time limit, and reports success only when that worker
+matched an enrolled face of the user (and, when required, the user followed
+a random sequence of head turns).
+In every other case it returns without success, so the next module, normally
+the password, decides.
+.PP
+Before scanning it checks, without opening the camera: whether face login is
+enabled for this service
+.RB ( [services]
+in
+.BR peekin-config (5)),
+SSH sessions and a closed lid when those guards are on, a camera being
+present, the face model being readable, and whether face login is paused
+after too many failed attempts.
+Messages to the user (the head-turn instructions, failures) go through the
+PAM conversation, in the locale of the calling program.
+Diagnostics go to the system log.
+.PP
+After
+.B max_failed_attempts
+rejected faces in a row, face login pauses for 15 minutes or until the user
+authenticates with the password; the module's
+.B setcred
+function clears the counter then.
+.PP
+When the worker reports a dark scene from a colour camera and
+.B brighten_screen
+is on, the module raises the built-in screen's backlight for the rest of the
+scan and restores it afterwards.
+.PP
+On Fedora the package adds the module to the authselect profile, or to
+.I /etc/pam.d/sudo
+and
+.I /etc/pam.d/gdm-password
+directly, through
+.IR /usr/libexec/peekin/system-setup .
+.SH OPTIONS
+These exist for tests and unusual layouts; a normal installation needs none.
+.TP
+.BI config_dir= dir
+Configuration directory (default
+.IR /etc/peekin ).
+.TP
+.BI data_dir= dir
+Data directory with the recognition models (default
+.IR /usr/share/peekin ).
+.TP
+.BI compare= path
+The recognition worker (default
+.IR /usr/libexec/peekin/peekin-compare ).
+.TP
+.BI state_dir= dir
+Failed-attempt counters (default
+.IR /var/lib/peekin/failures ).
+.TP
+.BI backlight_dir= dir
+Backlights to raise in the dark (default
+.IR /sys/class/backlight ).
+.TP
+.BI activity_dir= dir
+History of attempts (default
+.IR /var/lib/peekin-activity ).
+.SH RETURN VALUES
+.TP
+.B PAM_SUCCESS
+The face of the user was recognised.
+.TP
+.B PAM_AUTH_ERR
+The user was not accepted: wrong or no face, failed head movement, time
+limit, no face model, or a camera or worker failure during the scan.
+.TP
+.B PAM_AUTHINFO_UNAVAIL
+Face authentication could not or should not be used here: disabled, switched
+off for this service, no camera, paused after failed attempts, invalid
+security settings, or the challenge could not be shown.
+.TP
+.B PAM_USER_UNKNOWN
+The user name is not a valid account name.
+.TP
+.B PAM_SYSTEM_ERR
+The configuration file could not be read.
+.PP
+.B pam_sm_setcred
+returns
+.B PAM_IGNORE
+(it only clears the failed-attempt counter).
+.SH FILES
+.I /etc/peekin/config.ini
+.br
+.I /var/lib/peekin/failures/
+.br
+.I /var/lib/peekin-activity/
+\- one file per user with the latest 200 attempts (time, service, result,
+matching face model), root-owned and readable by that user through an ACL.
+.SH NOTES
+SELinux: the package's
+.B peekin
+policy module lets the login and lock screen (xdm_t), the text console
+(local_login_t) and the polkit helper (policykit_auth_t) use the camera and
+the failed-attempt counters.
+Raising the backlight is possible from the login and lock screens and sudo,
+not from the text console or polkit dialogs.
+.PP
+Journal:
+.B journalctl \-b | grep pam_peekin
+.SH SEE ALSO
+.BR peekin (1),
+.BR peekin-config (5),
+.BR pam (8),
+.BR authselect (8)

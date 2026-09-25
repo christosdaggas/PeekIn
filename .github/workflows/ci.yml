@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  fedora:
+    name: Fedora 44 build, tests and RPM
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    steps:
+      - name: Install tools
+        run: |
+          dnf -y install git rpm-build rpmdevtools 'dnf-command(builddep)' curl \
+            rustfmt clippy shadow-utils pam gtk4 findutils make cpio tar groff
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: dnf -y builddep packaging/peekin.spec
+      - name: Format and lint
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace --locked
+      - name: Man pages
+        run: |
+          # No groff warnings; the config page is checked against the known
+          # keys by the core unit tests.
+          for page in data/man/*.[158]; do
+            test -z "$(LC_ALL=C.UTF-8 groff -man -ww -z -t "$page" 2>&1)" || {
+              LC_ALL=C.UTF-8 groff -man -ww -z -t "$page"; exit 1; }
+          done
+      - name: Translations complete
+        run: |
+          # Every message in the sources has a Greek translation (none missing,
+          # untranslated or fuzzy), and every placeholder survives.
+          sh po/update.sh
+          msgcmp po/el.po po/peekin.pot
+          msgfmt --check -o /dev/null po/el.po
+      - name: Packaging tests
+        run: |
+          sh packaging/test-system-setup.sh
+      - name: GTK smoke test (Broadway)
+        run: cargo test -p peekin-settings --locked gtk_smoke -- --ignored --test-threads=1
+      - name: Build RPM
+        run: packaging/build-rpm.sh
+      - name: Debug info packages
+        run: |
+          rpms=dist/rpm
+          rpm -qpl "$rpms"/peekin-debuginfo-[0-9]*.rpm | grep -q 'pam_peekin\.so-.*\.debug$'
+          rpm -qpl "$rpms"/peekin-debuginfo-[0-9]*.rpm | grep -q '/usr/bin/peekin-.*\.debug$'
+          rpm -qpl "$rpms"/peekin-debugsource-[0-9]*.rpm | grep -q 'peekin-pam/src/pam\.rs$'
+      - name: COPR source RPM (make srpm)
+        run: |
+          make -f .copr/Makefile srpm outdir="$RUNNER_TEMP/copr"
+          srpm=$(ls "$RUNNER_TEMP"/copr/peekin-*.src.rpm)
+          for source in peekin.spec peekin.sysusers face_detection_yunet_2023mar.onnx \
+                        face_recognition_sface_2021dec.onnx; do
+            rpm -qpl "$srpm" | grep -qx "$source"
+          done
+          rpm2cpio "$srpm" | cpio -i --quiet --to-stdout '*.tar.gz' | tar -tz | grep -q '/rust/vendor/'
+      - name: Install, verify and diagnose the RPM
+        run: |
+          dnf -y install dist/rpm/peekin-[0-9]*.rpm
+          rpm -V peekin
+          id peekin
+          test "$(stat -c %a:%U:%G /etc/peekin/models)" = 750:root:peekin
+          test "$(stat -c %a:%U:%G /var/log/peekin)" = 700:peekin:peekin
+          test "$(stat -c %a:%U:%G /var/lib/peekin-activity)" = 711:root:root
+          # No camera, PAM stack or face model in CI: doctor must run and report.
+          useradd -m ci-user
+          peekin -U ci-user doctor || test $? -eq 1
+      - name: Face models encrypted at rest (systemd-creds, host key in CI)
+        run: |
+          test -d /run/peekin/models
+          awk 'BEGIN { u = 1 / sqrt(128); printf "{\"format\": \"opencv-sface-2021dec\", \"embeddings\": ["
+            for (i = 0; i < 5; i++) { printf "%s[", i ? ", " : ""; for (j = 0; j < 128; j++) printf "%s%.17g", j ? ", " : "", u; printf "]" }
+            print "]}" }' \
+            | peekin -U ci-user import-model test
+          # Only the encrypted copy is on disk; the plaintext is in memory.
+          test -f /etc/peekin/models/ci-user.dat.cred
+          test ! -e /etc/peekin/models/ci-user.dat
+          test "$(stat -c %a:%U /etc/peekin/models/ci-user.dat.cred)" = 600:root
+          before=$(sha256sum < /run/peekin/models/ci-user.dat)
+          # As at boot: decrypt again into memory.
+          rm /run/peekin/models/ci-user.dat
+          peekin unseal-models
+          test "$(sha256sum < /run/peekin/models/ci-user.dat)" = "$before"
+          test "$(stat -c %a:%U:%G /run/peekin/models/ci-user.dat)" = 640:root:peekin
+          # A plaintext model left on disk is encrypted and removed from it.
+          cp /run/peekin/models/ci-user.dat /etc/peekin/models/ci-user.dat
+          rm /etc/peekin/models/ci-user.dat.cred
+          peekin unseal-models
+          test -f /etc/peekin/models/ci-user.dat.cred
+          test ! -e /etc/peekin/models/ci-user.dat
+          peekin -U ci-user doctor > doctor.txt || true
+          grep -q "encrypted on disk with" doctor.txt
+          # Removing the last model removes the encrypted copy too.
+          peekin -y -U ci-user remove 0
+          test ! -e /etc/peekin/models/ci-user.dat.cred
+      - name: SELinux module against the Fedora policy
+        run: |
+          dnf -y install selinux-policy-targeted setools-console libselinux-utils
+          # Build the policy store offline (no kernel SELinux in containers):
+          # this rejects unknown types and invalid file contexts.
+          semodule -n -i /usr/share/selinux/packages/peekin.pp
+          semodule -n -l | grep -x peekin
+          policy=$(ls /etc/selinux/targeted/policy/policy.* | sort -V | tail -n1)
+          sesearch -A -s xdm_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
+          sesearch -A -s local_login_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
+          sesearch -A -s policykit_auth_t -t v4l_device_t -c chr_file -p map "$policy" | grep -q map
+          # Failed-attempt counters: every PAM domain can create, rewrite and
+          # remove them, and none gains write access to GDM's own state.
+          for domain in xdm_t local_login_t policykit_auth_t; do
+            for perm in create write lock unlink setattr; do
+              sesearch -A -s "$domain" -t peekin_var_lib_t -c file -p "$perm" "$policy" | grep -q "$perm"
+            done
+            for perm in add_name remove_name search; do
+              sesearch -A -s "$domain" -t peekin_var_lib_t -c dir -p "$perm" "$policy" | grep -q "$perm"
+            done
+          done
+          for domain in local_login_t policykit_auth_t; do
+            if sesearch -A -s "$domain" -t xdm_var_lib_t -c file -p write "$policy" | grep -q write; then
+              echo "$domain may write xdm_var_lib_t" >&2; exit 1
+            fi
+          done
+          matchpathcon /var/lib/peekin/failures/alice | grep -q peekin_var_lib_t
+          # Photos of failed attempts: the worker in every PAM domain can
+          # list, create and delete them.
+          for domain in xdm_t local_login_t policykit_auth_t; do
+            for perm in create write unlink; do
+              sesearch -A -s "$domain" -t peekin_log_t -c file -p "$perm" "$policy" | grep -q "$perm"
+            done
+            for perm in read add_name remove_name; do
+              sesearch -A -s "$domain" -t peekin_log_t -c dir -p "$perm" "$policy" | grep -q "$perm"
+            done
+          done
+          matchpathcon /var/log/peekin/000000000001-alice.jpg | grep -q peekin_log_t
+          matchpathcon /var/lib/peekin-activity/alice | grep -q peekin_var_lib_t
+      - name: PAM module end-to-end (disposable container)
+        run: |
+          cargo build -p peekin-pam --lib --examples --locked
+          PEEKIN_E2E=1 sh packaging/test-pam-module.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpms
+          path: dist/rpm/*.rpm

@@ -1,0 +1,298 @@
+#!/bin/sh
+# Turn PeekIn on or off system-wide. Run by the RPM on install/removal.
+#   system-setup install   repair the service account and face model store
+#                          permissions, load the SELinux module, add
+#                          pam_peekin to sudo and the GNOME lock screen/login.
+#                          Idempotent: run it again to repair an installation.
+#   system-setup remove    remove those PAM lines and the SELinux module
+# The camera is chosen when face authentication starts (device_path = none),
+# so nothing camera-specific is written at install time.
+# The text console (/etc/pam.d/login) is never touched, so a password login
+# always remains available.
+# PAM_DIR, CONFIG_FILE, SELINUX_PP, SELINUX=0, SERVICE_USER, SERVICE_GROUP,
+# PAM_SETUP, PAM_FAIL_REPLACE and the OLD_*/NEW_*/MIGRATION_MARKER paths of the
+# linux-hello migration are for testing.
+set -u
+PAM_DIR=${PAM_DIR:-/etc/pam.d}
+CONFIG_FILE=${CONFIG_FILE:-/etc/peekin/config.ini}
+SELINUX_PP=${SELINUX_PP:-/usr/share/selinux/packages/peekin.pp}
+SELINUX=${SELINUX:-1}
+SERVICE_USER=${SERVICE_USER:-peekin}
+PAM_SETUP=${PAM_SETUP:-/usr/bin/peekin}
+LINE='auth        [success=done default=ignore]    pam_peekin.so'
+OURS='^auth[[:space:]]+(sufficient|\[success=done[[:space:]]+default=ignore\])[[:space:]]+pam_peekin\.so[[:space:]]*$'
+
+log() { echo "peekin: $*" >&2; }
+
+# PeekIn was called linux-hello before. On the first install after that
+# package, copy its settings and data once. Nothing PeekIn already has is
+# overwritten and the old copies are kept.
+OLD_ETC=${OLD_ETC:-/etc/linux-hello}
+OLD_ACTIVITY=${OLD_ACTIVITY:-/var/lib/linux-hello-activity}
+OLD_SNAPSHOTS=${OLD_SNAPSHOTS:-/var/log/linux-hello}
+NEW_ACTIVITY=${NEW_ACTIVITY:-/var/lib/peekin-activity}
+NEW_SNAPSHOTS=${NEW_SNAPSHOTS:-/var/log/peekin}
+MIGRATION_MARKER=${MIGRATION_MARKER:-/var/lib/peekin/migrated-from-linux-hello}
+
+# Copy regular file $1 to $2 unless $2 exists; keeps mode, owner and ACLs.
+copy_new() {
+    [ -f "$1" ] && [ ! -L "$1" ] && [ ! -e "$2" ] || return 1
+    cp -a "$1" "$2"
+}
+
+migrate_from_linux_hello() {
+    [ -d "$OLD_ETC" ] || [ -d "$OLD_ACTIVITY" ] || [ -d "$OLD_SNAPSHOTS" ] || return 0
+    [ -e "$MIGRATION_MARKER" ] && return 0
+    new_etc=$(dirname "$CONFIG_FILE")
+    mkdir -p "$new_etc/models" "$NEW_ACTIVITY" "$NEW_SNAPSHOTS" || return 1
+    # A config.ini the old package saw modified is kept as .rpmsave on removal.
+    for old in "$OLD_ETC/config.ini" "$OLD_ETC/config.ini.rpmsave"; do
+        [ -f "$old" ] && [ ! -L "$old" ] || continue
+        [ -f "$CONFIG_FILE" ] && cp -p "$CONFIG_FILE" "$CONFIG_FILE.peekin-default"
+        sed 's/linux-hello/peekin/g; s/Linux Hello/PeekIn/g' "$old" > "$CONFIG_FILE.migrating" &&
+            chmod 0644 "$CONFIG_FILE.migrating" && mv "$CONFIG_FILE.migrating" "$CONFIG_FILE" ||
+            { log "could not migrate the settings from $old"; return 1; }
+        log "settings taken over from $old (the new default is $CONFIG_FILE.peekin-default)"
+        break
+    done
+    for f in "$OLD_ETC"/models/*.dat; do
+        copy_new "$f" "$new_etc/models/$(basename "$f")" && log "face model $(basename "$f") taken over"
+    done
+    copy_new "$OLD_ETC/ir-profiles.json" "$new_etc/ir-profiles.json"
+    for f in "$OLD_ACTIVITY"/*; do copy_new "$f" "$NEW_ACTIVITY/$(basename "$f")"; done
+    for f in "$OLD_SNAPSHOTS"/*.jpg; do
+        copy_new "$f" "$NEW_SNAPSHOTS/$(basename "$f")" &&
+            { chown "$SERVICE_USER:${SERVICE_GROUP:-peekin}" "$NEW_SNAPSHOTS/$(basename "$f")" 2>/dev/null ||
+              log "could not hand $(basename "$f") to $SERVICE_USER"; }
+    done
+    mkdir -p "$(dirname "$MIGRATION_MARKER")" && : > "$MIGRATION_MARKER"
+    log "migrated from linux-hello; its files in $OLD_ETC are kept, remove them once PeekIn works"
+}
+
+# Replace $1 with $2 only if $2 differs by exactly $3 lines, keeping owner,
+# mode and SELinux label.
+replace_checked() {
+    f=$1 tmp=$2 delta=$3
+    if [ $(( $(wc -l < "$tmp") - $(wc -l < "$f") )) -ne "$delta" ]; then
+        log "could not edit $f safely, leaving it unchanged"
+        rm -f "$tmp"
+        return 1
+    fi
+    if ! chown --reference="$f" "$tmp" 2>/dev/null || ! chmod --reference="$f" "$tmp"; then
+        log "could not preserve ownership/mode for $f"
+        rm -f "$tmp"
+        return 1
+    fi
+    if [ "${PAM_FAIL_REPLACE:-}" = "$(basename "$f")" ]; then
+        log "injected replacement failure for $f"
+        rm -f "$tmp"
+        return 1
+    fi
+    if ! mv -f "$tmp" "$f"; then
+        log "could not replace $f"
+        rm -f "$tmp"
+        return 1
+    fi
+    command -v restorecon >/dev/null 2>&1 && restorecon "$f" >/dev/null 2>&1
+    return 0
+}
+
+pam_validate() {
+    f="$PAM_DIR/$1"
+    [ -f "$f" ] || { log "$f not found; refusing incomplete PAM integration"; return 1; }
+    awk -v kind="$2" '
+        function fail() { bad=1; exit 1 }
+        {
+            line=$0
+            sub(/[[:space:]]+#.*/, "", line)
+            sub(/^[[:space:]]+/, "", line)
+            if (line == "" || line ~ /^#/) next
+            $0=line
+            if ($1 == "@include" || $1 == "-auth") fail()
+            if ($1 != "auth") next
+            if ($2 == "include" || $2 == "substack") fail()
+            legacy = NF == 3 && $2 == "sufficient" && $3 == "pam_peekin.so"
+            current = NF == 4 && $2 == "[success=done" && $3 == "default=ignore]" && $4 == "pam_peekin.so"
+            if (legacy || current) { if (++ours > 1) fail(); next }
+            if (!unix) {
+                if ($2 == "sufficient" && $3 == "pam_unix.so") { unix=1; next }
+                if (($2 != "required" && $2 != "requisite") || NF < 3) fail()
+                if ($3 ~ /(^|\/)pam_(peekin|unix|deny)\.so$/) fail()
+                if ($3 == "pam_selinux_permit.so") selinux=1
+                next
+            }
+            if (($2 == "required" || $2 == "requisite") && $3 == "pam_deny.so" && NF == 3 && !deny) {
+                deny=1
+                next
+            }
+            fail()
+        }
+        END {
+            if (bad || unix != 1 || deny != 1 || (kind == "gdm" && selinux != 1)) exit 1
+        }
+    ' "$f" || {
+        log "unsupported or ambiguous PAM auth layout in $f; no PAM files changed"
+        return 1
+    }
+}
+
+pam_own_count() {
+    awk '
+        {
+            line=$0; sub(/[[:space:]]+#.*/, "", line); sub(/^[[:space:]]+/, "", line); $0=line
+            if ($1 == "auth" && ((NF == 3 && $2 == "sufficient" && $3 == "pam_peekin.so") || (NF == 4 && $2 == "[success=done" && $3 == "default=ignore]" && $4 == "pam_peekin.so"))) n++
+        }
+        END { print n+0 }
+    ' "$1"
+}
+
+pam_stage() {
+    name=$1 kind=$2 f="$PAM_DIR/$1" tmp="$PAM_DIR/$1.peekin-new"
+    pam_validate "$name" "$kind" || return 1
+    awk -v line="$LINE" '
+        {
+            parsed=$0; sub(/[[:space:]]+#.*/, "", parsed); sub(/^[[:space:]]+/, "", parsed)
+            n=split(parsed, field, /[[:space:]]+/)
+            legacy = n == 3 && field[1] == "auth" && field[2] == "sufficient" && field[3] == "pam_peekin.so"
+            current = n == 4 && field[1] == "auth" && field[2] == "[success=done" && field[3] == "default=ignore]" && field[4] == "pam_peekin.so"
+            if (legacy || current) next
+            if (!done && field[1] == "auth" && field[2] == "sufficient" && field[3] == "pam_unix.so") { print line; done=1 }
+            print
+        }
+        END { if (!done) exit 1 }
+    ' "$f" > "$tmp" || { rm -f "$tmp"; return 1; }
+}
+
+pam_commit_pair() {
+    sudo="$PAM_DIR/sudo" gdm="$PAM_DIR/gdm-password"
+    sudo_tmp="$sudo.peekin-new" gdm_tmp="$gdm.peekin-new"
+    sudo_old="$sudo.peekin-old.$$" gdm_old="$gdm.peekin-old.$$"
+    sudo_count=$(pam_own_count "$sudo")
+    gdm_count=$(pam_own_count "$gdm")
+    cp -p "$sudo" "$sudo_old" && cp -p "$gdm" "$gdm_old" || {
+        rm -f "$sudo_tmp" "$gdm_tmp" "$sudo_old" "$gdm_old"; return 1;
+    }
+    if ! replace_checked "$sudo" "$sudo_tmp" "$((1-sudo_count))"; then
+        rm -f "$gdm_tmp" "$sudo_old" "$gdm_old"
+        return 1
+    fi
+    if ! replace_checked "$gdm" "$gdm_tmp" "$((1-gdm_count))"; then
+        if ! mv -f "$sudo_old" "$sudo"; then
+            log "CRITICAL: could not roll back $sudo"
+        fi
+        rm -f "$gdm_old"
+        command -v restorecon >/dev/null 2>&1 && restorecon "$sudo" >/dev/null 2>&1
+        return 1
+    fi
+    rm -f "$sudo_old" "$gdm_old"
+    log "face authentication enabled in $sudo"
+    log "face authentication enabled in $gdm"
+}
+
+pam_remove() {
+    f="$PAM_DIR/$1"
+    [ -f "$f" ] || return 0
+    n=$(grep -cE "$OURS" "$f")
+    if [ "$n" -gt 0 ]; then
+        tmp="$f.peekin-new"
+        sed -E "/$OURS/d" "$f" > "$tmp"
+        replace_checked "$f" "$tmp" "-$n" || return 1
+        log "face authentication removed from $f"
+    fi
+    if grep -q 'pam_peekin\.so' "$f"; then
+        log "WARNING: $f still mentions pam_peekin.so (custom line); remove it by hand"
+        return 1
+    fi
+}
+
+# The worker account must be able to open /dev/video* (group video). Older
+# installations or a pre-existing account may lack the membership.
+ensure_service_account() {
+    # The package creates the account (sysusers.d/%pre); report, don't fail.
+    getent passwd "$SERVICE_USER" >/dev/null 2>&1 || { log "service account $SERVICE_USER is missing"; return 0; }
+    getent group video >/dev/null 2>&1 || return 0
+    if ! id -nG "$SERVICE_USER" 2>/dev/null | tr ' ' '\n' | grep -qx video; then
+        usermod -a -G video "$SERVICE_USER" && log "added $SERVICE_USER to group video" ||
+            { log "could not add $SERVICE_USER to group video"; return 1; }
+    fi
+}
+
+selinux_install() {
+    [ "$SELINUX" = 1 ] && [ -f "$SELINUX_PP" ] && command -v semodule >/dev/null 2>&1 || return 0
+    semodule -i "$SELINUX_PP" || { log "could not load the SELinux module; the lock screen may not reach the camera"; return 0; }
+    # Label the failed-attempt counters written from the login screen.
+    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin >/dev/null 2>&1
+    return 0
+}
+
+selinux_remove() {
+    [ "$SELINUX" = 1 ] && command -v semodule >/dev/null 2>&1 || return 0
+    semodule -l 2>/dev/null | grep -qx peekin && semodule -r peekin >/dev/null 2>&1
+    # Counters left behind would otherwise keep the removed type (unlabeled_t).
+    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin >/dev/null 2>&1
+    return 0
+}
+
+migrate_models() {
+    dir=$(dirname "$CONFIG_FILE")/models
+    [ ! -L "$dir" ] || { log "refusing symlinked model directory $dir"; return 1; }
+    [ -d "$dir" ] || return 0
+    service_group=${SERVICE_GROUP:-peekin}
+    getent group "$service_group" >/dev/null 2>&1 || { log "service group $service_group is missing"; return 1; }
+    chown root:"$service_group" "$dir" && chmod 0750 "$dir" || { log "could not secure model directory"; return 1; }
+    for file in "$dir"/*.dat; do
+        [ ! -L "$file" ] || { log "refusing symlinked model file $file"; return 1; }
+        [ -f "$file" ] || continue
+        user=$(basename "$file" .dat)
+        case "$user" in *[!A-Za-z0-9._-]*|'') log "not migrating unexpected model filename $file"; continue ;; esac
+        getent passwd "$user" >/dev/null 2>&1 || { log "not migrating model for unknown account $user"; continue; }
+        chown root:"$service_group" "$file" && chmod 0640 "$file" || { log "could not migrate ownership of $file"; return 1; }
+    done
+}
+
+case "${1:-}" in
+    install)
+        # Permissions first and unconditionally: they are needed for the
+        # package to work at all and never weaken PAM. A root-only model store
+        # (e.g. left by an interrupted upgrade) makes every face attempt fail.
+        rc=0
+        migrate_from_linux_hello || rc=1
+        migrate_models || rc=1
+        # Encrypt plaintext face models on disk and decrypt all into memory,
+        # without waiting for the next boot (peekin-models.service).
+        if [ -x "${PEEKIN_CLI:-/usr/bin/peekin}" ]; then
+            "${PEEKIN_CLI:-/usr/bin/peekin}" unseal-models ||
+                { log "face models could not be decrypted; see: sudo peekin doctor"; rc=1; }
+        fi
+        ensure_service_account || rc=1
+        selinux_install
+        if pam_stage sudo sudo && pam_stage gdm-password gdm; then
+            pam_commit_pair || exit 1
+        else
+            rm -f "$PAM_DIR/sudo.peekin-new" "$PAM_DIR/gdm-password.peekin-new"
+            [ -x "$PAM_SETUP" ] || { log "neither direct PAM nor authselect integration is available"; exit 1; }
+            "$PAM_SETUP" pam-setup install || {
+                log "face authentication was NOT enabled for sudo/GDM; see the message above and run: sudo peekin doctor"
+                exit 1
+            }
+        fi
+        exit "$rc"
+        ;;
+    remove)
+        if [ -x "$PAM_SETUP" ]; then "$PAM_SETUP" pam-setup remove || exit 1; fi
+        pam_remove sudo || exit 1
+        pam_remove gdm-password || exit 1
+        for shared in "$PAM_DIR/system-auth" "$PAM_DIR/password-auth"; do
+            if [ -f "$shared" ] && grep -Eq '^[[:space:]]*auth[[:space:]].*pam_peekin\.so' "$shared"; then
+                log "WARNING: $shared still uses pam_peekin.so; refusing module removal"
+                exit 1
+            fi
+        done
+        selinux_remove
+        ;;
+    *)
+        echo "usage: $0 install|remove" >&2
+        exit 2
+        ;;
+esac
+exit 0

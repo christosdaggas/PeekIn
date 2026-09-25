@@ -1,0 +1,159 @@
+.TH PEEKIN 1 2026-09-25 "PeekIn 1.0.0" "User Commands"
+.SH NAME
+peekin \- manage PeekIn face authentication (Look. Recognize. Unlock.)
+.SH SYNOPSIS
+.B peekin
+.RB [ \-U
+.IR user ]
+.RB [ \-y ]
+.RB [ \-\-plain ]
+.I command
+.RI [ arguments ]
+.SH DESCRIPTION
+.B peekin
+enrolls, lists and removes face models, changes settings, tests the camera
+and explains why face authentication would not start.
+Face authentication itself happens in
+.BR pam_peekin (8)
+for sudo, the GNOME login and lock screens, and optionally polkit dialogs and
+the text console.
+The password always remains available.
+.PP
+Commands that read or change face models or settings need root, e.g. through
+.BR sudo (8).
+The graphical
+.BR peekin-settings (1)
+does the same through polkit.
+.SH OPTIONS
+.TP
+.BI \-U " user" "\fR, \fP\-\-user " user
+The account to act on.
+Default: the user who ran sudo, doas or pkexec, otherwise the current user.
+.TP
+.BR \-y ", " \-\-assume\-yes
+Answer every question with yes.
+.TP
+.B \-\-plain
+Machine-friendly output.
+.TP
+.BR \-h ", " \-\-help
+Show the commands and options.
+.SH COMMANDS
+.TP
+.BR add " [\fIlabel\fP]"
+Capture a face model: several samples of the face, taken while the user looks
+at the camera.
+Add one model per look, for example with and without glasses.
+.TP
+.B list
+List the user's face models with their ID, label and date.
+.TP
+.BI remove " id"
+Remove one face model.
+.TP
+.B clear
+Remove all face models of the user.
+.TP
+.BR cameras " [\fB\-\-best\fP]"
+List the cameras usable for face authentication, administrator-approved
+infrared cameras first.
+With
+.BR \-\-best ,
+print only the path of the camera automatic selection would use.
+.TP
+.BR test " [\fB\-\-seconds\fP \fIn\fP] [\fB\-\-until\-match\fP]"
+Show live detection and match results, with the same threshold and
+head-movement check as a real login.
+Runs for
+.I n
+seconds (1 to 30, default 18), or until the user is accepted with
+.BR \-\-until\-match .
+In a dark room with a colour camera it raises the screen brightness the same
+way a login does (see
+.B brighten_screen
+in
+.BR peekin-config (5)).
+.TP
+.B doctor
+Check the configuration, camera, face models, file permissions, PAM
+integration, SELinux and the failed-attempt counter, and explain each problem
+with the command that fixes it.
+The exit status is 1 when something prevents face authentication.
+.TP
+.BI set " name value"
+Change one setting in
+.IR /etc/peekin/config.ini ,
+for example
+.BR "peekin set timeout 3" .
+The file is validated before it is replaced; comments are kept.
+.TP
+.B config
+Open
+.I /etc/peekin/config.ini
+in an editor.
+.TP
+.BR disable " \fB1\fP|\fB0\fP"
+Disable (1) or enable (0) face authentication system-wide.
+.TP
+.B unseal-models
+Decrypt the encrypted face models into
+.I /run/peekin/models
+(done at boot by
+.BR peekin-models.service ),
+and encrypt any plaintext face model found in
+.I /etc/peekin/models
+first, removing it from the disk.
+The face models are sealed with
+.BR systemd-creds (1)
+using the TPM2 chip and the host key, or the host key alone without a TPM;
+they are not bound to PCRs.
+Every change made with
+.BR add ,
+.BR remove ,
+.B clear
+or the settings app is sealed again.
+.TP
+.B version
+Print the version.
+.SH FILES
+.TP
+.I /etc/peekin/config.ini
+Settings; see
+.BR peekin-config (5).
+.TP
+.I /etc/peekin/models/
+Face models, one file per user, encrypted with the TPM and the host key
+.RI ( user .dat.cred;
+see
+.BR "unseal-models" ).
+.TP
+.I /run/peekin/models/
+The decrypted face models, in memory; readable by root and the
+.B peekin
+service account only.
+.TP
+.I /etc/peekin/ir-profiles.json
+Administrator attestations of infrared cameras (see
+.B ir_only
+in
+.BR peekin-config (5)).
+.TP
+.I /usr/share/peekin/models/
+The face detection (YuNet) and recognition (SFace) models.
+.TP
+.I /var/lib/peekin/failures/
+Failed-attempt counters, one file per user.
+.SH EXAMPLES
+.nf
+sudo peekin add "Without glasses"
+sudo peekin test \-\-until\-match
+sudo peekin doctor
+.fi
+.SH SECURITY
+Face recognition is a convenience, not a replacement for the password.
+The head-movement check makes photos and fixed recordings harder to use, but
+it is not certified presentation-attack detection.
+.SH SEE ALSO
+.BR peekin-settings (1),
+.BR peekin-config (5),
+.BR pam_peekin (8)
