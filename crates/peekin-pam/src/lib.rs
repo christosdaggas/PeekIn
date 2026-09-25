@@ -162,6 +162,28 @@ pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u
     }
 }
 
+std::thread_local! {
+    static LAST_PANIC: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `f` so that a panic neither unwinds into the PAM host (sudo, GDM)
+/// nor prints to its stderr: the message and location are returned for the
+/// module's log instead. The hook belongs to this module's own Rust runtime,
+/// never the host's, and is installed once.
+pub fn run_guarded<T>(f: impl FnOnce() -> T) -> Result<T, String> {
+    static QUIET: std::sync::Once = std::sync::Once::new();
+    QUIET.call_once(|| {
+        std::panic::set_hook(Box::new(|info| {
+            LAST_PANIC.with(|last| *last.borrow_mut() = Some(info.to_string()));
+        }));
+    });
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|_| {
+        LAST_PANIC
+            .with(|last| last.borrow_mut().take())
+            .unwrap_or_else(|| "unknown panic".into())
+    })
+}
+
 /// Turns the worker's `challenge-stage N` reports into the instruction for
 /// each step, strictly in order: the next turn is shown only after the worker
 /// saw the previous step performed. Directions come from PAM's own copy of

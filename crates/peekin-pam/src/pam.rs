@@ -3,8 +3,8 @@
 use crate::run::{run_compare, RunEnd, WorkerEvent, WorkerIdentity};
 use crate::status::{status_decision, ChildEnd, PamCode};
 use crate::{
-    check_enabled, check_lockout, counter_update, user_has_session, CounterUpdate, Gate, Lockout,
-    Session, StagePrompts, LID_STATE_DIR, LOGIND_USERS_DIR,
+    check_enabled, check_lockout, counter_update, run_guarded, user_has_session, CounterUpdate,
+    Gate, Lockout, Session, StagePrompts, LID_STATE_DIR, LOGIND_USERS_DIR,
 };
 use peekin_core::activity;
 use peekin_core::backlight;
@@ -646,9 +646,14 @@ pub unsafe extern "C" fn pam_sm_authenticate(
         silent: flags & PAM_SILENT != 0,
     };
     let args = ModuleArgs::parse(collect_args(argc, argv));
-    // A panic must never unwind into sudo, GDM or other PAM hosts.
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| authenticate(&pam, args)))
-        .unwrap_or(PAM_SYSTEM_ERR)
+    // A panic must never unwind into sudo, GDM or other PAM hosts, nor print there.
+    run_guarded(|| authenticate(&pam, args)).unwrap_or_else(|panic| {
+        pam.log(
+            LOG_ERR,
+            &format!("Internal error, using the password instead: {panic}"),
+        );
+        PAM_SYSTEM_ERR
+    })
 }
 
 macro_rules! ignored_hook {
@@ -681,7 +686,12 @@ pub unsafe extern "C" fn pam_sm_setcred(
         silent: flags & PAM_SILENT != 0,
     };
     let args = ModuleArgs::parse(collect_args(argc, argv));
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| setcred(&pam, &args)));
+    if let Err(panic) = run_guarded(|| setcred(&pam, &args)) {
+        pam.log(
+            LOG_ERR,
+            &format!("Internal error while clearing the failed-attempt counter: {panic}"),
+        );
+    }
     PAM_IGNORE
 }
 
