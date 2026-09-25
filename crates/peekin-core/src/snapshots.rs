@@ -1,6 +1,7 @@
 //! Photos of failed face attempts (`[snapshots] save_failed`, opt-in).
 //! The worker keeps one JPEG per attempt where a face was rejected in
-//! [`SNAPSHOT_DIR`] (0700, worker account); the newest `keep` files remain.
+//! [`SNAPSHOT_DIR`] (0700, worker account); the newest `keep` files of each
+//! account remain, so attempts on one account never push out another's.
 
 use crate::paths::validate_username;
 use std::fs::{self, OpenOptions};
@@ -59,7 +60,7 @@ pub fn list(dir: &Path, user: &str) -> io::Result<Vec<Snapshot>> {
         .collect())
 }
 
-/// Store `jpeg`, then delete the oldest photos beyond `keep`.
+/// Store `jpeg`, then delete `user`'s oldest photos beyond `keep`.
 pub fn save(dir: &Path, user: &str, time: u64, jpeg: &[u8], keep: u32) -> io::Result<PathBuf> {
     validate_username(user).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let path = dir.join(file_name(time, user));
@@ -71,9 +72,9 @@ pub fn save(dir: &Path, user: &str, time: u64, jpeg: &[u8], keep: u32) -> io::Re
         .open(&path)?;
     file.write_all(jpeg)?;
     file.sync_all()?;
-    let all = list_all(dir)?;
+    let mine = list(dir, user)?;
     let keep = keep.clamp(1, MAX_KEEP) as usize;
-    for old in &all[..all.len().saturating_sub(keep)] {
+    for old in &mine[..mine.len().saturating_sub(keep)] {
         fs::remove_file(&old.path)?;
     }
     Ok(path)
@@ -99,22 +100,24 @@ mod tests {
     }
 
     #[test]
-    fn saves_lists_and_keeps_only_the_newest() {
+    fn saves_lists_and_keeps_only_the_newest_of_each_user() {
         let d = dir("keep");
+        save(&d, "bob", 1_790_000_000, b"jpeg", 3).unwrap();
         for t in 1..=5 {
             save(&d, "alice", 1_790_000_000 + t, b"jpeg", 3).unwrap();
         }
+        // alice's attempts never push out bob's photo, nor bob's hers.
+        let bob = list(&d, "bob").unwrap();
+        assert_eq!(bob.len(), 1, "{bob:?}");
         save(&d, "bob", 1_790_000_010, b"jpeg", 3).unwrap();
-        let all = list_all(&d).unwrap();
-        assert_eq!(all.len(), 3, "{all:?}");
-        assert_eq!(all[0].time, 1_790_000_004);
-        assert_eq!(all[2].user, "bob");
         let alice = list(&d, "alice").unwrap();
         assert_eq!(
             alice.iter().map(|s| s.time).collect::<Vec<_>>(),
-            [1_790_000_004, 1_790_000_005]
+            [1_790_000_003, 1_790_000_004, 1_790_000_005]
         );
         assert_eq!(fs::read(&alice[0].path).unwrap(), b"jpeg");
+        assert_eq!(list(&d, "bob").unwrap().len(), 2);
+        assert_eq!(list_all(&d).unwrap().len(), 5);
         let _ = fs::remove_dir_all(d);
     }
 

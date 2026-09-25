@@ -184,7 +184,8 @@ attempts on their own account, after administrator authentication.
 Attempts without a face, camera errors and successful logins are never kept.
 .TP
 .BR keep " = 20"
-How many photos to keep, 1 to 100; the oldest are deleted.
+How many photos to keep per account, 1 to 100; the oldest photos of that
+account are deleted, so attempts on one account never remove those of another.
 .SH [debug]
 .TP
 .BR end_report " = false"

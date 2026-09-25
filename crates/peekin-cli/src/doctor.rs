@@ -730,7 +730,7 @@ fn check_snapshots(report: &mut Report, config: &PeekinConfig, dir: &Path) {
     }
     let message = match peekin_core::snapshots::list_all(dir) {
         Ok(all) => format!(
-            "saving photos of failed attempts in {}: {} stored, newest {} kept",
+            "saving photos of failed attempts in {}: {} stored, newest {} per account kept",
             dir.display(),
             all.len(),
             config.snapshot_keep()

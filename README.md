@@ -363,7 +363,8 @@ replaces config.ini only when every value in it is valid):
   JPEG of each attempt where a face was seen but not accepted (wrong face, or
   the head movement not followed) in `/var/log/peekin` (0700, owned by the
   `peekin` worker account, SELinux type `peekin_log_t`), deleting the
-  oldest beyond `keep`. No photo is taken of attempts without a face, camera
+  oldest beyond `keep` of that account (attempts on one account never remove
+  another account's photos). No photo is taken of attempts without a face, camera
   errors or successful logins. The settings app ("Photos of failed attempts"
   on the Face models page) shows and deletes the photos of attempts on your own
   account after administrator authentication; `peekin doctor` shows how
