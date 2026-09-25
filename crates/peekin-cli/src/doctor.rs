@@ -758,6 +758,45 @@ fn check_sealed(
     }
 }
 
+/// Where pam_peekin.so reads the lid state (the ACPI button driver).
+const LID_STATE_DIR: &str = "/proc/acpi/button/lid";
+const POWER_SUPPLY_DIR: &str = "/sys/class/power_supply";
+
+/// `abort_if_lid_closed` relies on the ACPI lid state. A laptop (it has a
+/// battery) that does not expose it would scan with the lid closed.
+fn check_lid(report: &mut Report, config: &PeekinConfig, lid_dir: &Path, supplies: &Path) {
+    if !config.abort_if_lid_closed() {
+        return;
+    }
+    let lid_known = std::fs::read_dir(lid_dir)
+        .is_ok_and(|entries| entries.flatten().any(|e| e.path().join("state").is_file()));
+    let battery = std::fs::read_dir(supplies).is_ok_and(|entries| {
+        entries.flatten().any(|e| {
+            std::fs::read_to_string(e.path().join("type")).is_ok_and(|t| t.trim() == "Battery")
+        })
+    });
+    if lid_known {
+        report.add(
+            Level::Ok,
+            "lid",
+            format!(
+                "face login is skipped while the lid is closed ({})",
+                lid_dir.display()
+            ),
+        );
+    } else if battery {
+        report.add(
+            Level::Warn,
+            "lid",
+            format!(
+                "abort_if_lid_closed is on, but this laptop reports no lid state in {}: \
+                 face login cannot tell that the lid is closed and would scan anyway",
+                lid_dir.display()
+            ),
+        );
+    }
+}
+
 fn check_snapshots(report: &mut Report, config: &PeekinConfig, dir: &Path) {
     if !config.save_failed_snapshots() {
         return;
@@ -804,6 +843,12 @@ pub fn run(paths: &PeekinPaths, user: &str) -> Report {
             &mut report,
             config,
             Path::new(peekin_core::snapshots::SNAPSHOT_DIR),
+        );
+        check_lid(
+            &mut report,
+            config,
+            Path::new(LID_STATE_DIR),
+            Path::new(POWER_SUPPLY_DIR),
         );
         check_camera(&mut report, config, account.as_ref());
         check_lockout(
@@ -941,6 +986,40 @@ mod tests {
             "{:?}",
             invalid.0
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_laptop_without_lid_state_is_warned_about() {
+        let dir = temp("lid");
+        let (lid, supplies) = (dir.join("lid"), dir.join("supplies"));
+        std::fs::create_dir_all(&lid).unwrap();
+        std::fs::create_dir_all(supplies.join("AC")).unwrap();
+        std::fs::write(supplies.join("AC/type"), "Mains\n").unwrap();
+        let on = PeekinConfig::empty();
+        let check = |config: &PeekinConfig| {
+            let mut report = Report::default();
+            check_lid(&mut report, config, &lid, &supplies);
+            report
+        };
+        // A desktop: no lid, nothing to say.
+        assert!(check(&on).0.is_empty());
+        // A laptop without the ACPI lid state: the guard cannot work.
+        std::fs::create_dir_all(supplies.join("BAT0")).unwrap();
+        std::fs::write(supplies.join("BAT0/type"), "Battery\n").unwrap();
+        let r = check(&on);
+        assert_eq!(r.worst(), Level::Warn, "{:?}", r.0);
+        assert!(r.0[0].message.contains("no lid state"), "{:?}", r.0);
+        let off =
+            PeekinConfig::parse("[core]\nabort_if_lid_closed = false\n", "<t>".into()).unwrap();
+        assert!(
+            check(&off).0.is_empty(),
+            "nothing to check when switched off"
+        );
+        // The state is there: fine.
+        std::fs::create_dir_all(lid.join("LID0")).unwrap();
+        std::fs::write(lid.join("LID0/state"), "state:      open\n").unwrap();
+        assert_eq!(check(&on).worst(), Level::Ok);
         let _ = std::fs::remove_dir_all(dir);
     }
 
