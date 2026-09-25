@@ -12,12 +12,16 @@ peekin-settings \- graphical settings for face authentication
 .I dir
 .SH DESCRIPTION
 The PeekIn app, for the signed-in user.
-It has three pages:
+It has five pages:
 .TP
 .B Settings
 Where face login is used (sudo, login screen, lock screen, administrator
 dialogs, text console), the camera, the scan time, the head-movement check,
 the match threshold and the personal threshold, and messages.
+Under
+.BR "Infrared cameras" ,
+an administrator approves an infrared camera after a live preview, or
+withdraws the approval.
 .B System status
 shows whether the configuration, camera, PAM integration and face models are
 ready, and whether face login is paused after failed attempts, with a
@@ -29,6 +33,13 @@ Add face models with a live camera preview, and remove them.
 .TP
 .B Test
 Run the same recognition and head-movement check as a login, with live results.
+.TP
+.B Away lock
+Lock the screen when you leave, with its own camera choice, and notifications
+about failed attempts while you were away.
+.TP
+.B About
+Version, author and links.
 .PP
 The app runs unprivileged.
 Reading and changing face models and settings goes through

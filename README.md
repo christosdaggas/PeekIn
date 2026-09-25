@@ -364,11 +364,29 @@ Logs are written under the calling program (sudo, gdm-session-worker):
 
 #### Physical infrared attestations
 
-There is no built-in list that trusts a device name. After establishing that a
-capture node is genuinely IR, an administrator may create
-`/etc/peekin/ir-profiles.json`, owned by root and not group/world-writable.
-The parent directory must also be root-controlled. The file contains up to 32
-entries of this form (replace every illustrative value with observed evidence):
+There is no built-in list that trusts a device name. An administrator approves
+a camera after checking that it is a real infrared sensor whose emitter lights
+up in a dark room:
+
+- In the settings app, under **Infrared cameras** on the Settings page: a live
+  infrared preview, a required confirmation and a note of what was checked.
+- Or on the command line:
+
+  ```sh
+  peekin cameras --attest /dev/video2         # review the entry
+  sudo peekin cameras --attest /dev/video2 --save --evidence "Brio 4K IR node; emitter lit in a dark room"
+  sudo peekin cameras --revoke /dev/video2    # withdraw the approval
+  ```
+
+  `--any-unit` approves every unit of that model and firmware release instead
+  of this serial number.
+
+Both read the identity from the device itself, as root when saving, and accept
+only physical cameras whose formats are all greyscale. Approvals are kept in
+`/etc/peekin/ir-profiles.json`, root:root 0644 with at most 32 entries: the
+worker and the user's own session read it, only root writes it. A file that is
+not root-owned, is writable by others or is malformed is neither used nor
+overwritten, and placeholder evidence such as `<…>` never counts. An entry:
 
 ```json
 [
@@ -377,13 +395,13 @@ entries of this form (replace every illustrative value with observed evidence):
       "vid": "046d",
       "pid": "085e",
       "bcd_device": "0317",
-      "serial": "the observed unit serial",
+      "serial": "95016168",
       "interface_number": 0,
       "interface_class": "0e",
       "capture_index": 2,
       "driver": "uvcvideo"
     },
-    "evidence": "Manufacturer IR documentation and local emitter validation, date and hardware revision"
+    "evidence": "Brio 4K IR node; emitter lit in a dark room"
   }
 ]
 ```

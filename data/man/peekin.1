@@ -61,6 +61,25 @@ With
 .BR \-\-best ,
 print only the path of the camera automatic selection would use.
 .TP
+.BR "cameras \-\-attest" " \fIcamera\fP [\fB\-\-save \-\-evidence\fP \fItext\fP] [\fB\-\-any\-unit\fP]"
+Show the approval entry of an infrared camera, read from the device itself.
+With
+.BR \-\-save ,
+add it to
+.I /etc/peekin/ir-profiles.json
+(needs root);
+.I text
+says how you checked that it is the infrared sensor and that its emitter
+lights up, or is
+.B \-
+to read it from standard input.
+.B \-\-any\-unit
+approves every unit of that model instead of this serial number.
+Colour and virtual cameras are refused.
+.TP
+.BI "cameras \-\-revoke " camera
+Withdraw the approval of a camera (needs root).
+.TP
 .BR test " [\fB\-\-seconds\fP \fIn\fP] [\fB\-\-until\-match\fP]"
 Show live detection and match results, with the same threshold and
 head-movement check as a real login.
@@ -147,6 +166,7 @@ Failed-attempt counters, one file per user.
 .nf
 sudo peekin add "Without glasses"
 sudo peekin test \-\-until\-match
+sudo peekin cameras \-\-attest /dev/video2 \-\-save \-\-evidence "IR node, emitter lit"
 sudo peekin doctor
 .fi
 .SH SECURITY
