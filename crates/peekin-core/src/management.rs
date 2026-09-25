@@ -6,6 +6,7 @@ use crate::{set_option, PeekinConfig};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::os::fd::AsRawFd;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use thiserror::Error;
 
@@ -93,6 +94,8 @@ pub(crate) fn lock_for(path: &Path) -> Result<File, std::io::Error> {
         .truncate(false)
         .read(true)
         .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(lock_path)?;
     // SAFETY: flock operates on the live descriptor and is released on drop.
     if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) } != 0 {
@@ -460,6 +463,42 @@ mod tests {
             Err(ManagementError::Conflict)
         ));
         let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
+    fn the_lock_file_is_private_and_never_followed() {
+        use std::os::unix::fs::PermissionsExt;
+        let (p, raw) = fixture();
+        let lock = p.with_file_name(format!(
+            ".{}.lock",
+            p.file_name().unwrap().to_string_lossy()
+        ));
+        let _ = std::fs::remove_file(&lock);
+        // Created with an explicit mode, not whatever the umask leaves.
+        drop(lock_for(&p).unwrap());
+        assert_eq!(
+            std::fs::metadata(&lock).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        // A link planted in its place is refused, and its target left alone.
+        std::fs::remove_file(&lock).unwrap();
+        let target = p.with_extension("target");
+        std::fs::write(&target, "untouched").unwrap();
+        std::os::unix::fs::symlink(&target, &lock).unwrap();
+        assert!(lock_for(&p).is_err());
+        assert!(update_option(&p, "timeout", "5").is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "untouched");
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), raw);
+        // The descriptor does not leak into programs run while it is held.
+        std::fs::remove_file(&lock).unwrap();
+        let held = lock_for(&p).unwrap();
+        // SAFETY: F_GETFD on a descriptor we own.
+        let flags = unsafe { libc::fcntl(held.as_raw_fd(), libc::F_GETFD) };
+        assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        drop(held);
+        for leftover in [&p, &lock, &target] {
+            let _ = std::fs::remove_file(leftover);
+        }
     }
 
     #[test]
