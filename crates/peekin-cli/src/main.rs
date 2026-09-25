@@ -135,14 +135,6 @@ fn username_for_uid(uid: libc::uid_t) -> Option<String> {
     )
 }
 
-/// Seals the changed models (installed systems).
-fn seal(paths: &PeekinPaths, user: &str) -> Result<()> {
-    peekin_core::sealed::persist(paths, user).context(
-        "the change is active, but its encrypted copy could not be written \
-         and would be lost at the next boot",
-    )
-}
-
 /// Decrypts the face models into memory at boot, sealing plaintext models found on disk first.
 /// `AUTHSELECT_TEST_ROOT` and `AUTHSELECT_TEST_BINARY` point it at a fixture.
 fn cmd_pam_setup(action: &str) -> Result<()> {
@@ -361,8 +353,7 @@ fn cmd_add(
             .collect(),
     });
     let (uid, gid) = model_owner(paths)?;
-    models::save_user_models_owned(paths.user_models_dir(), user, &existing, uid, gid)?;
-    seal(paths, user)?;
+    peekin_core::sealed::replace_models(paths, user, Some(&existing), uid, gid)?;
     println!("\nScan complete\nAdded a new model to {user}");
     Ok(())
 }
@@ -579,9 +570,14 @@ fn cmd_clear(paths: &PeekinPaths, user: &str, assume_yes: bool) -> Result<()> {
         std::process::exit(1);
     }
     let _lock = models::lock_user_models(paths.user_models_dir(), user)?;
-    models::clear_user_models(paths.user_models_dir(), user)
+    // The model file must exist; a damaged one can still be cleared.
+    match models::load_user_models(paths.user_models_dir(), user) {
+        Ok(_) | Err(ModelError::Corrupt(_) | ModelError::TooLarge | ModelError::Io(_)) => {}
+        Err(error) => return Err(error).with_context(|| format!("clearing models for {user}")),
+    }
+    let (uid, gid) = model_owner(paths)?;
+    peekin_core::sealed::replace_models(paths, user, None, uid, gid)
         .with_context(|| format!("clearing models for {user}"))?;
-    seal(paths, user)?;
     println!("\nModels cleared");
     Ok(())
 }
@@ -606,11 +602,14 @@ fn cmd_remove(paths: &PeekinPaths, user: &str, id: &str, assume_yes: bool) -> Re
     if !current.iter().any(|m| m.id.to_string() == id) {
         bail!("Model {id} changed while awaiting confirmation");
     }
-    let was_last = current.len() == 1;
+    let kept: Vec<FaceModel> = current
+        .into_iter()
+        .filter(|m| m.id.to_string() != id)
+        .collect();
     let (uid, gid) = model_owner(paths)?;
-    models::remove_model_owned(paths.user_models_dir(), user, id, uid, gid)?;
-    seal(paths, user)?;
-    if was_last {
+    let new = (!kept.is_empty()).then_some(kept.as_slice());
+    peekin_core::sealed::replace_models(paths, user, new, uid, gid)?;
+    if kept.is_empty() {
         println!("Removed last model, face authentication disabled for user");
     } else {
         println!("Removed model {id}");
@@ -670,8 +669,7 @@ fn cmd_import_samples(paths: &PeekinPaths, user: &str, id: &str) -> Result<()> {
     let mut existing = models::load_user_models(paths.user_models_dir(), user)?;
     let count = models::append_samples(&mut existing, id, user, data)?;
     let (uid, gid) = model_owner(paths)?;
-    models::save_user_models_owned(paths.user_models_dir(), user, &existing, uid, gid)?;
-    seal(paths, user)?;
+    peekin_core::sealed::replace_models(paths, user, Some(&existing), uid, gid)?;
     println!("Model {id} of {user} now has {count} samples");
     Ok(())
 }
@@ -700,8 +698,7 @@ fn cmd_import_model(paths: &PeekinPaths, user: &str, label: Option<String>) -> R
         data,
     });
     let (uid, gid) = model_owner(paths)?;
-    models::save_user_models_owned(paths.user_models_dir(), user, &existing, uid, gid)?;
-    seal(paths, user)?;
+    peekin_core::sealed::replace_models(paths, user, Some(&existing), uid, gid)?;
     println!("Added model {next_id} (\"{label}\") for {user}");
     Ok(())
 }

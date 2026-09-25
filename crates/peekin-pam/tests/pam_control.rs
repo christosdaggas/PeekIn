@@ -145,6 +145,8 @@ fn face_or_password_never_overrides_a_failed_guard() {
                 .env("OLD_SNAPSHOTS", d.join("no-old-log"))
                 .env("PEEKIN_CLI", d.join("no-peekin"))
                 .env("PAM_SETUP", d.join("no-pam-setup"))
+                // The counter directory the install (re)creates: never /var/lib.
+                .env("STATE_DIR", d.join("failures"))
                 .env("SERVICE_USER", "peekin-test-nonexistent")
                 .output()
                 .unwrap();

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:39+0300\n"
+"POT-Creation-Date: 2026-09-25 16:36+0300\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -64,14 +64,14 @@ msgstr "Ο έλεγχος κίνησης απέτυχε (λάθος σειρά, 
 msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
 msgstr "Η σύνδεση με πρόσωπο έχει παύσει μετά από πολλές αποτυχημένες προσπάθειες ({minutes} λεπτά)· χρησιμοποιήστε τον κωδικό σας"
 
+msgid "Face authentication is unavailable (see the system log); use your password"
+msgstr "Η πιστοποίηση με πρόσωπο δεν είναι διαθέσιμη (δείτε το αρχείο καταγραφής του συστήματος)· χρησιμοποιήστε τον κωδικό σας"
+
 msgid "Face recognition timed out; use your password"
 msgstr "Ο χρόνος αναγνώρισης προσώπου έληξε· χρησιμοποιήστε τον κωδικό σας"
 
 msgid "Face not recognised in time; use your password"
 msgstr "Το πρόσωπο δεν αναγνωρίστηκε εγκαίρως· χρησιμοποιήστε τον κωδικό σας"
-
-msgid "Face authentication is unavailable (see the system log); use your password"
-msgstr "Η πιστοποίηση με πρόσωπο δεν είναι διαθέσιμη (δείτε το αρχείο καταγραφής του συστήματος)· χρησιμοποιήστε τον κωδικό σας"
 
 msgid "Camera image too dark; use your password"
 msgstr "Η εικόνα της κάμερας είναι πολύ σκοτεινή· χρησιμοποιήστε τον κωδικό σας"

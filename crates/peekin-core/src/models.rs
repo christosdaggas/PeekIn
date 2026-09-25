@@ -2,7 +2,7 @@
 //! tag. Old dlib entries (no tag) are listed and removable but never matched.
 
 use crate::fsutil::{atomic_write_owned, create_dir_all_mode};
-use crate::paths::validate_username;
+use crate::paths::{validate_username, PeekinPaths};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Read;
@@ -114,12 +114,19 @@ pub fn usable_embeddings(models: &[FaceModel]) -> Vec<(usize, Vec<f32>)> {
         .collect()
 }
 
+/// L2 norms of the samples recognition uses (SFace output normalised to 1).
+const EMBEDDING_NORMS: std::ops::RangeInclusive<f32> = 0.9..=1.1;
+
+fn embedding_norm(e: &[f32]) -> f32 {
+    e.iter().map(|x| x * x).sum::<f32>().sqrt()
+}
+
+/// The one rule for a sample, at import and at recognition.
 fn valid_embedding(e: &[f32]) -> bool {
     if e.len() != EMBEDDING_LEN || !e.iter().all(|x| x.is_finite()) {
         return false;
     }
-    let norm = e.iter().map(|x| x * x).sum::<f32>().sqrt();
-    (0.9..=1.1).contains(&norm)
+    EMBEDDING_NORMS.contains(&embedding_norm(e))
 }
 
 fn model_file(models_dir: &Path, user: &str) -> Result<PathBuf, ModelError> {
@@ -159,17 +166,33 @@ pub fn prepare_model_store(
     if unsafe { libc::chown(path.as_ptr(), uid, gid) } != 0 {
         return Err(ModelError::Io(std::io::Error::last_os_error()));
     }
+    // check_service_access refuses ACLs; new model files inherit the default one.
+    for name in [ACL_XATTR, c"system.posix_acl_default"] {
+        // SAFETY: both strings are NUL-terminated.
+        acl_found(unsafe { libc::lremovexattr(path.as_ptr(), name.as_ptr()) } as libc::ssize_t)?;
+    }
     if metadata.mode() & 0o7777 != 0o750 {
         fs::set_permissions(models_dir, fs::Permissions::from_mode(0o750))?;
     }
     Ok(())
 }
 
-/// Why the service group cannot read `<user>.dat`, if it cannot. PAM checks
-/// this before a scan, so a root-only store is not mistaken for a dead camera.
+/// Why the service group cannot read `<user>.dat`, or others could read or
+/// change it, if so. PAM checks this before a scan, so a root-only store is not
+/// mistaken for a dead camera and a face model others can change is not trusted.
 pub fn check_service_access(
     models_dir: &Path,
     user: &str,
+    service_gid: libc::gid_t,
+) -> Result<(), String> {
+    check_store(models_dir, user, 0, service_gid)
+}
+
+/// [`check_service_access`] for a store owned by `owner` (root when installed).
+fn check_store(
+    models_dir: &Path,
+    user: &str,
+    owner: libc::uid_t,
     service_gid: libc::gid_t,
 ) -> Result<(), String> {
     let path = model_file(models_dir, user).map_err(|e| e.to_string())?;
@@ -178,38 +201,132 @@ pub fn check_service_access(
     if !dir.file_type().is_dir() {
         return Err(format!("{} is not a directory", models_dir.display()));
     }
-    if dir.uid() != 0 || dir.gid() != service_gid || dir.mode() & 0o050 != 0o050 {
-        return Err(format!(
-            "{} must be owned by root:peekin with mode 0750 (found uid {} gid {} mode {:04o})",
-            models_dir.display(),
-            dir.uid(),
-            dir.gid(),
-            dir.mode() & 0o7777
-        ));
-    }
+    check_entry(
+        models_dir,
+        &dir,
+        path_has_acl(models_dir),
+        owner,
+        service_gid,
+    )?;
     let file = fs::symlink_metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     if !file.file_type().is_file() {
         return Err(format!("{} is not a regular file", path.display()));
     }
-    if file.uid() != 0 || file.gid() != service_gid || file.mode() & 0o040 == 0 {
+    check_entry(&path, &file, path_has_acl(&path), owner, service_gid)
+}
+
+/// The installed store's rule for its directory and each model in it: owned
+/// by `owner` (root) and group `service_gid` (peekin), which may read (and
+/// search) but not write it, nothing for others (only the service group reads
+/// face models), and no access ACL, which can give other accounts access the
+/// mode does not show.
+fn check_entry(
+    path: &Path,
+    metadata: &fs::Metadata,
+    acl: std::io::Result<bool>,
+    owner: libc::uid_t,
+    service_gid: libc::gid_t,
+) -> Result<(), String> {
+    let (read, required) = if metadata.is_dir() {
+        (0o050, "0750")
+    } else {
+        (0o040, "0640")
+    };
+    let mode = metadata.mode() & 0o7777;
+    if metadata.uid() != owner
+        || metadata.gid() != service_gid
+        || mode & read != read
+        || mode & 0o027 != 0
+    {
         return Err(format!(
-            "{} must be owned by root:peekin with mode 0640 (found uid {} gid {} mode {:04o})",
+            "{} must be owned by root:peekin with mode {required} (found uid {} gid {} mode {mode:04o})",
             path.display(),
-            file.uid(),
-            file.gid(),
-            file.mode() & 0o7777
+            metadata.uid(),
+            metadata.gid(),
         ));
     }
-    Ok(())
+    match acl {
+        Ok(false) => Ok(()),
+        Ok(true) => Err(format!(
+            "{} has a POSIX ACL, which can give other accounts access its mode {mode:04o} \
+             does not show; it must have none",
+            path.display()
+        )),
+        Err(error) => Err(format!(
+            "cannot read the ACL of {}: {error}",
+            path.display()
+        )),
+    }
+}
+
+/// Extended attribute holding a POSIX access ACL.
+const ACL_XATTR: &std::ffi::CStr = c"system.posix_acl_access";
+
+/// Whether the getxattr or removexattr call that returned `result` found an
+/// ACL. File systems without ACL support have none.
+fn acl_found(result: libc::ssize_t) -> std::io::Result<bool> {
+    if result >= 0 {
+        return Ok(true);
+    }
+    let error = std::io::Error::last_os_error();
+    match error.raw_os_error() {
+        Some(libc::ENODATA | libc::EOPNOTSUPP) => Ok(false),
+        _ => Err(error),
+    }
+}
+
+fn path_has_acl(path: &Path) -> std::io::Result<bool> {
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+    // SAFETY: NUL-terminated strings; a null buffer of size 0 only asks for the size.
+    acl_found(unsafe {
+        libc::lgetxattr(path.as_ptr(), ACL_XATTR.as_ptr(), std::ptr::null_mut(), 0)
+    })
+}
+
+fn file_has_acl(file: &fs::File) -> std::io::Result<bool> {
+    // SAFETY: as in `path_has_acl`, on a live descriptor.
+    acl_found(unsafe {
+        libc::fgetxattr(
+            file.as_raw_fd(),
+            ACL_XATTR.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+        )
+    })
 }
 
 /// Load `<models_dir>/<user>.dat`.
 pub fn load_user_models(models_dir: &Path, user: &str) -> Result<Vec<FaceModel>, ModelError> {
+    load_models(models_dir, user, None)
+}
+
+/// Load `user`'s models for the recognition worker. On an installed system
+/// the store must pass [`check_service_access`], and the model file is checked
+/// on the opened descriptor, so a file swapped in after PAM's check is refused
+/// too. The worker runs with the service group as its effective group.
+pub fn load_service_models(paths: &PeekinPaths, user: &str) -> Result<Vec<FaceModel>, ModelError> {
+    // SAFETY: getegid cannot fail.
+    let service = paths
+        .sealed_models_dir()
+        .map(|_| (0, unsafe { libc::getegid() }));
+    load_models(paths.user_models_dir(), user, service)
+}
+
+/// `service`: the owner and group an installed store must have.
+fn load_models(
+    models_dir: &Path,
+    user: &str,
+    service: Option<(libc::uid_t, libc::gid_t)>,
+) -> Result<Vec<FaceModel>, ModelError> {
     let path = model_file(models_dir, user)?;
     if !models_dir.exists() {
         return Err(ModelError::NotInitialised);
     }
-    ensure_directory(models_dir)?;
+    let dir = ensure_directory(models_dir)?;
+    if let Some((owner, gid)) = service {
+        check_entry(models_dir, &dir, path_has_acl(models_dir), owner, gid)
+            .map_err(ModelError::UnsafeStore)?;
+    }
     let metadata = ensure_regular_file(&path, user)?;
     if metadata.len() > MAX_MODEL_FILE_BYTES {
         return Err(ModelError::TooLarge);
@@ -218,8 +335,13 @@ pub fn load_user_models(models_dir: &Path, user: &str) -> Result<Vec<FaceModel>,
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(&path)?;
-    if !file.metadata()?.file_type().is_file() {
+    let opened = file.metadata()?;
+    if !opened.file_type().is_file() {
         return Err(ModelError::UnsafeStore(path.display().to_string()));
+    }
+    if let Some((owner, gid)) = service {
+        check_entry(&path, &opened, file_has_acl(&file), owner, gid)
+            .map_err(ModelError::UnsafeStore)?;
     }
     let mut raw = String::new();
     file.take(MAX_MODEL_FILE_BYTES + 1)
@@ -260,47 +382,6 @@ pub fn save_user_models_owned(
     }
     atomic_write_owned(&path, raw.as_bytes(), 0o640, uid, gid)?;
     Ok(())
-}
-
-/// Delete the user's `.dat` (error if absent).
-pub fn clear_user_models(models_dir: &Path, user: &str) -> Result<(), ModelError> {
-    let path = model_file(models_dir, user)?;
-    if !models_dir.exists() {
-        return Err(ModelError::NotInitialised);
-    }
-    ensure_directory(models_dir)?;
-    ensure_regular_file(&path, user)?;
-    fs::remove_file(path)?;
-    Ok(())
-}
-
-/// Drop one id; delete the file when it was the last model.
-pub fn remove_model(models_dir: &Path, user: &str, id: &str) -> Result<(), ModelError> {
-    remove_model_owned(models_dir, user, id, unsafe { libc::geteuid() }, unsafe {
-        libc::getegid()
-    })
-}
-
-pub fn remove_model_owned(
-    models_dir: &Path,
-    user: &str,
-    id: &str,
-    uid: libc::uid_t,
-    gid: libc::gid_t,
-) -> Result<(), ModelError> {
-    let models = load_user_models(models_dir, user)?;
-    if !models.iter().any(|m| m.id.to_string() == id) {
-        return Err(ModelError::UnknownId(id.into(), user.into()));
-    }
-    if models.len() == 1 {
-        fs::remove_file(model_file(models_dir, user)?)?;
-        return Ok(());
-    }
-    let kept: Vec<FaceModel> = models
-        .into_iter()
-        .filter(|m| m.id.to_string() != id)
-        .collect();
-    save_user_models_owned(models_dir, user, &kept, uid, gid)
 }
 
 /// Samples per model at most: each sample is another chance for a stranger
@@ -359,9 +440,14 @@ pub fn parse_import(json: &str) -> Result<Vec<Vec<f64>>, String> {
                     "each sample must be {EMBEDDING_LEN} finite numbers"
                 ));
             }
-            let norm = e.iter().map(|x| x * x).sum::<f32>().sqrt();
-            if !(0.5..=2.0).contains(&norm) {
-                return Err("sample is not a normalised embedding".to_string());
+            // Stored samples recognition would skip could never match.
+            if !valid_embedding(&e) {
+                return Err(format!(
+                    "sample is not a normalised embedding: its norm is {:.3}, recognition uses {} to {}",
+                    embedding_norm(&e),
+                    EMBEDDING_NORMS.start(),
+                    EMBEDDING_NORMS.end()
+                ));
             }
             Ok(e.into_iter().map(f64::from).collect())
         })
@@ -454,6 +540,175 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    fn me() -> (libc::uid_t, libc::gid_t) {
+        unsafe { (libc::geteuid(), libc::getegid()) }
+    }
+
+    fn chmod(path: &Path, mode: u32) {
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).unwrap();
+    }
+
+    /// A store laid out as installed (0750, 0640) but owned by the current
+    /// user: tests cannot create root-owned files.
+    fn own_store(name: &str) -> (PathBuf, PathBuf) {
+        let dir = tmpdir(name);
+        let models = dir.join("models");
+        save_user_models(&models, "alice", &sample()).unwrap();
+        (dir, models)
+    }
+
+    /// Runs setfacl; `false`, with a note, where the tool is missing or the
+    /// file system refuses ACLs.
+    fn setfacl(args: &[&str], path: &Path) -> bool {
+        let outcome = std::process::Command::new("setfacl")
+            .args(args)
+            .arg(path)
+            .status();
+        match outcome {
+            Ok(status) if status.success() => true,
+            other => {
+                eprintln!(
+                    "skipping the ACL case: setfacl {args:?} {}: {other:?}",
+                    path.display()
+                );
+                false
+            }
+        }
+    }
+
+    #[test]
+    fn store_writable_by_the_group_or_open_to_others_is_refused() {
+        let (dir, models) = own_store("writable");
+        let file = models.join("alice.dat");
+        let (uid, gid) = me();
+        assert_eq!(check_store(&models, "alice", uid, gid), Ok(()));
+        assert!(check_store(&models, "alice", uid + 1, gid).is_err());
+        assert!(check_store(&models, "alice", uid, gid + 1).is_err());
+        for mode in [0o600, 0o660, 0o642, 0o666, 0o644, 0o641] {
+            chmod(&file, mode);
+            let error = check_store(&models, "alice", uid, gid).unwrap_err();
+            let found = format!("mode {mode:04o})");
+            assert!(
+                error.contains("alice.dat")
+                    && error.contains("mode 0640")
+                    && error.contains(&found),
+                "{error}"
+            );
+        }
+        chmod(&file, 0o640);
+        for mode in [0o700, 0o770, 0o752, 0o777, 0o755, 0o751] {
+            chmod(&models, mode);
+            let error = check_store(&models, "alice", uid, gid).unwrap_err();
+            let found = format!("mode {mode:04o})");
+            assert!(
+                !error.contains("alice.dat")
+                    && error.contains("mode 0750")
+                    && error.contains(&found),
+                "{error}"
+            );
+        }
+        chmod(&models, 0o750);
+        assert_eq!(check_store(&models, "alice", uid, gid), Ok(()));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn store_with_an_acl_is_refused() {
+        let (dir, models) = own_store("acl");
+        let file = models.join("alice.dat");
+        let (uid, gid) = me();
+        // Read access for another account; the mode still shows 0640.
+        if !setfacl(&["-m", "u:65534:r"], &file) {
+            let _ = fs::remove_dir_all(dir);
+            return;
+        }
+        assert_eq!(fs::metadata(&file).unwrap().mode() & 0o7777, 0o640);
+        let error = check_store(&models, "alice", uid, gid).unwrap_err();
+        assert!(
+            error.contains("alice.dat") && error.contains("ACL"),
+            "{error}"
+        );
+        let loaded = load_models(&models, "alice", Some((uid, gid)));
+        assert!(
+            matches!(&loaded, Err(ModelError::UnsafeStore(m)) if m.contains("ACL")),
+            "{:?}",
+            loaded.as_ref().map(Vec::len)
+        );
+        assert!(setfacl(&["-b"], &file));
+        assert_eq!(check_store(&models, "alice", uid, gid), Ok(()));
+        assert!(setfacl(&["-m", "u:65534:rx"], &models));
+        assert_eq!(fs::metadata(&models).unwrap().mode() & 0o7777, 0o750);
+        let error = check_store(&models, "alice", uid, gid).unwrap_err();
+        assert!(
+            !error.contains("alice.dat") && error.contains("ACL"),
+            "{error}"
+        );
+        let loaded = load_models(&models, "alice", Some((uid, gid)));
+        assert!(
+            matches!(&loaded, Err(ModelError::UnsafeStore(m)) if m.contains("ACL")),
+            "{:?}",
+            loaded.as_ref().map(Vec::len)
+        );
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn preparing_the_store_removes_acls() {
+        let dir = tmpdir("strip-acl");
+        let models = dir.join("models");
+        fs::create_dir(&models).unwrap();
+        // An access ACL and a default one, which new model files would inherit.
+        if !setfacl(&["-m", "u:65534:rx,d:u:65534:rx"], &models) {
+            let _ = fs::remove_dir_all(dir);
+            return;
+        }
+        let (uid, gid) = me();
+        save_user_models_owned(&models, "alice", &sample(), uid, gid).unwrap();
+        assert_eq!(check_store(&models, "alice", uid, gid), Ok(()));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn worker_checks_the_opened_model_on_installed_systems_only() {
+        let (dir, models) = own_store("worker");
+        let file = models.join("alice.dat");
+        let service = Some(me());
+        assert_eq!(load_models(&models, "alice", service).unwrap(), sample());
+        assert!(matches!(
+            load_models(&models, "bob", service),
+            Err(ModelError::NoModelForUser(_))
+        ));
+        for (path, bad, good) in [
+            (&file, 0o660, 0o640),
+            (&file, 0o644, 0o640),
+            (&models, 0o777, 0o750),
+            (&models, 0o755, 0o750),
+        ] {
+            chmod(path, bad);
+            let loaded = load_models(&models, "alice", service);
+            let found = format!("mode {bad:04o}");
+            assert!(
+                matches!(&loaded, Err(ModelError::UnsafeStore(m)) if m.contains(&found)),
+                "{found}: {:?}",
+                loaded.as_ref().map(Vec::len)
+            );
+            chmod(path, good);
+        }
+        chmod(&file, 0o660);
+        // The worker's entry point applies the policy to the installed layout only.
+        let mut paths = PeekinPaths::from_dirs(dir.join("etc"), dir.join("data"));
+        paths.user_models_dir = models.clone();
+        assert_eq!(load_service_models(&paths, "alice").unwrap(), sample());
+        paths.sealed_models_dir = Some(dir.join("etc").join("models"));
+        let loaded = load_service_models(&paths, "alice");
+        assert!(
+            matches!(loaded, Err(ModelError::UnsafeStore(_))),
+            "{:?}",
+            loaded.as_ref().map(Vec::len)
+        );
+        let _ = fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn save_load_roundtrip_with_private_permissions() {
         let dir = tmpdir("roundtrip");
@@ -503,10 +758,6 @@ mod tests {
         fs::write(&victim, "[]").unwrap();
         let models_dir = dir.join("models");
         fs::create_dir_all(&models_dir).unwrap();
-        assert!(matches!(
-            clear_user_models(&models_dir, "../victim"),
-            Err(ModelError::InvalidUser(_))
-        ));
         assert!(matches!(
             load_user_models(&models_dir, "../victim"),
             Err(ModelError::InvalidUser(_))
@@ -589,19 +840,6 @@ mod tests {
     }
 
     #[test]
-    fn remove_middle_and_last() {
-        let dir = tmpdir("remove");
-        save_user_models(&dir, "alice", &sample()).unwrap();
-        remove_model(&dir, "alice", "0").unwrap();
-        let back = load_user_models(&dir, "alice").unwrap();
-        assert_eq!(back.len(), 1);
-        assert_eq!(back[0].id, 1);
-        remove_model(&dir, "alice", "1").unwrap();
-        assert!(!dir.join("alice.dat").exists());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
     fn samples_are_appended_up_to_the_cap() {
         let unit = 1.0 / (EMBEDDING_LEN as f64).sqrt();
         let mut models = sample();
@@ -632,30 +870,6 @@ mod tests {
             append_samples(&mut legacy, "3", "alice", five),
             Err(ModelError::LegacyModel(3))
         ));
-    }
-
-    #[test]
-    fn remove_unknown_id_errors() {
-        let dir = tmpdir("unknown");
-        save_user_models(&dir, "alice", &sample()).unwrap();
-        assert!(matches!(
-            remove_model(&dir, "alice", "99"),
-            Err(ModelError::UnknownId(_, _))
-        ));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn clear_removes_all_models() {
-        let dir = tmpdir("clear");
-        assert!(matches!(
-            clear_user_models(&dir, "alice"),
-            Err(ModelError::NoModelForUser(_))
-        ));
-        save_user_models(&dir, "alice", &sample()).unwrap();
-        clear_user_models(&dir, "alice").unwrap();
-        assert!(!dir.join("alice.dat").exists());
-        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -696,6 +910,29 @@ mod tests {
         assert!(parse_import(&import_json(EMBEDDING_FORMAT, 5, 64, v)).is_err());
         assert!(parse_import(&import_json(EMBEDDING_FORMAT, 5, EMBEDDING_LEN, 10.0)).is_err());
         assert!(parse_import(&import_json(EMBEDDING_FORMAT, 5, EMBEDDING_LEN, 0.0)).is_err());
+    }
+
+    #[test]
+    fn import_accepts_exactly_the_norms_recognition_uses() {
+        let value = |norm: f32| norm / (EMBEDDING_LEN as f32).sqrt();
+        let with_norm = |norm| import_json(EMBEDDING_FORMAT, 3, EMBEDDING_LEN, value(norm));
+        let error = parse_import(&with_norm(0.75)).map(|d| d.len()).unwrap_err();
+        assert!(
+            error.contains("0.750") && error.contains("0.9 to 1.1"),
+            "{error}"
+        );
+        assert_eq!(parse_import(&with_norm(1.0)).unwrap().len(), 3);
+        for norm in [0.5, 0.75, 0.85, 0.95, 1.0, 1.05, 1.2, 2.0] {
+            let stored = FaceModel {
+                data: vec![vec![f64::from(value(norm)); EMBEDDING_LEN]],
+                ..model(0, "m", Some(EMBEDDING_FORMAT), 0.0)
+            };
+            assert_eq!(
+                parse_import(&with_norm(norm)).is_ok(),
+                !usable_embeddings(&[stored]).is_empty(),
+                "norm {norm}"
+            );
+        }
     }
 
     #[test]

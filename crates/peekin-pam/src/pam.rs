@@ -3,7 +3,8 @@
 use crate::run::{run_compare, RunEnd, WorkerIdentity};
 use crate::status::{status_decision, ChildEnd, PamCode};
 use crate::{
-    check_enabled, user_has_session, CompareError, Gate, Session, LID_STATE_DIR, LOGIND_USERS_DIR,
+    check_enabled, check_lockout, user_has_session, CompareError, Gate, Lockout, Session,
+    LID_STATE_DIR, LOGIND_USERS_DIR,
 };
 use peekin_core::activity;
 use peekin_core::backlight;
@@ -241,34 +242,42 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         pam.log(LOG_ERR, &format!("Face login skipped: {reason}"));
         return PamCode::AuthinfoUnavail as c_int;
     }
-    // An unreadable state file never blocks the password; the limit is just not enforced.
-    match lockout::load(&args.state_dir, &user) {
-        Ok(record) => {
-            if let Some(until) = record.locked_until(lockout::now(), config.max_failed_attempts()) {
-                let minutes = until.saturating_sub(lockout::now()).div_ceil(60).max(1);
-                pam.log(
-                    LOG_NOTICE,
-                    &format!(
-                        "Face login skipped: {} failed face attempts; paused for {minutes} min or until a password login",
-                        record.failures
-                    ),
-                );
-                record_activity(pam, &args, &user, &session, activity::Outcome::Paused, None);
-                pam.tell(
-                    false,
-                    &tr_args(
-                        "Face login paused after too many failed attempts ({minutes} min); \
-                         use your password",
-                        &[("minutes", &minutes)],
-                    ),
-                );
-                return PamCode::AuthinfoUnavail as c_int;
-            }
+    // The counter is created before the scan. One that cannot be read or written,
+    // or is damaged, stops face login until it is repaired (fail closed); the
+    // password is never blocked, PAM moves on to it.
+    match check_lockout(
+        &args.state_dir,
+        &user,
+        lockout::now(),
+        config.max_failed_attempts(),
+    ) {
+        Lockout::Proceed => {}
+        Lockout::Paused { failures, minutes } => {
+            pam.log(
+                LOG_NOTICE,
+                &format!(
+                    "Face login skipped: {failures} failed face attempts; paused for {minutes} min or until a password login"
+                ),
+            );
+            record_activity(pam, &args, &user, &session, activity::Outcome::Paused, None);
+            pam.tell(
+                false,
+                &tr_args(
+                    "Face login paused after too many failed attempts ({minutes} min); \
+                     use your password",
+                    &[("minutes", &minutes)],
+                ),
+            );
+            return PamCode::AuthinfoUnavail as c_int;
         }
-        Err(error) => pam.log(
-            LOG_ERR,
-            &format!("Cannot read failed-attempt state: {error}"),
-        ),
+        Lockout::Unusable(reason) => {
+            pam.log(LOG_ERR, &format!("Face login skipped: {reason}"));
+            pam.tell(
+                true,
+                &tr("Face authentication is unavailable (see the system log); use your password"),
+            );
+            return PamCode::AuthinfoUnavail as c_int;
+        }
     }
     // The worker resolves the camera again and refuses a weaker mode, so a swapped camera fails closed.
     let camera = cameras::resolved_kind(&config.device_path());
@@ -476,7 +485,7 @@ fn preflight(
     }
     models::check_service_access(paths.user_models_dir(), user, service_gid).map_err(|reason| {
         format!(
-            "face model store is not readable by the peekin service: {reason}; \
+            "face model store refused: {reason}; \
              repair with: sudo /usr/libexec/peekin/system-setup install"
         )
     })

@@ -1,7 +1,11 @@
 # Match thresholds: measured error rates
 
 How often does `min_similarity` let a stranger in, and how often does it turn
-the right person away? This page reports measurements with the models PeekIn ships, and what they do not cover.
+the right person away? This page reports measurements with the models PeekIn
+ships, and what they do not cover. Every figure comes from LFW press photos
+compared with each other, not from webcam or infrared login attempts,
+look-alikes or presentation attacks (photos, screens or masks held up to a
+camera).
 
 ## Method
 
@@ -21,8 +25,11 @@ the right person away? This page reports measurements with the models PeekIn shi
   person is a genuine attempt and every photo of anyone else an impostor
   attempt. A login matches the best of all enrolled samples, so this is the
   rate that matters.
-- **Tools:** a one-off evaluation with OpenCV 4.13 and the shipped models;
-  the script is not part of the repository.
+- **Tools:** a one-off evaluation script with OpenCV 4.13 and the shipped
+  models (`face_detection_yunet_2023mar.onnx`,
+  `face_recognition_sface_2021dec.onnx`). The script is not part of the
+  repository, so these figures cannot be re-run from it; see
+  [Repeating the measurement](#repeating-the-measurement).
 
 Sanity check: on the standard LFW protocol (6,000 pairs) the pipeline is 99.2%
 accurate at 0.363. OpenCV reports 99.40% for SFace.
@@ -56,8 +63,15 @@ LFW rather than look-alikes.
   is about 4 times the single-photo rate, and several models (e.g. with and
   without glasses) raise it further in proportion.
 - **At the default 0.363** roughly 1 stranger in 240 would match a 5-sample
-  model on a single frame. Raising `min_similarity` to **0.45** makes that
-  about 1 in 5,700 while turning away 0.5% of genuine LFW attempts.
+  model on a single frame. Raising `min_similarity` to **0.45** (the settings
+  app's Secure level, which also turns on the personal threshold) makes that
+  about 1 in 5,700, at the cost of turning away 0.53% of genuine LFW attempts
+  instead of 0.13%: about 4 times as many.
+- **The head turns do not lower these rates.** They stop photos and still
+  images, not people: a stranger in front of the camera can turn their head
+  as asked, so at the default about 1 stranger in 240 still matches a
+  5-sample model, with or without them. Only a higher threshold, or fewer
+  enrolled samples, lowers that.
 - **The personal threshold** (`[video] personal_threshold`) raises the
   threshold only when the enrolled samples are consistent. With LFW's varied
   photos that happened for 11% of people and barely changed the stranger rate
@@ -74,13 +88,33 @@ LFW rather than look-alikes.
 - **Relatives, twins and look-alikes**: LFW is mostly unrelated public
   figures. Close relatives will match more often than these rates.
 - **Photos, screens, masks** (presentation attacks): these rates are about
-  other people's real faces. The head-movement check addresses photos; see the
-  README's security section.
-- **Webcams and infrared**: LFW is colour press photography. Genuine webcam
-  scores, and infrared cameras, were not measured here.
+  other people's real faces. The head-movement check stops photos and still
+  images, not a video of the user cut to the announced turns or a mask; see
+  the README's security section.
+- **Webcams and infrared**: LFW is colour press photography. No webcam or
+  infrared image was measured here, for genuine users or for strangers.
 - **Three frames**: a login needs three spaced frames matching the same model.
   For one impostor these frames are nearly identical, so the per-attempt
   stranger rate is probably close to the per-frame rate above, not its cube.
 
-To measure your own genuine scores, run `sudo peekin test` a few times
-(it prints the best similarity) or watch the Test tab.
+## Repeating the measurement
+
+The evaluation script is not in the repository. To repeat the LFW figures,
+follow the method above: check the parquet's SHA-256, run every photo through
+OpenCV's `FaceDetectorYN` and `FaceRecognizerSF` with the shipped models and
+the pipeline settings listed, then count for each `min_similarity` the share
+of impostor pairs or attempts scoring at or above it (FAR) and of genuine ones
+scoring below it (FRR); a login accepts a score equal to the threshold.
+
+The repository's own tools measure your face on your camera, not strangers:
+
+- `sudo peekin test` prints the best similarity of a scan against your face
+  models; run it a few times, or watch the settings app's Test tab.
+- The `benchmark` example (`crates/peekin-cli/examples/benchmark.rs`) repeats
+  `peekin test --until-match` and reports how many of your own attempts were
+  accepted and how long they took:
+
+  ```sh
+  cargo build --release -p peekin-cli --example benchmark
+  sudo target/release/examples/benchmark 20 "$USER"
+  ```

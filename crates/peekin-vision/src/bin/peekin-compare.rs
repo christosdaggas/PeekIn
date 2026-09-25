@@ -8,7 +8,7 @@ use peekin_core::compare::{
 };
 use peekin_core::lockout;
 use peekin_core::lowlight::{LowLightNotice, LOW_LIGHT_SIGNAL, MATCHED_MODEL_PREFIX};
-use peekin_core::models::{load_user_models, usable_embeddings, ModelError};
+use peekin_core::models::{load_service_models, usable_embeddings, ModelError};
 use peekin_core::paths::validate_username;
 use peekin_core::snapshots;
 use peekin_core::source::{Face, FaceSource, FrameStats, SourceError};
@@ -96,7 +96,7 @@ fn main() -> ExitCode {
         eprintln!("[snapshots] save_successful is not supported, ignoring it");
     }
 
-    let models = match load_user_models(paths.user_models_dir(), &user) {
+    let models = match load_service_models(&paths, &user) {
         Ok(m) => m,
         Err(ModelError::NotInitialised | ModelError::NoModelForUser(_)) => {
             return exit(CompareExit::NoFaceModel)

@@ -122,6 +122,8 @@ Decrypt the encrypted face models into
 and encrypt any plaintext face model found in
 .I /etc/peekin/models
 first, removing it from the disk.
+An account whose face models cannot be decrypted is reported and keeps no
+decrypted copy, so its face login stays off; the password keeps working.
 The face models are sealed with
 .BR systemd-creds (1)
 using the TPM2 chip and the host key, or the host key alone without a TPM;
@@ -130,7 +132,8 @@ Every change made with
 .BR add ,
 .BR remove ,
 .B clear
-or the settings app is sealed again.
+or the settings app is sealed again; a change that cannot be sealed is not
+made.
 .TP
 .B version
 Print the version.
@@ -171,8 +174,9 @@ sudo peekin doctor
 .fi
 .SH SECURITY
 Face recognition is a convenience, not a replacement for the password.
-The head-movement check makes photos and fixed recordings harder to use, but
-it is not certified presentation-attack detection.
+The head-movement check stops photos and still pictures on a phone, not a
+video of the user cut to follow the turns asked for or replayed until its own
+turns come up; it is not certified presentation-attack detection.
 .SH SEE ALSO
 .BR peekin-settings (1),
 .BR peekin-config (5),

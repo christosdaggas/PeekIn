@@ -7,6 +7,7 @@ pub mod status;
 pub use status::{AuthDecision, ChildEnd, PamCode};
 
 use peekin_core::config::FaceService;
+use peekin_core::lockout;
 use peekin_core::{PeekinConfig, PeekinPaths};
 use std::path::Path;
 
@@ -106,6 +107,45 @@ pub fn check_enabled(
         Ok(p) if p.is_file() => Gate::Proceed,
         Ok(_) => Gate::Skip("no face model for user"),
         Err(_) => Gate::Skip("invalid username"),
+    }
+}
+
+/// What the failed-attempt counter allows, checked before the face prompt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Lockout {
+    Proceed,
+    /// Paused after `failures` rejected faces, for `minutes` more (at least 1).
+    Paused {
+        failures: u32,
+        minutes: u64,
+    },
+    /// The counter cannot be read or written, or is damaged; the reason is for the log.
+    Unusable(String),
+}
+
+/// A counter that cannot be read or written, or is damaged, stops face login
+/// until it is repaired (fail closed): without a trustworthy count that can
+/// grow, the limit cannot be enforced. The counter is created before the scan,
+/// so a failure is known to be recordable. The password is unaffected; PAM
+/// moves on to it. `username` must already be validated.
+pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u32) -> Lockout {
+    // 0 turns the limit off; the counter then plays no part.
+    if max_failures == 0 {
+        return Lockout::Proceed;
+    }
+    match lockout::load_or_create(state_dir, username) {
+        Ok(record) => match record.locked_until(now, max_failures) {
+            Some(until) => Lockout::Paused {
+                failures: record.failures,
+                minutes: until.saturating_sub(now).div_ceil(60).max(1),
+            },
+            None => Lockout::Proceed,
+        },
+        Err(error) => Lockout::Unusable(format!(
+            "cannot read or write the failed-attempt counter: {error}; \
+             repair with: sudo /usr/libexec/peekin/system-setup install; \
+             a password login clears a damaged counter"
+        )),
     }
 }
 
@@ -441,6 +481,78 @@ mod tests {
             check_enabled(&off, &p, "alice", none, &remote),
             Gate::Skip("PAM service is not enabled for face authentication")
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unreadable_or_damaged_counters_stop_face_login() {
+        let (dir, _) = setup("lockout");
+        let state = dir.join("failures");
+        let now = 1_000_000;
+        assert_eq!(check_lockout(&state, "alice", now, 5), Lockout::Proceed);
+        for _ in 0..5 {
+            lockout::record_failure(&state, "alice", now - 60).unwrap();
+        }
+        assert_eq!(check_lockout(&state, "alice", now, 6), Lockout::Proceed);
+        assert_eq!(
+            check_lockout(&state, "alice", now, 5),
+            Lockout::Paused {
+                failures: 5,
+                minutes: 14
+            }
+        );
+        // Damaged content, or a directory where the counter belongs.
+        fs::write(state.join("alice"), "garbage\n").unwrap();
+        fs::create_dir(state.join("bob")).unwrap();
+        for user in ["alice", "bob"] {
+            match check_lockout(&state, user, now, 5) {
+                Lockout::Unusable(reason) => assert!(
+                    reason.starts_with("cannot read or write the failed-attempt counter: ")
+                        && reason.ends_with(
+                            "; repair with: sudo /usr/libexec/peekin/system-setup install; \
+                             a password login clears a damaged counter"
+                        ),
+                    "{reason}"
+                ),
+                other => panic!("{user}: {other:?}"),
+            }
+        }
+        // With the limit off the counter plays no part.
+        assert_eq!(check_lockout(&state, "alice", now, 0), Lockout::Proceed);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn counters_that_cannot_be_written_stop_face_login() {
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+        let (dir, _) = setup("unwritable");
+        let now = 1_000_000;
+        // Places where a failure could never be recorded.
+        let open = dir.join("open");
+        fs::create_dir(&open).unwrap();
+        fs::set_permissions(&open, fs::Permissions::from_mode(0o777)).unwrap();
+        let dangling = dir.join("dangling");
+        std::os::unix::fs::symlink(dir.join("nowhere"), &dangling).unwrap();
+        let mut unusable = vec![open, dangling];
+        // Root ignores directory permissions; nobody else can write here.
+        if unsafe { libc::geteuid() } != 0 {
+            let read_only = dir.join("read-only");
+            fs::DirBuilder::new()
+                .mode(0o500)
+                .create(&read_only)
+                .unwrap();
+            unusable.push(read_only);
+        }
+        for place in &unusable {
+            match check_lockout(place, "alice", now, 5) {
+                Lockout::Unusable(_) => {}
+                other => panic!("{}: {other:?}", place.display()),
+            }
+        }
+        // Elsewhere the counter is created before the scan, with no failures.
+        let state = dir.join("failures");
+        assert_eq!(check_lockout(&state, "alice", now, 5), Lockout::Proceed);
+        assert_eq!(fs::metadata(state.join("alice")).unwrap().len(), 0);
         let _ = fs::remove_dir_all(&dir);
     }
 

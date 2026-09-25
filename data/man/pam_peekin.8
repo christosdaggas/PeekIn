@@ -35,6 +35,9 @@ rejected faces in a row, face login pauses for 15 minutes or until the user
 authenticates with the password; the module's
 .B setcred
 function clears the counter then.
+While the limit is on, the counter is created before each scan; one that
+cannot be read or written, or is damaged, turns face login off, leaving only
+the password, until it is repaired (a password login clears a damaged one).
 .PP
 When the worker reports a dark scene from a colour camera and
 .B brighten_screen
@@ -84,7 +87,8 @@ limit, no face model, or a camera or worker failure during the scan.
 .TP
 .B PAM_AUTHINFO_UNAVAIL
 Face authentication could not or should not be used here: disabled, switched
-off for this service, no camera, paused after failed attempts, invalid
+off for this service, no camera, paused after failed attempts, a
+failed-attempt counter that is damaged or cannot be read or written, invalid
 security settings, or the challenge could not be shown.
 .TP
 .B PAM_USER_UNKNOWN

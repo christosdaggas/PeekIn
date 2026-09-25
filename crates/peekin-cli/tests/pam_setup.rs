@@ -200,6 +200,8 @@ impl Fixture {
             .env("OLD_ACTIVITY", self.path("no-old-activity"))
             .env("OLD_SNAPSHOTS", self.path("no-old-log"))
             .env("PEEKIN_CLI", self.path("no-peekin"))
+            // The counter directory the install (re)creates: never /var/lib.
+            .env("STATE_DIR", self.path("failures"))
             .output()
             .unwrap()
     }

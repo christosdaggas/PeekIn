@@ -10,8 +10,8 @@
 # The text console (/etc/pam.d/login) is never touched, so a password login
 # always remains available.
 # PAM_DIR, CONFIG_FILE, SELINUX_PP, SELINUX=0, SERVICE_USER, SERVICE_GROUP,
-# PAM_SETUP, PAM_FAIL_REPLACE and the OLD_*/NEW_*/MIGRATION_MARKER paths of the
-# linux-hello migration are for testing.
+# PAM_SETUP, PAM_FAIL_REPLACE, STATE_DIR and the OLD_*/NEW_*/MIGRATION_MARKER
+# paths of the linux-hello migration are for testing.
 set -u
 PAM_DIR=${PAM_DIR:-/etc/pam.d}
 CONFIG_FILE=${CONFIG_FILE:-/etc/peekin/config.ini}
@@ -19,6 +19,8 @@ SELINUX_PP=${SELINUX_PP:-/usr/share/selinux/packages/peekin.pp}
 SELINUX=${SELINUX:-1}
 SERVICE_USER=${SERVICE_USER:-peekin}
 PAM_SETUP=${PAM_SETUP:-/usr/bin/peekin}
+# Failed-attempt counters (peekin_core::lockout::STATE_DIR).
+STATE_DIR=${STATE_DIR:-/var/lib/peekin/failures}
 LINE='auth        [success=done default=ignore]    pam_peekin.so'
 OURS='^auth[[:space:]]+(sufficient|\[success=done[[:space:]]+default=ignore\])[[:space:]]+pam_peekin\.so[[:space:]]*$'
 
@@ -217,6 +219,17 @@ ensure_service_account() {
     fi
 }
 
+# PAM refuses face login (password only) while the counter directory is
+# missing or unusable, so the repair install recreates it, root-only.
+ensure_state_dir() {
+    [ ! -L "$STATE_DIR" ] || { log "refusing symlinked counter directory $STATE_DIR"; return 1; }
+    mkdir -p "$STATE_DIR" && chmod 0700 "$STATE_DIR" ||
+        { log "could not create the counter directory $STATE_DIR"; return 1; }
+    if [ "$(id -u)" = 0 ]; then
+        chown root:root "$STATE_DIR" || { log "could not own $STATE_DIR"; return 1; }
+    fi
+}
+
 selinux_install() {
     [ "$SELINUX" = 1 ] && [ -f "$SELINUX_PP" ] && command -v semodule >/dev/null 2>&1 || return 0
     semodule -i "$SELINUX_PP" || { log "could not load the SELinux module; the lock screen may not reach the camera"; return 0; }
@@ -261,6 +274,7 @@ case "${1:-}" in
         rc=0
         migrate_from_linux_hello || rc=1
         migrate_models || rc=1
+        ensure_state_dir || rc=1
         # The SELinux module before the face models are decrypted into
         # /run/peekin/models: a file created there earlier keeps the generic
         # /run type, which the lock screen may not read ("no face model").

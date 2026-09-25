@@ -28,8 +28,10 @@ as usual.
   short random sequence of head turns (for example LEFT, RIGHT, LEFT). A
   printed photo or a picture on a phone can't follow instructions.
 - **Your face stays on your computer.** Nothing goes to the cloud. Face data
-  is encrypted with your computer's TPM chip (or a host key where there is
-  none), so a copied disk or a backup is useless to anyone else.
+  is encrypted with your computer's TPM chip, so a copied disk or a backup is
+  useless to anyone else. Without a TPM the key is a file on the same disk: a
+  backup that leaves out `/var/lib/systemd/credential.secret` is still
+  protected, a full copy of the disk is not (full-disk encryption covers that).
 - **You decide where it works.** Turn face login on or off separately for
   `sudo`, the login screen, the lock screen, administrator dialogs and the text
   console. It never works over SSH.
@@ -81,10 +83,15 @@ anything that is missing.
 ## Be aware
 
 PeekIn is a convenience, not a replacement for your password. The head-turn
-check makes photos and recorded videos much harder to use, but no ordinary
-webcam can prove that a live person is in front of it: a skilled attacker with
-a 3D mask or a live video feed could still get through. Keep a strong
-password. Technical details are in [Security](#security) below.
+check stops photos, a still picture on a phone and an ordinary video of you.
+It does not stop a video of you turning your head, cut to follow the turns
+asked for or simply replayed when the same turns come up again: there are
+only 8 possible sequences, and the whole sequence is shown before the scan
+starts. A 3D mask or a live video feed can get through too, and a stranger
+who looks enough like you can simply do the head turns. An approved infrared
+camera, the Secure level and the limit on failed attempts help;
+[Security](#security) below explains what each one does. Keep a strong
+password.
 
 > While functional, it may contain bugs or security issues. Use at your own risk.
 >
@@ -274,9 +281,12 @@ Logs are written under the calling program (sudo, gdm-session-worker):
   login pauses for 15 minutes, or until the user logs in with the password,
   which resets the counter. "No face seen" and camera problems do not count.
   Counters: `/var/lib/peekin/failures/<user>` (root, 0600, SELinux type
-  `peekin_var_lib_t`). `peekin doctor` and the settings app (System
-  status → Failed face attempts) show the state; the app's Resume button lifts
-  a pause after administrator authentication.
+  `peekin_var_lib_t`); while the limit is on, a counter file that cannot be
+  read or written, or is damaged, turns face login off for that account
+  (password only) until a password login clears it or the labels are repaired
+  (`sudo /usr/libexec/peekin/system-setup install`). `peekin doctor` and the
+  settings app (System status → Failed face attempts) show the state; the
+  app's Resume button lifts a pause after administrator authentication.
 - `[services]`: where face login may be used. `sudo` (also `sudo -i`),
   `login_screen` (GDM after boot; the GNOME keyring then stays locked until
   the password is typed), `lock_screen` (GDM unlock of a running session,
@@ -301,10 +311,13 @@ Logs are written under the calling program (sudo, gdm-session-worker):
   Unknown and virtual cameras therefore fall back to password.
 - `[video] min_similarity`: cosine similarity in the shared UI/core range
   0.2 through 1.0 (default 0.363). Values such as 0.99 are preserved.
-  [docs/THRESHOLDS.md](docs/THRESHOLDS.md) lists the measured share of
-  strangers accepted and of genuine attempts rejected for each value (on
-  LFW, 13,233 photos): at 0.363 about 1 stranger in 240 matches a 5-sample
-  model, at 0.45 about 1 in 5,700.
+  [docs/THRESHOLDS.md](docs/THRESHOLDS.md) lists the share of strangers
+  accepted and of genuine attempts rejected for each value, measured on
+  LFW's 13,233 press photos, not on webcam or infrared images, look-alikes
+  or presentation attacks. At 0.363 about 1 stranger in 240 matches a
+  5-sample model, and the head turns do not lower that, since a stranger can
+  do them too; 0.45 (the Secure level's threshold) makes it about 1 in 5,700
+  but rejects 0.53% of genuine attempts instead of 0.13%.
 - `[video] personal_threshold` (default `false`): raise `min_similarity` for
   each user from their own enrollment. It takes the least similar pair of
   samples within one face model, subtracts 0.30 and caps the result at 0.50;
@@ -440,13 +453,52 @@ three spaced, single-person frames matching the same model, followed (unless
 `require_movement_without_ir = false`) by a freshly randomized on-screen instruction for
 **three ordered left/right head turns** with a return to centre between each turn. The system requires
 landmark changes on distinct frames of the same matching face. A missing PAM
-conversation or missing landmarks falls back to password. This frustrates a
-static photograph or fixed prerecorded clip; it is **not** independently
-validated liveness/PAD and does not defeat interactive replay, a movable 3D
-mask or a camera feed controlled by an attacker. Face files are root-owned mode 0640
-under a root-owned mode 0750 directory; only the dedicated non-login
-`peekin` service group receives read access. Authenticating users cannot
-write their biometric trust material.
+conversation or missing landmarks falls back to password.
+
+What the head turns do and do not stop:
+
+- Each turn is LEFT or RIGHT, so there are 8 possible sequences, and the PAM
+  module names the whole sequence in one message before the scan starts
+  (PAM cannot prompt step by step during a scan).
+- They stop a photograph, a phone showing a still image and a video that
+  does not show the announced turns in order.
+- They do not stop a recording of the user turning left and right that is
+  cut into the announced order once it is shown; all 8 versions can be
+  prepared in advance. An unedited recording of one complete sequence
+  matches 1 announced sequence in 8, and because the sequence is shown
+  before any face is needed, an attacker can start again until theirs comes
+  up: attempts in which no face is seen do not count towards the
+  failed-attempt pause.
+- A live stranger can do the turns too, so they do not lower the stranger
+  rates in [docs/THRESHOLDS.md](docs/THRESHOLDS.md): about 1 in 240 for a
+  5-sample model at the default threshold.
+- They are **not** independently validated liveness/PAD and do not defeat a
+  movable 3D mask or a camera feed controlled by an attacker.
+
+What helps:
+
+- An administrator-attested infrared camera with `[video] ir_only = true`:
+  unknown and virtual cameras are refused, and a phone or monitor screen
+  shows little or nothing to an infrared sensor, so a replayed video is much
+  harder to use (expected, not measured by this project).
+- The Secure level (threshold 0.45 and the personal threshold) against
+  strangers and look-alikes: about 1 stranger in 5,700 instead of 1 in 240
+  on LFW, with 0.53% instead of 0.13% of genuine attempts rejected. It is
+  not aimed at recordings of the user.
+- `[core] max_failed_attempts` left on (default 5 in a row, then a 15-minute
+  pause). It limits how often a stranger or a recording can be tried in
+  front of the camera, though not attempts in which no face is seen.
+- Treating face login as a convenience: it is a second way in next to the
+  password, so an account is only as safe as the weaker of the two. Switch it
+  off in `[services]` wherever that is not good enough.
+
+Face files are root-owned mode 0640 under a root-owned mode 0750 directory;
+only the dedicated non-login `peekin` service group receives read access.
+Authenticating users cannot write their biometric trust material. PAM and the
+recognition worker refuse a store whose directory or model file is writable by
+the group, carries a POSIX ACL or gives others any access at all, and fall
+back to the password (repair with
+`sudo /usr/libexec/peekin/system-setup install`).
 
 Face models are encrypted on disk: `/etc/peekin/models/<user>.dat.cred`,
 sealed with `systemd-creds` (AES-256-GCM) using the TPM2 chip together with
@@ -454,16 +506,25 @@ the host key `/var/lib/systemd/credential.secret`, or the host key alone on a
 machine without a TPM. They are not bound to PCRs, so firmware and kernel
 updates keep them readable. `peekin-models.service` decrypts them at boot into
 `/run/peekin/models` (memory; SELinux type `peekin_run_t`), which PAM, the
-worker and the app read; every change is sealed again, and plaintext models
-found on disk (e.g. after an upgrade) are sealed and removed from it
-(`sudo peekin unseal-models` does this by hand). This keeps the face data
-unreadable to someone who reads the disk in another computer or gets a
-backup of `/etc`. It does not protect against root on this system, nor
-against someone who has the whole machine and boots it from other media,
-since the TPM is on the board and the host key on the disk; full-disk
-encryption (LUKS, unlocked by the TPM with `systemd-cryptenroll`) protects
-everything else as well. If the TPM is cleared, the models cannot be
-decrypted any more: add your face again (the password keeps working).
+worker and the app read; accounts with dots in their name (`john.doe`,
+`user@ad.example.com`) are restored like any other. A change (add, improve,
+remove) is applied to both copies or to neither: when the encryption fails,
+it is reported as not applied. Plaintext models found on disk (e.g. after an
+upgrade) are sealed and removed from it (`sudo peekin unseal-models` does this
+by hand).
+
+With a TPM, a copied disk or a backup is useless without this machine's TPM.
+With the host key alone, a backup that leaves out
+`/var/lib/systemd/credential.secret` (for example a backup of `/etc`) is
+protected, but a full copy of the disk contains the key and is not. Neither
+protects against root on this system, nor against someone who has the whole
+machine and boots it from other media, since the TPM is on the board and the
+host key on the disk. Full-disk encryption (LUKS, which `systemd-cryptenroll`
+can let the TPM unlock) also makes a full copy of the disk useless and
+protects everything else on it. If the TPM is cleared, the models cannot be
+decrypted any more: add your face again (the password keeps working). When a
+model cannot be decrypted, `peekin unseal-models` reports the account and
+removes its decrypted copy, so face login is off for that account.
 
 Enrollment rejects small, strongly non-frontal, blurry, multi-person and
 cross-identity sample sets. The size/pose/sharpness cutoffs are engineering
@@ -473,9 +534,10 @@ heuristics, not empirically calibrated quality or accessibility guarantees.
 
 `sudo peekin doctor` checks the configuration, the ONNX models, the
 service account, access to your face model, the camera (including whether the
-service account may open it), PAM integration, the SELinux module and the
-SELinux labels of the face model store, and prints the command that fixes
-each problem. `sudo
+service account may open it), PAM integration, the SELinux module, the
+SELinux labels of the face model store and the failed-attempt counter (a
+damaged or unreadable one is a FAIL while the limit is on), and prints the
+command that fixes each problem. `sudo
 /usr/libexec/peekin/system-setup install` is idempotent and repairs
 permissions, group membership, SELinux and PAM integration.
 

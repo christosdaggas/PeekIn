@@ -538,10 +538,35 @@ fn check_lockout(report: &mut Report, config: &PeekinConfig, state_dir: &Path, u
                 ),
             }
         }
+        // Without root (development mode) the doctor cannot see what PAM sees.
+        Err(error)
+            if error.kind() == std::io::ErrorKind::PermissionDenied
+                && unsafe { libc::geteuid() } != 0 =>
+        {
+            report.add(
+                Level::Warn,
+                "attempts",
+                format!("cannot read the failed-attempt counter (run as root): {error}"),
+            )
+        }
+        // PAM keeps face login off while the counter is damaged or unreadable,
+        // unless the limit is off: then it does not use the counter.
+        Err(error) if config.max_failed_attempts() > 0 => report.add(
+            Level::Fail,
+            "attempts",
+            format!(
+                "face login is off for {user} (password only) until a password login clears \
+                 the failed-attempt counter or its labels are repaired: {error}; \
+                 repair with: {REPAIR}"
+            ),
+        ),
         Err(error) => report.add(
             Level::Warn,
             "attempts",
-            format!("cannot read state: {error}"),
+            format!(
+                "the failed-attempt counter cannot be used ({error}); it is ignored while \
+                 the attempt limit is off"
+            ),
         ),
     }
 }
@@ -604,7 +629,8 @@ fn check_model_store_labels(report: &mut Report, paths: &PeekinPaths, user: &str
     }
 }
 
-/// With the wrong type PAM cannot record failures from the login screen, console or polkit.
+/// With the wrong type the login screen, console and polkit cannot read or write
+/// the failure counter, and PAM, failing closed, leaves them the password only.
 fn check_lockout_label(report: &mut Report, config: &PeekinConfig, actual: Option<&str>) {
     let Some(other) = actual.filter(|t| *t != LOCKOUT_SELINUX_TYPE) else {
         return;
@@ -614,8 +640,9 @@ fn check_lockout_label(report: &mut Report, config: &PeekinConfig, actual: Optio
             Level::Fail,
             "attempts",
             format!(
-                "{} has SELinux type {other}, not {LOCKOUT_SELINUX_TYPE}: the attempt limit \
-                 may not be enforced; repair with: {REPAIR}",
+                "{} has SELinux type {other}, not {LOCKOUT_SELINUX_TYPE}: face login can be off \
+                 (password only) on the login screen, the console and in polkit dialogs, whose \
+                 domains cannot read or write the failed-attempt counter; repair with: {REPAIR}",
                 peekin_core::lockout::STATE_DIR
             ),
         );
@@ -886,6 +913,59 @@ mod tests {
     }
 
     #[test]
+    fn an_unusable_counter_turns_face_login_off() {
+        let dir = temp("lockout-unusable");
+        let config =
+            PeekinConfig::parse("[core]\nmax_failed_attempts = 2\n", "<t>".into()).unwrap();
+        // Damaged content, and a directory where the counter belongs: PAM
+        // leaves these accounts with the password only.
+        std::fs::write(dir.join("alice"), "garbage\n").unwrap();
+        std::fs::create_dir(dir.join("bob")).unwrap();
+        for user in ["alice", "bob"] {
+            let mut report = Report::default();
+            check_lockout(&mut report, &config, &dir, user);
+            assert_eq!(report.worst(), Level::Fail, "{:?}", report.0);
+            let message = &report.0[0].message;
+            assert!(
+                message.starts_with(&format!("face login is off for {user} "))
+                    && message.contains("until a password login clears")
+                    && message.contains("labels are repaired")
+                    && message.ends_with(&format!("repair with: {REPAIR}")),
+                "{message}"
+            );
+        }
+        let mut report = Report::default();
+        check_lockout(&mut report, &config, &dir, "alice");
+        assert!(report.0[0].message.contains("is damaged"), "{:?}", report.0);
+        // With the limit off PAM does not use the counter.
+        let off = PeekinConfig::parse("[core]\nmax_failed_attempts = 0\n", "<t>".into()).unwrap();
+        let mut report = Report::default();
+        check_lockout(&mut report, &off, &dir, "alice");
+        assert_eq!(report.worst(), Level::Warn, "{:?}", report.0);
+        assert!(
+            !report.0[0].message.contains("face login is off"),
+            "{:?}",
+            report.0
+        );
+        // Without root the doctor cannot see what PAM sees (development mode).
+        let closed = dir.join("closed");
+        std::fs::create_dir(&closed).unwrap();
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let mut report = Report::default();
+        check_lockout(&mut report, &config, &closed, "carol");
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o700)).unwrap();
+        if unsafe { libc::geteuid() } != 0 {
+            assert_eq!(report.worst(), Level::Warn, "{:?}", report.0);
+            assert!(
+                report.0[0].message.contains("run as root"),
+                "{:?}",
+                report.0
+            );
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn lockout_directory_needs_its_selinux_type() {
         let config = PeekinConfig::parse("", "<t>".into()).unwrap();
         let mut report = Report::default();
@@ -894,7 +974,17 @@ mod tests {
         assert!(report.0.is_empty(), "{:?}", report.0);
         check_lockout_label(&mut report, &config, Some("xdm_var_lib_t"));
         assert_eq!(report.worst(), Level::Fail);
-        assert!(report.0[0].message.contains("xdm_var_lib_t"));
+        // PAM fails closed: the confined places cannot use the counter, so
+        // their face login is off.
+        let message = &report.0[0].message;
+        assert!(
+            message.contains("xdm_var_lib_t")
+                && message.contains("face login can be off")
+                && message.contains("login screen, the console and in polkit")
+                && !message.contains("may not be enforced")
+                && message.ends_with(&format!("repair with: {REPAIR}")),
+            "{message}"
+        );
         let off = PeekinConfig::parse("[core]\nmax_failed_attempts = 0\n", "<t>".into()).unwrap();
         let mut report = Report::default();
         check_lockout_label(&mut report, &off, Some("var_lib_t"));

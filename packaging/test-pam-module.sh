@@ -112,6 +112,16 @@ run 0 && fail "unreadable model store must not authenticate"
 [ -e "$W/out/args" ] && fail "worker started despite an unreadable model store"
 grep -q "Face check" "$W/log" && fail "prompt shown although the scan cannot start"
 chmod 0750 "$W/etc/models"
+# A face model others could change, or one with an ACL, is refused as well.
+chmod 0660 "$W/etc/models/$USER_UNDER_TEST.dat"
+run 0 && fail "group-writable face model must not authenticate"
+[ -e "$W/out/args" ] && fail "worker started despite a group-writable face model"
+chmod 0640 "$W/etc/models/$USER_UNDER_TEST.dat"
+if command -v setfacl >/dev/null 2>&1 && setfacl -m u:65534:r "$W/etc/models/$USER_UNDER_TEST.dat" 2>/dev/null; then
+    run 0 && fail "face model with an ACL must not authenticate"
+    [ -e "$W/out/args" ] && fail "worker started despite a face model with an ACL"
+    setfacl -b "$W/etc/models/$USER_UNDER_TEST.dat"
+fi
 rm "$W/camera"
 run 0 && fail "missing camera must not authenticate"
 [ -e "$W/out/args" ] && fail "worker started without a camera"
@@ -122,7 +132,8 @@ sed -i 's/^movement_challenge = false/movement_challenge = true/' "$W/etc/config
 sed -i 's/^require_movement_without_ir = false/require_movement_without_ir = true/' "$W/etc/config.ini"
 run 17 && fail "no face must not authenticate"
 grep -q "No face seen; use your password" "$W/log" || fail "no-face outcome not explained"
-[ -e "$W/state/$USER_UNDER_TEST" ] && fail "no face seen must not count as a failed attempt"
+# The counter is created before each scan; it stays empty.
+[ -s "$W/state/$USER_UNDER_TEST" ] && fail "no face seen must not count as a failed attempt"
 
 # 6. Five rejected faces pause face login: no prompt, no worker, a message.
 sed -i 's/^max_failed_attempts = 5/max_failed_attempts = 3/' "$W/etc/config.ini"
@@ -145,8 +156,26 @@ run 11 || true
 run 0 || fail "matching face must authenticate"
 [ -e "$W/state/$USER_UNDER_TEST" ] && fail "face success must clear the counter"
 
-# 9. [services]: each place follows its switch; the worker never starts
-#    where face login is off.
+# 9. A damaged counter, or a counter directory where no failure could be
+#    recorded, turns face login off: no prompt, no worker, an explanation.
+#    A password login clears a damaged counter.
+printf 'garbage\n' > "$W/state/$USER_UNDER_TEST"
+run 0 && fail "damaged counter must not allow face login"
+[ -e "$W/out/args" ] && fail "worker started with a damaged counter"
+grep -q "turn your head" "$W/log" && fail "prompt shown although the counter is damaged"
+grep -q "Face authentication is unavailable" "$W/log" || fail "damaged counter not explained"
+"$HARNESS" "$W/pam2" sudo "$USER_UNDER_TEST" > "$W/log" 2>&1 || fail "password stand-in must succeed"
+[ -e "$W/state/$USER_UNDER_TEST" ] && fail "password login must clear a damaged counter"
+run 0 || fail "face login must work again after a password login"
+chmod 0777 "$W/state"
+run 0 && fail "a counter directory writable by others must not allow face login"
+[ -e "$W/out/args" ] && fail "worker started although no failure could be recorded"
+grep -q "Face authentication is unavailable" "$W/log" || fail "unusable counter not explained"
+chmod 0700 "$W/state"
+run 0 || fail "face login must work again with a sound counter directory"
+
+# 10. [services]: each place follows its switch; the worker never starts
+#     where face login is off.
 cp "$W/pam/sudo" "$W/pam/login"
 sed -i 's/^sudo = true/sudo = false/' "$W/etc/config.ini"
 run 0 && fail "sudo must not use face login when switched off"
@@ -159,7 +188,7 @@ sed -i 's/^console = false/console = true/' "$W/etc/config.ini"
 "$HARNESS" "$W/pam" login "$USER_UNDER_TEST" > "$W/log" 2>&1 || fail "console login must work when switched on"
 sed -i 's/^console = true/console = false/' "$W/etc/config.ini"
 
-# 10. A dark scene: the screen is at full brightness during the scan and
+# 11. A dark scene: the screen is at full brightness during the scan and
 #     back to its level afterwards; nothing changes with the switch off.
 mkdir -p "$W/backlight/panel"
 echo raw > "$W/backlight/panel/type"
@@ -176,9 +205,9 @@ run 0 || fail "authentication with brighten_screen off"
 sed -i 's/^brighten_screen = false/brighten_screen = true/' "$W/etc/config.ini"
 rm "$W/low-light"
 
-# 11. A malformed security setting fails closed without prompting.
+# 12. A malformed security setting fails closed without prompting.
 sed -i 's/^movement_challenge = true/movement_challenge = perhaps/' "$W/etc/config.ini"
 run 0 && fail "malformed movement_challenge must fail closed"
 [ -e "$W/out/args" ] && fail "worker started with a malformed security setting"
 
-echo "PAM_MODULE_E2E_OK: challenge, passive, failure messages, preflight, lockout, services, screen light, history, fail-closed"
+echo "PAM_MODULE_E2E_OK: challenge, passive, failure messages, preflight, model store, lockout, damaged counter, services, screen light, history, fail-closed"

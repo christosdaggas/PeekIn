@@ -1,6 +1,6 @@
 Name:           peekin
 Version:        1.0.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Face authentication for Linux
 Packager:       Christos A. Daggas <info@chrisdaggas.com>
 Vendor:         Christos A. Daggas
@@ -209,6 +209,19 @@ fi
 %{_mandir}/man8/pam_peekin.8*
 
 %changelog
+* Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-3
+- Face model changes are applied to the encrypted and the active copy or to
+  neither, so a failed encryption can no longer bring a removed face back
+- Usernames containing dots are decrypted at boot like any other
+- An account whose model cannot be decrypted loses its active copy
+- The failed-attempt counter fails closed: an unreadable, unwritable or
+  damaged counter turns face login off (password only) until repaired
+- The model store is refused when it is group or world writable, carries an
+  ACL or gives others any access; the worker checks the opened file
+- Imported samples follow the same normalisation rule as recognition
+- system-setup install recreates the counter directory; doctor and manual
+  pages report the new failure modes; security limits documented
+
 * Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-2
 - Load the SELinux module before decrypting the face models and relabel
   /run/peekin, so the lock screen can read models decrypted at install time

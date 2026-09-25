@@ -409,14 +409,6 @@ fn attempts(config: &PeekinConfig, user: &str) -> serde_json::Value {
     }
 }
 
-/// Seals the changed models (installed systems).
-fn seal(paths: &PeekinPaths, user: &str) -> Result<()> {
-    peekin_core::sealed::persist(paths, user).context(
-        "the change is active, but its encrypted copy could not be written \
-         and would be lost at the next boot",
-    )
-}
-
 fn camera_path(path: &str) -> bool {
     path != "none" && peekin_core::management::valid_device_path(path)
 }
@@ -491,8 +483,7 @@ fn main() -> Result<()> {
                 data,
             });
             let (uid, gid) = model_owner(&paths)?;
-            models::save_user_models_owned(paths.user_models_dir(), &user, &existing, uid, gid)?;
-            seal(&paths, &user)?;
+            peekin_core::sealed::replace_models(&paths, &user, Some(&existing), uid, gid)?;
             println!("added {id}");
         }
         "add-samples" if rest.len() == 1 && rest[0].bytes().all(|b| b.is_ascii_digit()) => {
@@ -502,8 +493,7 @@ fn main() -> Result<()> {
             let mut existing = models::load_user_models(paths.user_models_dir(), &user)?;
             let count = models::append_samples(&mut existing, &rest[0], &user, data)?;
             let (uid, gid) = model_owner(&paths)?;
-            models::save_user_models_owned(paths.user_models_dir(), &user, &existing, uid, gid)?;
-            seal(&paths, &user)?;
+            peekin_core::sealed::replace_models(&paths, &user, Some(&existing), uid, gid)?;
             println!("model {} now has {count} samples", rest[0]);
         }
         "remove" if rest.len() == 1 && rest[0].bytes().all(|b| b.is_ascii_digit()) => {
@@ -512,9 +502,17 @@ fn main() -> Result<()> {
                 bail!("remove confirmation token missing");
             }
             let _lock = models::lock_user_models(paths.user_models_dir(), &user)?;
+            let existing = models::load_user_models(paths.user_models_dir(), &user)?;
+            if !existing.iter().any(|m| m.id.to_string() == rest[0]) {
+                return Err(ModelError::UnknownId(rest[0].clone(), user.clone()).into());
+            }
+            let kept: Vec<FaceModel> = existing
+                .into_iter()
+                .filter(|m| m.id.to_string() != rest[0])
+                .collect();
             let (uid, gid) = model_owner(&paths)?;
-            models::remove_model_owned(paths.user_models_dir(), &user, &rest[0], uid, gid)?;
-            seal(&paths, &user)?;
+            let new = (!kept.is_empty()).then_some(kept.as_slice());
+            peekin_core::sealed::replace_models(&paths, &user, new, uid, gid)?;
             println!("removed {}", rest[0]);
         }
         "snapshots" if rest.is_empty() => {

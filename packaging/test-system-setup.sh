@@ -10,6 +10,8 @@ export SERVICE_USER=peekin-test-nonexistent
 # from this test.
 export PEEKIN_CLI="$ROOT/no-peekin"
 export OLD_ETC="$ROOT/no-old-etc" OLD_ACTIVITY="$ROOT/no-old-activity" OLD_SNAPSHOTS="$ROOT/no-old-log"
+# The failed-attempt counter directory the install must (re)create.
+export STATE_DIR="$ROOT/failures"
 mkdir -p "$ROOT/pam"
 cat > "$ROOT/pam/sudo" <<'EOF'
 #%PAM-1.0
@@ -28,6 +30,12 @@ EOF
 PAM_DIR="$ROOT/pam" CONFIG_FILE="$ROOT/missing" SELINUX=0 ./packaging/system-setup install
 [ "$(grep -c pam_peekin "$ROOT/pam/sudo")" = 1 ]
 [ "$(grep -c pam_peekin "$ROOT/pam/gdm-password")" = 1 ]
+# PAM refuses face login while the counter directory is missing or unusable,
+# so the (repair) install creates it, root-only.
+[ "$(stat -c %a "$ROOT/failures")" = 700 ]
+rm -r "$ROOT/failures"
+PAM_DIR="$ROOT/pam" CONFIG_FILE="$ROOT/missing" SELINUX=0 ./packaging/system-setup install
+[ -d "$ROOT/failures" ] && [ "$(stat -c %a "$ROOT/failures")" = 700 ]
 grep -q '^auth required pam_env.so$' "$ROOT/pam/sudo"
 [ "$(grep -n pam_peekin "$ROOT/pam/sudo" | cut -d: -f1)" -gt "$(grep -n pam_env.so "$ROOT/pam/sudo" | cut -d: -f1)" ]
 [ "$(grep -n pam_peekin "$ROOT/pam/sudo" | cut -d: -f1)" -lt "$(grep -n pam_unix.so "$ROOT/pam/sudo" | cut -d: -f1)" ]

@@ -1,7 +1,9 @@
 //! Pause face login after repeated failed face attempts.
 //!
-//! A root-only file per user under [`STATE_DIR`] holds `"<failures> <last time>"`.
-//! I/O errors are returned for logging and must never block the password.
+//! A root-only file per user under [`STATE_DIR`] holds `"<failures> <last time>"`;
+//! it is empty from its creation until the first failure is written.
+//! I/O errors and damaged content are returned as errors: they stop face login
+//! (fail closed) but must never block the password.
 
 use crate::paths::validate_username;
 use std::fs::{self, OpenOptions};
@@ -13,6 +15,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const STATE_DIR: &str = "/var/lib/peekin/failures";
 pub const LOCKOUT: Duration = Duration::from_secs(15 * 60);
+/// Twice the longest record (32 bytes); longer content was not written here.
+const MAX_RECORD_LEN: u64 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Record {
@@ -21,16 +25,16 @@ pub struct Record {
 }
 
 impl Record {
-    fn parse(raw: &str) -> Record {
+    /// `None` for anything but `"<failures> <last time>"`.
+    fn parse(raw: &str) -> Option<Record> {
         let mut parts = raw.split_whitespace();
         match (
             parts.next().and_then(|v| v.parse().ok()),
             parts.next().and_then(|v| v.parse().ok()),
             parts.next(),
         ) {
-            (Some(failures), Some(last), None) => Record { failures, last },
-            // A damaged file starts over rather than locking anyone out.
-            _ => Record::default(),
+            (Some(failures), Some(last), None) => Some(Record { failures, last }),
+            _ => None,
         }
     }
 
@@ -113,29 +117,64 @@ fn open_locked(dir: &Path, user: &str, create: bool) -> io::Result<Option<fs::Fi
     Ok(Some(file))
 }
 
-fn read_record(file: &mut fs::File) -> io::Result<Record> {
-    let mut raw = String::new();
-    file.take(64).read_to_string(&mut raw)?;
-    Ok(Record::parse(&raw))
+/// `None` when the file holds no valid record; empty means no failures yet.
+fn read_record(file: &mut fs::File) -> io::Result<Option<Record>> {
+    let mut raw = Vec::new();
+    // One byte past the limit, so junk after a valid start is not cut off unseen.
+    file.take(MAX_RECORD_LEN + 1).read_to_end(&mut raw)?;
+    if raw.is_empty() {
+        return Ok(Some(Record::default()));
+    }
+    if raw.len() as u64 > MAX_RECORD_LEN {
+        return Ok(None);
+    }
+    Ok(std::str::from_utf8(&raw).ok().and_then(Record::parse))
 }
 
+fn damaged(dir: &Path, user: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "{} is damaged (expected \"<failures> <last time>\")",
+            dir.join(user).display()
+        ),
+    )
+}
+
+/// A missing file means no failures (first use, or after a reset); a damaged
+/// one is an `InvalidData` error, never "no failures".
 pub fn load(dir: &Path, user: &str) -> io::Result<Record> {
     match open_locked(dir, user, false)? {
-        Some(mut file) => read_record(&mut file),
+        Some(mut file) => read_record(&mut file)?.ok_or_else(|| damaged(dir, user)),
         None => Ok(Record::default()),
     }
 }
 
+/// [`load`] for the check before a scan: creates the directory and an empty
+/// counter when missing and opens it for writing under the lock, so an error
+/// also means a failure could not be recorded. [`reset`] removes the file.
+pub fn load_or_create(dir: &Path, user: &str) -> io::Result<Record> {
+    let mut file = open_locked(dir, user, true)?.expect("created");
+    read_record(&mut file)?.ok_or_else(|| damaged(dir, user))
+}
+
 pub fn record_failure(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
     let mut file = open_locked(dir, user, true)?.expect("created");
-    let previous = read_record(&mut file)?.current(now);
+    // Damaged content says nothing trustworthy about earlier failures, so this
+    // failure starts a fresh count and the rewrite below repairs the file. PAM
+    // refuses face login while the counter is damaged, so only damage that
+    // appears during a scan gets here.
+    let previous = read_record(&mut file)?.unwrap_or_default().current(now);
     let record = Record {
         failures: previous.failures.saturating_add(1),
         last: now,
     };
+    // One write over the old record, then trim: a failed write leaves the old
+    // count, never an empty file, which would read as no failures.
+    let line = format!("{} {}\n", record.failures, record.last);
     file.rewind()?;
-    file.set_len(0)?;
-    writeln!(file, "{} {}", record.failures, record.last)?;
+    file.write_all(line.as_bytes())?;
+    file.set_len(line.len() as u64)?;
     Ok(record)
 }
 
@@ -200,8 +239,99 @@ mod tests {
         std::os::unix::fs::symlink("/etc/hostname", d.join("mallory")).unwrap();
         assert!(record_failure(&d, "mallory", 1).is_err());
         assert!(load(&d, "mallory").is_err());
-        fs::write(d.join("carol"), "garbage here too\n").unwrap();
+        // Damaged content is an error naming the file, never "no failures".
+        let overlong = format!("3 1000{}junk\n", " ".repeat(60));
+        let damaged: &[&[u8]] = &[
+            b"garbage here too\n",
+            b"\n",
+            b"3\n",
+            b"3 1000 7\n",
+            b"-1 1000\n",
+            b"4294967296 1000\n",
+            b"\xff\xfe 1000\n",
+            overlong.as_bytes(),
+        ];
+        for content in damaged {
+            fs::write(d.join("carol"), content).unwrap();
+            let error = load(&d, "carol").unwrap_err();
+            let shown = String::from_utf8_lossy(content);
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{shown:?}");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&d.join("carol").display().to_string()),
+                "{error}"
+            );
+        }
+        // A missing file still means no failures, and so does an empty one:
+        // it was created before any failure was written.
+        assert_eq!(load(&d, "dave").unwrap(), Record::default());
+        fs::write(d.join("carol"), "").unwrap();
         assert_eq!(load(&d, "carol").unwrap(), Record::default());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn a_failure_on_a_damaged_counter_starts_a_fresh_count() {
+        let d = dir("fresh");
+        fs::DirBuilder::new().mode(0o700).create(&d).unwrap();
+        let overlong = format!("3 4900{}junk\n", " ".repeat(60));
+        let damaged: &[&[u8]] = &[b"garbage\n", b"\xff\xfe\n", overlong.as_bytes()];
+        let fresh = Record {
+            failures: 1,
+            last: 5000,
+        };
+        for content in damaged {
+            fs::write(d.join("carol"), content).unwrap();
+            let shown = String::from_utf8_lossy(content);
+            assert!(load(&d, "carol").is_err(), "{shown:?}");
+            assert_eq!(
+                record_failure(&d, "carol", 5000).unwrap(),
+                fresh,
+                "{shown:?}"
+            );
+            // The rewrite repairs the file.
+            assert_eq!(load(&d, "carol").unwrap(), fresh, "{shown:?}");
+        }
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn load_or_create_proves_that_failures_can_be_recorded() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = dir("create");
+        // Directory and counter are created; the empty counter means no failures.
+        assert_eq!(load_or_create(&d, "alice").unwrap(), Record::default());
+        assert_eq!(fs::metadata(&d).unwrap().mode() & 0o777, 0o700);
+        let counter = fs::metadata(d.join("alice")).unwrap();
+        assert_eq!((counter.len(), counter.mode() & 0o777), (0, 0o600));
+        assert_eq!(load(&d, "alice").unwrap(), Record::default());
+        let record = record_failure(&d, "alice", 50).unwrap();
+        assert_eq!(load_or_create(&d, "alice").unwrap(), record);
+        fs::write(d.join("alice"), "garbage\n").unwrap();
+        let error = load_or_create(&d, "alice").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        // Where no failure could be recorded, `load` alone sees "no failures".
+        let open = d.join("open");
+        fs::DirBuilder::new().mode(0o700).create(&open).unwrap();
+        fs::set_permissions(&open, fs::Permissions::from_mode(0o777)).unwrap();
+        let dangling = d.join("dangling");
+        std::os::unix::fs::symlink(d.join("nowhere"), &dangling).unwrap();
+        let mut unusable = vec![open, dangling];
+        // Root ignores directory permissions; nobody else can write here.
+        if unsafe { libc::geteuid() } != 0 {
+            let read_only = d.join("read-only");
+            fs::DirBuilder::new()
+                .mode(0o500)
+                .create(&read_only)
+                .unwrap();
+            unusable.push(read_only);
+        }
+        for place in &unusable {
+            assert_eq!(load(place, "bob").unwrap(), Record::default());
+            assert!(record_failure(place, "bob", 60).is_err());
+            assert!(load_or_create(place, "bob").is_err(), "{}", place.display());
+        }
         let _ = fs::remove_dir_all(d);
     }
 }
