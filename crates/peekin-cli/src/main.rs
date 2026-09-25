@@ -158,32 +158,52 @@ fn cmd_pam_setup(action: &str) -> Result<()> {
 }
 
 fn cmd_unseal_models(paths: &PeekinPaths) -> Result<()> {
+    use peekin_core::sealed::SealPolicy;
     let Some(sealed_dir) = paths.sealed_models_dir() else {
         println!("Face models of this tree are not encrypted; nothing to do");
         return Ok(());
     };
     let (uid, gid) = model_owner(paths)?;
+    // Decrypting needs no setting; sealing does, and refuses without it.
+    let policy = PeekinConfig::load(&paths.config_file_path())
+        .map_err(|e| e.to_string())
+        .and_then(|config| SealPolicy::from_config(&config));
+    if let Err(error) = &policy {
+        eprintln!("Warning: {error}; face models are decrypted but not encrypted again");
+    }
     let report = peekin_core::sealed::unseal_all(
         std::path::Path::new(peekin_core::sealed::TOOL),
         sealed_dir,
         paths.user_models_dir(),
+        policy.as_ref().map_err(String::as_str),
         uid,
         gid,
     )
     .with_context(|| format!("reading {}", sealed_dir.display()))?;
+    let described = policy
+        .as_ref()
+        .map_or_else(|_| String::new(), SealPolicy::describe);
     let mut failed = false;
     for entry in &report {
         match &entry.result {
             Ok(()) if entry.migrated => println!(
-                "{}: plaintext face model encrypted with {} and removed from the disk",
-                entry.user,
-                peekin_core::sealed::key_description()
+                "{}: plaintext face model encrypted with {described} and removed from the disk",
+                entry.user
             ),
             Ok(()) => println!("{}: face models decrypted", entry.user),
             Err(error) => {
                 failed = true;
                 eprintln!("{}: {error}", entry.user);
             }
+        }
+        match &entry.resealed {
+            Some(Ok(())) => println!("{}: encrypted again with {described}", entry.user),
+            Some(Err(error)) => eprintln!(
+                "{}: cannot apply the new TPM binding ([core] tpm2_pcrs), the previous one \
+                 stays and it is tried again at the next boot: {error}",
+                entry.user
+            ),
+            None => {}
         }
     }
     if failed {

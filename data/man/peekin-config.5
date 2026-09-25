@@ -59,6 +59,38 @@ were asked for (see
 .BR pam_peekin (8)).
 0 turns both limits off.
 .TP
+.BR tpm2_pcrs " ="
+Bind the encrypted face models to these TPM2 PCRs: numbers 0 to 23 joined by
+.B +
+(or a comma), for example
+.B 7
+(the Secure Boot state) or
+.BR 7+14 .
+Empty, the default, means no binding: the models are sealed with the TPM and
+the host key, and firmware and kernel updates keep them readable.
+With a binding they are sealed with
+.B systemd\-creds \-\-with\-key=tpm2+host \-\-tpm2\-pcrs=
+and only decrypt while those PCRs hold the values they had when sealing.
+.RS
+.PP
+.B Warning:
+a firmware (UEFI) update, a change of the Secure Boot state or keys, or of
+the boot loader, depending on the PCRs chosen, then makes the face models
+unreadable.
+Face login stops for every account (the password keeps working) until each
+person adds their face again, which re-enrols it under the new values.
+Needs a TPM: without one, face models cannot be added or changed while this
+is set.
+.PP
+A change applies to face models saved from then on, and to the existing ones
+at the next boot or with
+.BR "sudo peekin unseal-models" ,
+which encrypts them again; if that fails, they keep the previous binding and
+it is tried again at the next boot.
+An invalid value refuses every change to the face models instead of sealing
+them with less protection than asked for.
+.RE
+.TP
 .BR detection_notice " = true"
 Show the face-check message before scanning.
 .TP

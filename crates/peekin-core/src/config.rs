@@ -75,6 +75,36 @@ enum Kind {
     Bool,
     Int,
     Float,
+    /// TPM2 PCR numbers joined by `+` (see [`parse_pcrs`]); empty is off.
+    Pcrs,
+}
+
+/// Highest PCR index of a TPM 2.0 PC client (24 PCRs).
+pub const MAX_PCR: u8 = 23;
+
+/// `[core] tpm2_pcrs`: PCR numbers 0 to [`MAX_PCR`] joined by `+` or `,`,
+/// each at most once, e.g. `7` or `7+14`; empty means no binding. Returned
+/// sorted. `None` for anything else, so nothing but digits and `+` ever
+/// reaches the `systemd-creds` command line.
+pub fn parse_pcrs(value: &str) -> Option<Vec<u8>> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut out = Vec::new();
+    for part in value.split(['+', ',']) {
+        let part = part.trim();
+        if part.is_empty() || part.len() > 2 || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let pcr: u8 = part.parse().ok()?;
+        if pcr > MAX_PCR || out.contains(&pcr) {
+            return None;
+        }
+        out.push(pcr);
+    }
+    out.sort_unstable();
+    Some(out)
 }
 
 const KNOWN_KEYS: &[(&str, &str, Kind)] = &[
@@ -88,6 +118,7 @@ const KNOWN_KEYS: &[(&str, &str, Kind)] = &[
     ("core", "movement_challenge", Kind::Bool),
     ("core", "require_movement_without_ir", Kind::Bool),
     ("core", "max_failed_attempts", Kind::Int),
+    ("core", "tpm2_pcrs", Kind::Pcrs),
     ("services", "sudo", Kind::Bool),
     ("services", "login_screen", Kind::Bool),
     ("services", "lock_screen", Kind::Bool),
@@ -243,6 +274,10 @@ impl PeekinConfig {
             let (ok, expected) = match kind {
                 Kind::Bool => (parse_bool(&v).is_some(), "true/false"),
                 Kind::Int => (v.parse::<i64>().is_ok(), "an integer"),
+                Kind::Pcrs => (
+                    parse_pcrs(&v).is_some(),
+                    "a list of PCR numbers 0-23 joined by +",
+                ),
                 Kind::Float => (v.parse::<f64>().is_ok_and(f64::is_finite), "a number"),
             };
             if !ok {
@@ -406,6 +441,15 @@ impl PeekinConfig {
         } else {
             DEFAULT_MAX_FAILED_ATTEMPTS as u32
         }
+    }
+    /// PCRs the sealed face models are bound to; empty means none (the
+    /// default). An invalid value is an error, never "no binding": sealing
+    /// must then refuse rather than protect the models less than asked.
+    pub fn tpm2_pcrs(&self) -> Result<Vec<u8>, String> {
+        let value = self.get("core", "tpm2_pcrs").unwrap_or_default();
+        parse_pcrs(&value).ok_or_else(|| {
+            format!("[core] tpm2_pcrs = {value:?} is not a list of PCR numbers 0-23 joined by +")
+        })
     }
     pub fn workaround(&self) -> String {
         self.get("core", "workaround").unwrap_or("input".into())
@@ -631,6 +675,37 @@ mod tests {
             assert_eq!(c.max_failed_attempts(), 5, "{bad}");
             assert_eq!(c.security_errors().len(), 1, "{bad}");
         }
+    }
+
+    #[test]
+    fn pcr_binding_is_off_by_default_and_strictly_parsed() {
+        assert_eq!(PeekinConfig::empty().tpm2_pcrs(), Ok(vec![]));
+        assert_eq!(cfg("[core]\ntpm2_pcrs =\n").tpm2_pcrs(), Ok(vec![]));
+        assert_eq!(cfg("[core]\ntpm2_pcrs = 7\n").tpm2_pcrs(), Ok(vec![7]));
+        assert_eq!(
+            cfg("[core]\ntpm2_pcrs = 14+7\n").tpm2_pcrs(),
+            Ok(vec![7, 14])
+        );
+        assert_eq!(parse_pcrs("0,7 + 23"), Some(vec![0, 7, 23]));
+        for bad in [
+            "24",
+            "7+7",
+            "7+",
+            "+7",
+            "-1",
+            "7;rm",
+            "secure-boot-policy",
+            "007",
+            "7 14",
+            "0x7",
+        ] {
+            let c = cfg(&format!("[core]\ntpm2_pcrs = {bad}\n"));
+            assert!(c.tpm2_pcrs().is_err(), "{bad:?}");
+            assert_eq!(c.invalid_values().len(), 1, "{bad:?}");
+            // Encryption at rest, not an authentication decision.
+            assert!(c.security_errors().is_empty(), "{bad:?}");
+        }
+        assert_eq!(known_section("tpm2_pcrs"), Some("core"));
     }
 
     #[test]

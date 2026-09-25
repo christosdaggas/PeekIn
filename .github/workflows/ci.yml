@@ -74,10 +74,12 @@ jobs:
       - name: Face models encrypted at rest (systemd-creds, host key in CI)
         run: |
           test -d /run/peekin/models
-          awk 'BEGIN { u = 1 / sqrt(128); printf "{\"format\": \"opencv-sface-2021dec\", \"embeddings\": ["
-            for (i = 0; i < 5; i++) { printf "%s[", i ? ", " : ""; for (j = 0; j < 128; j++) printf "%s%.17g", j ? ", " : "", u; printf "]" }
-            print "]}" }' \
-            | peekin -U ci-user import-model test
+          samples() {
+            awk 'BEGIN { u = 1 / sqrt(128); printf "{\"format\": \"opencv-sface-2021dec\", \"embeddings\": ["
+              for (i = 0; i < 5; i++) { printf "%s[", i ? ", " : ""; for (j = 0; j < 128; j++) printf "%s%.17g", j ? ", " : "", u; printf "]" }
+              print "]}" }'
+          }
+          samples | peekin -U ci-user import-model test
           # Only the encrypted copy is on disk; the plaintext is in memory.
           test -f /etc/peekin/models/ci-user.dat.cred
           test ! -e /etc/peekin/models/ci-user.dat
@@ -96,6 +98,23 @@ jobs:
           test ! -e /etc/peekin/models/ci-user.dat
           peekin -U ci-user doctor > doctor.txt || true
           grep -q "encrypted on disk with" doctor.txt
+          # A TPM PCR binding without a TPM (none in CI) fails closed: no model
+          # change is sealed with less than asked, and the boot re-seal keeps
+          # the previous binding and the decrypted models.
+          sealed=$(sha256sum < /etc/peekin/models/ci-user.dat.cred)
+          sed -i 's/^tpm2_pcrs =.*/tpm2_pcrs = 7/' /etc/peekin/config.ini
+          if samples | peekin -U ci-user import-model second; then
+            echo "a model was sealed without the TPM binding asked for" >&2; exit 1
+          fi
+          test "$(sha256sum < /etc/peekin/models/ci-user.dat.cred)" = "$sealed"
+          peekin unseal-models 2> unseal.txt
+          grep -q "cannot apply the new TPM binding" unseal.txt
+          test ! -e /etc/peekin/models/.seal-policy
+          test "$(sha256sum < /etc/peekin/models/ci-user.dat.cred)" = "$sealed"
+          test -f /run/peekin/models/ci-user.dat
+          peekin -U ci-user doctor > doctor.txt || true
+          grep -q "no TPM" doctor.txt
+          sed -i 's/^tpm2_pcrs =.*/tpm2_pcrs =/' /etc/peekin/config.ini
           # Removing the last model removes the encrypted copy too.
           peekin -y -U ci-user remove 0
           test ! -e /etc/peekin/models/ci-user.dat.cred

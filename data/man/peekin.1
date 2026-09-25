@@ -134,6 +134,11 @@ Decrypt the encrypted face models into
 and encrypt any plaintext face model found in
 .I /etc/peekin/models
 first, removing it from the disk.
+When
+.B [core] tpm2_pcrs
+changed since the face models were encrypted, they are encrypted again with
+the new TPM binding (see
+.BR peekin-config (5)).
 An account whose face models cannot be decrypted is reported and keeps no
 decrypted copy, so its face login stays off; the password keeps working.
 The face models are sealed with

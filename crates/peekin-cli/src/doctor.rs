@@ -682,10 +682,39 @@ fn check_threshold(report: &mut Report, config: &PeekinConfig, paths: &PeekinPat
     report.add(Level::Ok, "threshold", message);
 }
 
-fn check_sealed(report: &mut Report, paths: &PeekinPaths, user: &str) {
+/// `tpm_present`: /dev/tpmrm0 exists.
+fn check_sealed(
+    report: &mut Report,
+    config: &PeekinConfig,
+    paths: &PeekinPaths,
+    user: &str,
+    tpm_present: bool,
+) {
     let Some(sealed_dir) = paths.sealed_models_dir() else {
         return;
     };
+    let policy = match peekin_core::sealed::SealPolicy::from_config(config) {
+        Ok(policy) => policy,
+        Err(error) => {
+            report.add(
+                Level::Fail,
+                "encryption",
+                format!(
+                    "{error}: face models cannot be added, changed or removed until it is fixed"
+                ),
+            );
+            return;
+        }
+    };
+    if !config.tpm2_pcrs().unwrap_or_default().is_empty() && !tpm_present {
+        report.add(
+            Level::Fail,
+            "encryption",
+            "[core] tpm2_pcrs binds the face models to TPM PCRs, but there is no TPM \
+             (/dev/tpmrm0): face models cannot be encrypted; remove the setting"
+                .to_string(),
+        );
+    }
     let on_disk = sealed_dir.join(format!("{user}.dat"));
     let sealed = peekin_core::sealed::sealed_path(sealed_dir, user).exists();
     let in_memory = paths.user_models_dir().join(format!("{user}.dat")).exists();
@@ -705,7 +734,7 @@ fn check_sealed(report: &mut Report, paths: &PeekinPaths, user: &str) {
             "encryption",
             format!(
                 "face models of {user} are encrypted on disk with {}",
-                peekin_core::sealed::key_description()
+                policy.describe()
             ),
         ),
         (true, false) => report.add(
@@ -764,7 +793,13 @@ pub fn run(paths: &PeekinPaths, user: &str) -> Report {
     if let Some(config) = &config {
         check_services(&mut report, config, Path::new("/etc/pam.d"));
         check_threshold(&mut report, config, paths, user);
-        check_sealed(&mut report, paths, user);
+        check_sealed(
+            &mut report,
+            config,
+            paths,
+            user,
+            Path::new("/dev/tpmrm0").exists(),
+        );
         check_snapshots(
             &mut report,
             config,
@@ -856,9 +891,10 @@ mod tests {
         let mut paths = PeekinPaths::from_dirs(dir.join("cfg"), dir.join("data"));
         paths.user_models_dir = run.clone();
         paths.sealed_models_dir = Some(etc.clone());
+        let config = PeekinConfig::empty();
         let check = |paths: &PeekinPaths| {
             let mut report = Report::default();
-            check_sealed(&mut report, paths, "alice");
+            check_sealed(&mut report, &config, paths, "alice", false);
             report
         };
         assert!(check(&paths).0.is_empty(), "no models, nothing to say");
@@ -872,6 +908,39 @@ mod tests {
         assert_eq!(check(&paths).worst(), Level::Warn);
         let dev = PeekinPaths::from_dirs(dir.join("cfg"), dir.join("data"));
         assert!(check(&dev).0.is_empty(), "development trees are not sealed");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_pcr_binding_is_shown_and_refused_without_a_tpm() {
+        let dir = temp("sealed-pcrs");
+        let (etc, run) = (dir.join("etc"), dir.join("run"));
+        std::fs::create_dir_all(&etc).unwrap();
+        std::fs::create_dir_all(&run).unwrap();
+        std::fs::write(etc.join("alice.dat.cred"), "x").unwrap();
+        std::fs::write(run.join("alice.dat"), "[]").unwrap();
+        let mut paths = PeekinPaths::from_dirs(dir.join("cfg"), dir.join("data"));
+        paths.user_models_dir = run;
+        paths.sealed_models_dir = Some(etc);
+        let check = |body: &str, tpm: bool| {
+            let config = PeekinConfig::parse(body, "<t>".into()).unwrap();
+            let mut report = Report::default();
+            check_sealed(&mut report, &config, &paths, "alice", tpm);
+            report
+        };
+        let bound = check("[core]\ntpm2_pcrs = 7\n", true);
+        assert_eq!(bound.worst(), Level::Ok, "{:?}", bound.0);
+        assert!(bound.0[0].message.contains("PCR 7"), "{:?}", bound.0);
+        let no_tpm = check("[core]\ntpm2_pcrs = 7\n", false);
+        assert_eq!(no_tpm.worst(), Level::Fail);
+        assert!(no_tpm.0[0].message.contains("no TPM"), "{:?}", no_tpm.0);
+        let invalid = check("[core]\ntpm2_pcrs = 99\n", true);
+        assert_eq!(invalid.worst(), Level::Fail);
+        assert!(
+            invalid.0[0].message.contains("tpm2_pcrs"),
+            "{:?}",
+            invalid.0
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

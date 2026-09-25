@@ -516,8 +516,14 @@ back to the password (repair with
 Face models are encrypted on disk: `/etc/peekin/models/<user>.dat.cred`,
 sealed with `systemd-creds` (AES-256-GCM) using the TPM2 chip together with
 the host key `/var/lib/systemd/credential.secret`, or the host key alone on a
-machine without a TPM. They are not bound to PCRs, so firmware and kernel
-updates keep them readable. `peekin-models.service` decrypts them at boot into
+machine without a TPM. By default they are not bound to PCRs, so firmware
+and kernel updates keep them readable. `[core] tpm2_pcrs` (for example `7`,
+the Secure Boot state) binds them to TPM PCRs as well: a disk moved to
+another machine, or booted with Secure Boot changed, cannot decrypt them.
+Firmware, Secure Boot or boot loader changes (depending on the PCRs) then
+make them unreadable, and every account has to add their face again; it
+applies to existing models at the next boot (`sudo peekin unseal-models`).
+See `peekin-config(5)`. `peekin-models.service` decrypts them at boot into
 `/run/peekin/models` (memory; SELinux type `peekin_run_t`), which PAM, the
 worker and the app read; accounts with dots in their name (`john.doe`,
 `user@ad.example.com`) are restored like any other. A change (add, improve,
