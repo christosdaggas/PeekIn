@@ -7,7 +7,7 @@ pub mod status;
 pub use status::{AuthDecision, ChildEnd, PamCode};
 
 use peekin_core::config::FaceService;
-use peekin_core::lockout;
+use peekin_core::lockout::{self, PauseCause};
 use peekin_core::{PeekinConfig, PeekinPaths};
 use std::path::Path;
 
@@ -114,9 +114,10 @@ pub fn check_enabled(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lockout {
     Proceed,
-    /// Paused after `failures` rejected faces, for `minutes` more (at least 1).
+    /// Paused after too many rejected faces, or too many scans without a face
+    /// after a head-turn challenge, for `minutes` more (at least 1).
     Paused {
-        failures: u32,
+        cause: PauseCause,
         minutes: u64,
     },
     /// The counter cannot be read or written, or is damaged; the reason is for the log.
@@ -134,10 +135,10 @@ pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u
         return Lockout::Proceed;
     }
     match lockout::load_or_create(state_dir, username) {
-        Ok(record) => match record.locked_until(now, max_failures) {
-            Some(until) => Lockout::Paused {
-                failures: record.failures,
-                minutes: until.saturating_sub(now).div_ceil(60).max(1),
+        Ok(record) => match record.pause(now, max_failures) {
+            Some(pause) => Lockout::Paused {
+                cause: pause.cause,
+                minutes: pause.until.saturating_sub(now).div_ceil(60).max(1),
             },
             None => Lockout::Proceed,
         },
@@ -146,6 +147,33 @@ pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u
              repair with: sudo /usr/libexec/peekin/system-setup install; \
              a password login clears a damaged counter"
         )),
+    }
+}
+
+/// What a finished scan does to the failed-attempt counter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CounterUpdate {
+    /// Face login succeeded: both streaks end.
+    Reset,
+    /// A face was examined and rejected.
+    Failure,
+    /// No face at all although a head-turn challenge was asked for: someone
+    /// may be hiding a recording whose turns do not match, to try again for
+    /// free. Counted against its own, slower limit.
+    NoFace,
+    /// Camera problems, darkness, or no face without a challenge.
+    Unchanged,
+}
+
+pub fn counter_update(end: status::ChildEnd, movement: bool) -> CounterUpdate {
+    match end {
+        status::ChildEnd::Exited(0) => CounterUpdate::Reset,
+        status::ChildEnd::Exited(code) => match CompareError::from_exit_code(code) {
+            Some(error) if error.counts_as_failed_attempt() => CounterUpdate::Failure,
+            Some(CompareError::NoFaceSeen) if movement => CounterUpdate::NoFace,
+            _ => CounterUpdate::Unchanged,
+        },
+        status::ChildEnd::Signaled { .. } => CounterUpdate::Unchanged,
     }
 }
 
@@ -497,10 +525,30 @@ mod tests {
         assert_eq!(
             check_lockout(&state, "alice", now, 5),
             Lockout::Paused {
-                failures: 5,
+                cause: PauseCause::FailedFaces(5),
                 minutes: 14
             }
         );
+        // Scans without a face after a head-turn challenge pause on their own.
+        let (dir2, _) = setup("lockout-no-face");
+        let state2 = dir2.join("failures");
+        for i in 0..lockout::MAX_NO_FACE_SCANS {
+            assert_eq!(
+                check_lockout(&state2, "carol", now, 5),
+                Lockout::Proceed,
+                "{i}"
+            );
+            lockout::record_no_face(&state2, "carol", now - 120).unwrap();
+        }
+        assert_eq!(
+            check_lockout(&state2, "carol", now, 5),
+            Lockout::Paused {
+                cause: PauseCause::NoFace(lockout::MAX_NO_FACE_SCANS),
+                minutes: 13
+            }
+        );
+        assert_eq!(check_lockout(&state2, "carol", now, 0), Lockout::Proceed);
+        let _ = fs::remove_dir_all(&dir2);
         // Damaged content, or a directory where the counter belongs.
         fs::write(state.join("alice"), "garbage\n").unwrap();
         fs::create_dir(state.join("bob")).unwrap();
@@ -554,6 +602,35 @@ mod tests {
         assert_eq!(check_lockout(&state, "alice", now, 5), Lockout::Proceed);
         assert_eq!(fs::metadata(state.join("alice")).unwrap().len(), 0);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_movement_scans_without_a_face_count_as_no_face() {
+        use status::ChildEnd;
+        let update = |code, movement| counter_update(ChildEnd::Exited(code), movement);
+        assert_eq!(update(0, true), CounterUpdate::Reset);
+        assert_eq!(update(0, false), CounterUpdate::Reset);
+        for movement in [true, false] {
+            assert_eq!(update(11, movement), CounterUpdate::Failure);
+            assert_eq!(update(16, movement), CounterUpdate::Failure);
+            for code in [10, 12, 13, 14, 15, 99] {
+                assert_eq!(update(code, movement), CounterUpdate::Unchanged, "{code}");
+            }
+        }
+        // No face after a head-turn challenge: an attacker hiding a recording
+        // whose turns do not match. Without the challenge nothing was shown.
+        assert_eq!(update(17, true), CounterUpdate::NoFace);
+        assert_eq!(update(17, false), CounterUpdate::Unchanged);
+        assert_eq!(
+            counter_update(
+                ChildEnd::Signaled {
+                    signal: 9,
+                    name: "SIGKILL"
+                },
+                true
+            ),
+            CounterUpdate::Unchanged
+        );
     }
 
     #[test]

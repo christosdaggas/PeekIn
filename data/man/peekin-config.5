@@ -54,7 +54,10 @@ A photo on paper or a phone then cannot unlock with a colour camera.
 After this many rejected faces in a row (face not recognised, or head
 movement not followed) face login pauses for 15 minutes or until the user
 logs in with the password.
-0 turns the limit off.
+It also pauses after 10 scans in a row that saw no face after the head turns
+were asked for (see
+.BR pam_peekin (8)).
+0 turns both limits off.
 .TP
 .BR detection_notice " = true"
 Show the face-check message before scanning.

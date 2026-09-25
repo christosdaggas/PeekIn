@@ -3121,8 +3121,10 @@ mod gtk_tests {
         assert!(!ui.resume_face_login.is_visible());
         let paused = ui_state::Attempts {
             failures: 5,
+            no_face_scans: 0,
             limit: 5,
             paused_until: Some(1_790_000_000),
+            pause: Some(ui_state::PausedBy::FailedAttempts),
         };
         ui.readiness_state.borrow_mut().attempts = ui_state::attempts_readiness(paused, "14:32");
         ui.refresh_controls();
@@ -3130,6 +3132,7 @@ mod gtk_tests {
         ui.readiness_state.borrow_mut().attempts = ui_state::attempts_readiness(
             ui_state::Attempts {
                 paused_until: None,
+                pause: None,
                 ..paused
             },
             "",

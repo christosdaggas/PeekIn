@@ -128,12 +128,15 @@ run 0 && fail "missing camera must not authenticate"
 touch "$W/camera"
 
 # 5. Nobody in front of the camera: explained, and not a failed attempt.
+#    Without the head turns it counts for nothing (the counter is created
+#    before each scan and stays empty); after them, on its own streak.
+run 17 && fail "no face must not authenticate"
+grep -q "No face seen; use your password" "$W/log" || fail "no-face outcome not explained"
+[ -s "$W/state/$USER_UNDER_TEST" ] && fail "no face seen without head turns must not count"
 sed -i 's/^movement_challenge = false/movement_challenge = true/' "$W/etc/config.ini"
 sed -i 's/^require_movement_without_ir = false/require_movement_without_ir = true/' "$W/etc/config.ini"
 run 17 && fail "no face must not authenticate"
-grep -q "No face seen; use your password" "$W/log" || fail "no-face outcome not explained"
-# The counter is created before each scan; it stays empty.
-[ -s "$W/state/$USER_UNDER_TEST" ] && fail "no face seen must not count as a failed attempt"
+[ "$(cut -d' ' -f1,3 "$W/state/$USER_UNDER_TEST")" = "0 1" ] || fail "no face after head turns must count on its own streak"
 
 # 6. Five rejected faces pause face login: no prompt, no worker, a message.
 sed -i 's/^max_failed_attempts = 5/max_failed_attempts = 3/' "$W/etc/config.ini"
@@ -155,6 +158,20 @@ run 0 || fail "face login must work again after a password login"
 run 11 || true
 run 0 || fail "matching face must authenticate"
 [ -e "$W/state/$USER_UNDER_TEST" ] && fail "face success must clear the counter"
+
+# 8b. Ten scans in a row without a face after the head turns were asked for
+#     pause face login; a rejected face in between does not end the streak,
+#     a password login does.
+for i in 1 2 3 4 5 6 7 8 9; do run 17 && fail "no face must not authenticate"; done
+run 11 && fail "rejected face must not authenticate"
+run 17 && fail "no face must not authenticate"
+[ "$(cut -d' ' -f1,3 "$W/state/$USER_UNDER_TEST")" = "1 10" ] || fail "no-face streak not counted ($(cat "$W/state/$USER_UNDER_TEST"))"
+run 0 && fail "face login paused after scans without a face must not authenticate"
+[ -e "$W/out/args" ] && fail "worker started while paused after scans without a face"
+grep -q "Face login paused after too many scans without a face" "$W/log" || fail "no-face pause not explained"
+"$HARNESS" "$W/pam2" sudo "$USER_UNDER_TEST" > "$W/log" 2>&1 || fail "password stand-in must succeed"
+[ -e "$W/state/$USER_UNDER_TEST" ] && fail "password login must clear the no-face streak"
+run 0 || fail "face login must work again after a password login"
 
 # 9. A damaged counter, or a counter directory where no failure could be
 #    recorded, turns face login off: no prompt, no worker, an explanation.
@@ -210,4 +227,4 @@ sed -i 's/^movement_challenge = true/movement_challenge = perhaps/' "$W/etc/conf
 run 0 && fail "malformed movement_challenge must fail closed"
 [ -e "$W/out/args" ] && fail "worker started with a malformed security setting"
 
-echo "PAM_MODULE_E2E_OK: challenge, passive, failure messages, preflight, model store, lockout, damaged counter, services, screen light, history, fail-closed"
+echo "PAM_MODULE_E2E_OK: challenge, passive, failure messages, preflight, model store, lockout, no-face limit, damaged counter, services, screen light, history, fail-closed"

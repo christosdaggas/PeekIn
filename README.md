@@ -280,7 +280,13 @@ replaces config.ini only when every value in it is valid):
 - `[core] max_failed_attempts` (default 5, 0 = off): after this many rejected
   faces in a row (face not recognised, or head movement not followed) face
   login pauses for 15 minutes, or until the user logs in with the password,
-  which resets the counter. "No face seen" and camera problems do not count.
+  which resets the counter. Camera problems do not count. "No face seen"
+  does not count either, but when the head turns were asked for, 10 such
+  scans in a row pause face login the same way: that is what someone gets by
+  hiding a recording whose turns do not match. The limit is slower so that
+  stepping away from the camera for a moment never pauses face login; a
+  rejected face does not end this streak, a face or password login does, and
+  it also ends 15 minutes after the last such scan. `0` turns both limits off.
   Counters: `/var/lib/peekin/failures/<user>` (root, 0600, SELinux type
   `peekin_var_lib_t`); while the limit is on, a counter file that cannot be
   read or written, or is damaged, turns face login off for that account
@@ -468,9 +474,12 @@ What the head turns do and do not stop:
   cut into the announced order once it is shown; all 8 versions can be
   prepared in advance. An unedited recording of one complete sequence
   matches 1 announced sequence in 8, and because the sequence is shown
-  before any face is needed, an attacker can start again until theirs comes
-  up: attempts in which no face is seen do not count towards the
-  failed-attempt pause.
+  before any face is needed, an attacker can hide the recording and start
+  again until theirs comes up. Scans without a face do not count as failed
+  attempts, but 10 of them in a row after the head turns were asked for
+  pause face login for 15 minutes too (see `max_failed_attempts`), so
+  waiting for the right sequence (1 in 8 on average) is limited to 10 tries
+  per pause.
 - A live stranger can do the turns too, so they do not lower the stranger
   rates in [docs/THRESHOLDS.md](docs/THRESHOLDS.md): about 1 in 240 for a
   5-sample model at the default threshold.
@@ -488,8 +497,10 @@ What helps:
   on LFW, with 0.53% instead of 0.13% of genuine attempts rejected. It is
   not aimed at recordings of the user.
 - `[core] max_failed_attempts` left on (default 5 in a row, then a 15-minute
-  pause). It limits how often a stranger or a recording can be tried in
-  front of the camera, though not attempts in which no face is seen.
+  pause, and 10 scans in a row without a face after the head turns were
+  asked for). It limits how often a stranger or a recording can be tried in
+  front of the camera, including a recording that is hidden until its turns
+  come up.
 - Treating face login as a convenience: it is a second way in next to the
   password, so an account is only as safe as the weaker of the two. Switch it
   off in `[services]` wherever that is not good enough.

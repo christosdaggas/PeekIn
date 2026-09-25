@@ -3,15 +3,15 @@
 use crate::run::{run_compare, RunEnd, WorkerIdentity};
 use crate::status::{status_decision, ChildEnd, PamCode};
 use crate::{
-    check_enabled, check_lockout, user_has_session, CompareError, Gate, Lockout, Session,
-    LID_STATE_DIR, LOGIND_USERS_DIR,
+    check_enabled, check_lockout, counter_update, user_has_session, CounterUpdate, Gate, Lockout,
+    Session, LID_STATE_DIR, LOGIND_USERS_DIR,
 };
 use peekin_core::activity;
 use peekin_core::backlight;
 use peekin_core::cameras;
 use peekin_core::compare::ChallengeMode;
 use peekin_core::i18n::{tr, tr_args};
-use peekin_core::lockout;
+use peekin_core::lockout::{self, PauseCause};
 use peekin_core::models;
 use peekin_core::paths::validate_username;
 use peekin_core::{PeekinConfig, PeekinPaths};
@@ -252,22 +252,33 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         config.max_failed_attempts(),
     ) {
         Lockout::Proceed => {}
-        Lockout::Paused { failures, minutes } => {
+        Lockout::Paused { cause, minutes } => {
+            let (reason, message) = match cause {
+                PauseCause::FailedFaces(failures) => (
+                    format!("{failures} failed face attempts"),
+                    tr_args(
+                        "Face login paused after too many failed attempts ({minutes} min); \
+                         use your password",
+                        &[("minutes", &minutes)],
+                    ),
+                ),
+                PauseCause::NoFace(scans) => (
+                    format!("{scans} scans in a row saw no face after a head-turn challenge"),
+                    tr_args(
+                        "Face login paused after too many scans without a face ({minutes} min); \
+                         use your password",
+                        &[("minutes", &minutes)],
+                    ),
+                ),
+            };
             pam.log(
                 LOG_NOTICE,
                 &format!(
-                    "Face login skipped: {failures} failed face attempts; paused for {minutes} min or until a password login"
+                    "Face login skipped: {reason}; paused for {minutes} min or until a password login"
                 ),
             );
             record_activity(pam, &args, &user, &session, activity::Outcome::Paused, None);
-            pam.tell(
-                false,
-                &tr_args(
-                    "Face login paused after too many failed attempts ({minutes} min); \
-                     use your password",
-                    &[("minutes", &minutes)],
-                ),
-            );
+            pam.tell(false, &message);
             return PamCode::AuthinfoUnavail as c_int;
         }
         Lockout::Unusable(reason) => {
@@ -352,7 +363,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
 
     match run.end {
         RunEnd::Exited(end) => {
-            update_lockout(pam, &args.state_dir, &user, end);
+            update_lockout(pam, &args.state_dir, &user, end, mode.is_movement());
             if let Some(outcome) = crate::activity_outcome(end) {
                 let model = crate::matched_model(&run.stdout);
                 record_activity(pam, &args, &user, &session, outcome, model);
@@ -431,12 +442,10 @@ fn record_activity(
     }
 }
 
-fn update_lockout(pam: &Pam, state_dir: &Path, user: &str, end: ChildEnd) {
-    let result = match end {
-        ChildEnd::Exited(0) => lockout::reset(state_dir, user),
-        ChildEnd::Exited(code)
-            if CompareError::from_exit_code(code).is_some_and(|e| e.counts_as_failed_attempt()) =>
-        {
+fn update_lockout(pam: &Pam, state_dir: &Path, user: &str, end: ChildEnd, movement: bool) {
+    let result = match counter_update(end, movement) {
+        CounterUpdate::Reset => lockout::reset(state_dir, user),
+        CounterUpdate::Failure => {
             lockout::record_failure(state_dir, user, lockout::now()).map(|record| {
                 pam.log(
                     LOG_NOTICE,
@@ -444,7 +453,19 @@ fn update_lockout(pam: &Pam, state_dir: &Path, user: &str, end: ChildEnd) {
                 );
             })
         }
-        _ => Ok(()),
+        CounterUpdate::NoFace => {
+            lockout::record_no_face(state_dir, user, lockout::now()).map(|record| {
+                pam.log(
+                    LOG_NOTICE,
+                    &format!(
+                        "No face seen after a head-turn challenge, {} scans in a row (limit {})",
+                        record.no_face,
+                        lockout::MAX_NO_FACE_SCANS
+                    ),
+                );
+            })
+        }
+        CounterUpdate::Unchanged => Ok(()),
     };
     if let Err(error) = result {
         pam.log(

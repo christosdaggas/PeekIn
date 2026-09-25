@@ -513,15 +513,20 @@ fn check_lockout(report: &mut Report, config: &PeekinConfig, state_dir: &Path, u
     match peekin_core::lockout::load(state_dir, user) {
         Ok(record) => {
             let now = peekin_core::lockout::now();
-            match record.locked_until(now, config.max_failed_attempts()) {
-                Some(until) => report.add(
+            match record.pause(now, config.max_failed_attempts()) {
+                Some(pause) => report.add(
                     Level::Fail,
                     "attempts",
                     format!(
-                        "face login paused after {} failed attempts for another {} min; \
+                        "face login paused after {} for another {} min; \
                          logging in with the password lifts it",
-                        record.failures,
-                        until.saturating_sub(now).div_ceil(60).max(1)
+                        match pause.cause {
+                            peekin_core::lockout::PauseCause::FailedFaces(n) =>
+                                format!("{n} failed attempts"),
+                            peekin_core::lockout::PauseCause::NoFace(n) =>
+                                format!("{n} scans without a face after a head-turn challenge"),
+                        },
+                        pause.until.saturating_sub(now).div_ceil(60).max(1)
                     ),
                 ),
                 None => report.add(
@@ -908,6 +913,29 @@ mod tests {
             report.0[0].message.contains("paused after 2"),
             "{:?}",
             report.0
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_pause_after_scans_without_a_face_names_its_cause() {
+        let dir = temp("lockout-no-face");
+        let config =
+            PeekinConfig::parse("[core]\nmax_failed_attempts = 2\n", "<t>".into()).unwrap();
+        let now = peekin_core::lockout::now();
+        for _ in 0..peekin_core::lockout::MAX_NO_FACE_SCANS {
+            let mut report = Report::default();
+            check_lockout(&mut report, &config, &dir, "alice");
+            assert_eq!(report.worst(), Level::Ok, "{:?}", report.0);
+            peekin_core::lockout::record_no_face(&dir, "alice", now).unwrap();
+        }
+        let mut report = Report::default();
+        check_lockout(&mut report, &config, &dir, "alice");
+        assert_eq!(report.worst(), Level::Fail);
+        let message = &report.0[0].message;
+        assert!(
+            message.contains("paused after 10 scans without a face"),
+            "{message}"
         );
         let _ = std::fs::remove_dir_all(dir);
     }

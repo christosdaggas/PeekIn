@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 16:36+0300\n"
+"POT-Creation-Date: 2026-09-25 14:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -63,6 +63,10 @@ msgstr ""
 
 #, rust-format
 msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
+msgstr ""
+
+#, rust-format
+msgid "Face login paused after too many scans without a face ({minutes} min); use your password"
 msgstr ""
 
 msgid "Face authentication is unavailable (see the system log); use your password"
@@ -1028,6 +1032,10 @@ msgstr ""
 
 #, rust-format
 msgid "face login paused after {failures} failed attempts until {resume_at}; your password still works"
+msgstr ""
+
+#, rust-format
+msgid "face login paused after {scans} scans without a face until {resume_at}; your password still works"
 msgstr ""
 
 msgid "no recent failed attempts"

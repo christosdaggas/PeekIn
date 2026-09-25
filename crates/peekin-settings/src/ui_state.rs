@@ -222,10 +222,20 @@ pub fn parse_model_metadata(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Attempts {
     pub failures: u32,
+    /// Scans in a row without a face after a head-turn challenge.
+    pub no_face_scans: u32,
     /// `[core] max_failed_attempts`; 0 means no limit.
     pub limit: u32,
     /// When face login resumes by itself, while it is paused.
     pub paused_until: Option<i64>,
+    /// Which limit paused face login; set exactly when `paused_until` is.
+    pub pause: Option<PausedBy>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PausedBy {
+    FailedAttempts,
+    NoFace,
 }
 
 /// Missing or unreadable state is an error, never "no failures".
@@ -254,10 +264,26 @@ pub fn parse_attempts(output: &str) -> Result<Attempts, String> {
         ),
         None => return Err("failed-attempt state has no pause time".into()),
     };
+    let pause = match attempts.get("paused_by") {
+        Some(serde_json::Value::Null) => None,
+        Some(value) => Some(match value.as_str() {
+            Some("failed-attempts") => PausedBy::FailedAttempts,
+            Some("no-face") => PausedBy::NoFace,
+            _ => return Err("failed-attempt state has an unknown pause cause".into()),
+        }),
+        None => return Err("failed-attempt state has no pause cause".into()),
+    };
+    if pause.is_some() != paused_until.is_some() {
+        return Err(
+            "failed-attempt state has a pause without a cause, or a cause without one".into(),
+        );
+    }
     Ok(Attempts {
         failures: count("failures")?,
+        no_face_scans: count("no_face_scans")?,
         limit: count("limit")?,
         paused_until,
+        pause,
     })
 }
 
@@ -404,12 +430,25 @@ pub fn parse_personal_threshold(output: &str) -> Option<f64> {
 
 /// `resume_at` is the pause end already formatted as local time.
 pub fn attempts_readiness(attempts: Attempts, resume_at: &str) -> ReadinessValue {
-    if attempts.paused_until.is_some() {
-        return ReadinessValue::Blocked(tr_args(
-            "face login paused after {failures} failed attempts until {resume_at}; \
-             your password still works",
-            &[("failures", &attempts.failures), ("resume_at", &resume_at)],
-        ));
+    match attempts.pause {
+        Some(PausedBy::FailedAttempts) => {
+            return ReadinessValue::Blocked(tr_args(
+                "face login paused after {failures} failed attempts until {resume_at}; \
+                 your password still works",
+                &[("failures", &attempts.failures), ("resume_at", &resume_at)],
+            ))
+        }
+        Some(PausedBy::NoFace) => {
+            return ReadinessValue::Blocked(tr_args(
+                "face login paused after {scans} scans without a face until {resume_at}; \
+                 your password still works",
+                &[
+                    ("scans", &attempts.no_face_scans),
+                    ("resume_at", &resume_at),
+                ],
+            ))
+        }
+        None => {}
     }
     let recent = match attempts.failures {
         0 => tr("no recent failed attempts"),
@@ -474,21 +513,38 @@ mod tests {
 
     #[test]
     fn attempts_are_parsed_and_unreadable_state_is_an_error() {
-        let paused =
-            parse_attempts(r#"{"attempts":{"failures":5,"limit":5,"paused_until":1790000000}}"#)
-                .unwrap();
+        let paused = parse_attempts(
+            r#"{"attempts":{"failures":5,"no_face_scans":0,"limit":5,"paused_until":1790000000,"paused_by":"failed-attempts"}}"#,
+        )
+        .unwrap();
         assert_eq!(paused.paused_until, Some(1_790_000_000));
         let text = attempts_readiness(paused, "14:32");
         assert!(matches!(text, ReadinessValue::Blocked(_)));
         assert!(text.text().contains("until 14:32"), "{text:?}");
-        let calm =
-            parse_attempts(r#"{"attempts":{"failures":2,"limit":5,"paused_until":null}}"#).unwrap();
+        assert!(text.text().contains("5 failed attempts"), "{text:?}");
+        let no_face = parse_attempts(
+            r#"{"attempts":{"failures":1,"no_face_scans":10,"limit":5,"paused_until":1790000000,"paused_by":"no-face"}}"#,
+        )
+        .unwrap();
+        assert_eq!(no_face.pause, Some(PausedBy::NoFace));
+        let text = attempts_readiness(no_face, "14:32");
+        assert!(matches!(text, ReadinessValue::Blocked(_)));
+        assert!(
+            text.text().contains("10 scans without a face") && text.text().contains("until 14:32"),
+            "{text:?}"
+        );
+        let calm = parse_attempts(
+            r#"{"attempts":{"failures":2,"no_face_scans":3,"limit":5,"paused_until":null,"paused_by":null}}"#,
+        )
+        .unwrap();
         assert_eq!(
             attempts_readiness(calm, ""),
             ReadinessValue::Ready("2 recent failed attempts; pauses after 5".into())
         );
-        let off =
-            parse_attempts(r#"{"attempts":{"failures":0,"limit":0,"paused_until":null}}"#).unwrap();
+        let off = parse_attempts(
+            r#"{"attempts":{"failures":0,"no_face_scans":0,"limit":0,"paused_until":null,"paused_by":null}}"#,
+        )
+        .unwrap();
         assert_eq!(
             attempts_readiness(off, ""),
             ReadinessValue::Ready("no recent failed attempts; no limit".into())
@@ -499,11 +555,18 @@ mod tests {
                 .contains("permission denied")
         );
         assert!(parse_attempts(r#"{"version":1}"#).is_err());
-        assert!(parse_attempts(r#"{"attempts":{"failures":1,"limit":5}}"#).is_err());
-        assert!(
-            parse_attempts(r#"{"attempts":{"failures":-1,"limit":5,"paused_until":null}}"#)
-                .is_err()
-        );
+        for incomplete in [
+            r#"{"attempts":{"failures":1,"no_face_scans":0,"limit":5,"paused_by":null}}"#,
+            r#"{"attempts":{"failures":-1,"no_face_scans":0,"limit":5,"paused_until":null,"paused_by":null}}"#,
+            r#"{"attempts":{"failures":1,"limit":5,"paused_until":null,"paused_by":null}}"#,
+            r#"{"attempts":{"failures":1,"no_face_scans":0,"limit":5,"paused_until":null}}"#,
+            // A pause needs a known cause, and a cause needs a pause.
+            r#"{"attempts":{"failures":5,"no_face_scans":0,"limit":5,"paused_until":1790000000,"paused_by":null}}"#,
+            r#"{"attempts":{"failures":5,"no_face_scans":0,"limit":5,"paused_until":1790000000,"paused_by":"cosmic rays"}}"#,
+            r#"{"attempts":{"failures":5,"no_face_scans":0,"limit":5,"paused_until":null,"paused_by":"no-face"}}"#,
+        ] {
+            assert!(parse_attempts(incomplete).is_err(), "{incomplete}");
+        }
     }
 
     #[test]

@@ -1,7 +1,10 @@
-//! Pause face login after repeated failed face attempts.
+//! Pause face login after repeated failed face attempts, or after repeated
+//! scans that saw no face although a head-turn challenge was asked for.
 //!
-//! A root-only file per user under [`STATE_DIR`] holds `"<failures> <last time>"`;
-//! it is empty from its creation until the first failure is written.
+//! A root-only file per user under [`STATE_DIR`] holds
+//! `"<failures> <last time> <no-face scans> <last no-face time>"` (versions
+//! before the no-face streak wrote the first two fields only, which still
+//! load); it is empty from its creation until the first count is written.
 //! I/O errors and damaged content are returned as errors: they stop face login
 //! (fail closed) but must never block the password.
 
@@ -15,41 +18,98 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const STATE_DIR: &str = "/var/lib/peekin/failures";
 pub const LOCKOUT: Duration = Duration::from_secs(15 * 60);
-/// Twice the longest record (32 bytes); longer content was not written here.
-const MAX_RECORD_LEN: u64 = 64;
+/// Scans in a row that saw no face after a head-turn challenge was asked for.
+/// Slower than the failed-attempt limit, so a user who steps away from the
+/// camera for a moment is not paused, while an attacker can no longer wait
+/// for the sequence their recording shows by hiding it for free.
+pub const MAX_NO_FACE_SCANS: u32 = 10;
+/// Twice the longest record (64 bytes); longer content was not written here.
+const MAX_RECORD_LEN: u64 = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Record {
     pub failures: u32,
     pub last: u64,
+    /// Scans without a face after a head-turn challenge, and the last one.
+    pub no_face: u32,
+    pub no_face_last: u64,
+}
+
+/// Why face login is paused, with the count that reached its limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PauseCause {
+    FailedFaces(u32),
+    NoFace(u32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pause {
+    pub until: u64,
+    pub cause: PauseCause,
 }
 
 impl Record {
-    /// `None` for anything but `"<failures> <last time>"`.
+    /// `None` for anything but two or four unsigned numbers.
     fn parse(raw: &str) -> Option<Record> {
-        let mut parts = raw.split_whitespace();
-        match (
-            parts.next().and_then(|v| v.parse().ok()),
-            parts.next().and_then(|v| v.parse().ok()),
-            parts.next(),
-        ) {
-            (Some(failures), Some(last), None) => Some(Record { failures, last }),
+        let fields: Vec<&str> = raw.split_whitespace().collect();
+        let count = |i: usize| fields[i].parse::<u32>().ok();
+        let time = |i: usize| fields[i].parse::<u64>().ok();
+        match fields.len() {
+            2 => Some(Record {
+                failures: count(0)?,
+                last: time(1)?,
+                ..Record::default()
+            }),
+            4 => Some(Record {
+                failures: count(0)?,
+                last: time(1)?,
+                no_face: count(2)?,
+                no_face_last: time(3)?,
+            }),
             _ => None,
         }
     }
 
+    fn line(self) -> String {
+        format!(
+            "{} {} {} {}\n",
+            self.failures, self.last, self.no_face, self.no_face_last
+        )
+    }
+
+    /// Each streak ends [`LOCKOUT`] after its last count.
     pub fn current(self, now: u64) -> Record {
-        if now.saturating_sub(self.last) >= LOCKOUT.as_secs() {
-            Record::default()
-        } else {
-            self
+        let expired = |last: u64| now.saturating_sub(last) >= LOCKOUT.as_secs();
+        let mut out = self;
+        if expired(self.last) {
+            (out.failures, out.last) = (0, 0);
         }
+        if expired(self.no_face_last) {
+            (out.no_face, out.no_face_last) = (0, 0);
+        }
+        out
+    }
+
+    /// The pause in force, if any; the later one when both limits are reached.
+    /// `max_failures` 0 turns both limits off.
+    pub fn pause(self, now: u64, max_failures: u32) -> Option<Pause> {
+        if max_failures == 0 {
+            return None;
+        }
+        let current = self.current(now);
+        let failed = (current.failures >= max_failures).then(|| Pause {
+            until: current.last + LOCKOUT.as_secs(),
+            cause: PauseCause::FailedFaces(current.failures),
+        });
+        let no_face = (current.no_face >= MAX_NO_FACE_SCANS).then(|| Pause {
+            until: current.no_face_last + LOCKOUT.as_secs(),
+            cause: PauseCause::NoFace(current.no_face),
+        });
+        failed.into_iter().chain(no_face).max_by_key(|p| p.until)
     }
 
     pub fn locked_until(self, now: u64, max_failures: u32) -> Option<u64> {
-        let current = self.current(now);
-        (max_failures > 0 && current.failures >= max_failures)
-            .then(|| current.last + LOCKOUT.as_secs())
+        self.pause(now, max_failures).map(|p| p.until)
     }
 }
 
@@ -135,7 +195,7 @@ fn damaged(dir: &Path, user: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         format!(
-            "{} is damaged (expected \"<failures> <last time>\")",
+            "{} is damaged (expected \"<failures> <last time> <no-face scans> <last no-face time>\")",
             dir.join(user).display()
         ),
     )
@@ -159,19 +219,33 @@ pub fn load_or_create(dir: &Path, user: &str) -> io::Result<Record> {
 }
 
 pub fn record_failure(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
+    update(dir, user, now, |record| {
+        record.failures = record.failures.saturating_add(1);
+        record.last = now;
+    })
+}
+
+/// A scan that saw no face after a head-turn challenge was asked for. It
+/// leaves the failed-attempt count alone, and a rejected face does not end
+/// this streak; only [`reset`] (a face or password login) or time does.
+pub fn record_no_face(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
+    update(dir, user, now, |record| {
+        record.no_face = record.no_face.saturating_add(1);
+        record.no_face_last = now;
+    })
+}
+
+fn update(dir: &Path, user: &str, now: u64, count: impl FnOnce(&mut Record)) -> io::Result<Record> {
     let mut file = open_locked(dir, user, true)?.expect("created");
-    // Damaged content says nothing trustworthy about earlier failures, so this
-    // failure starts a fresh count and the rewrite below repairs the file. PAM
-    // refuses face login while the counter is damaged, so only damage that
-    // appears during a scan gets here.
-    let previous = read_record(&mut file)?.unwrap_or_default().current(now);
-    let record = Record {
-        failures: previous.failures.saturating_add(1),
-        last: now,
-    };
+    // Damaged content says nothing trustworthy about earlier counts, so this
+    // one starts afresh and the rewrite below repairs the file. PAM refuses
+    // face login while the counter is damaged, so only damage that appears
+    // during a scan gets here.
+    let mut record = read_record(&mut file)?.unwrap_or_default().current(now);
+    count(&mut record);
     // One write over the old record, then trim: a failed write leaves the old
-    // count, never an empty file, which would read as no failures.
-    let line = format!("{} {}\n", record.failures, record.last);
+    // counts, never an empty file, which would read as no failures.
+    let line = record.line();
     file.rewind()?;
     file.write_all(line.as_bytes())?;
     file.set_len(line.len() as u64)?;
@@ -219,6 +293,83 @@ mod tests {
     }
 
     #[test]
+    fn scans_without_a_face_pause_after_their_own_slower_limit() {
+        let d = dir("no-face");
+        let t = 1_000_000;
+        for i in 1..MAX_NO_FACE_SCANS {
+            let r = record_no_face(&d, "alice", t + u64::from(i)).unwrap();
+            assert_eq!((r.no_face, r.failures), (i, 0));
+            // Stepping away for a while never pauses face login.
+            assert_eq!(r.pause(t + u64::from(i), 5), None, "{i}");
+        }
+        // A rejected face counts on its own and does not end the streak.
+        let r = record_failure(&d, "alice", t + 20).unwrap();
+        assert_eq!((r.failures, r.no_face), (1, MAX_NO_FACE_SCANS - 1));
+        let r = record_no_face(&d, "alice", t + 30).unwrap();
+        assert_eq!(
+            r.pause(t + 30, 5),
+            Some(Pause {
+                until: t + 30 + LOCKOUT.as_secs(),
+                cause: PauseCause::NoFace(MAX_NO_FACE_SCANS),
+            })
+        );
+        assert_eq!(r.locked_until(t + 30, 5), Some(t + 30 + LOCKOUT.as_secs()));
+        assert_eq!(load(&d, "alice").unwrap(), r, "stored");
+        // 0 turns every limit off.
+        assert_eq!(r.pause(t + 30, 0), None);
+        // The streak expires like the failed-attempt count.
+        let later = t + 30 + LOCKOUT.as_secs();
+        assert_eq!(r.pause(later, 5), None);
+        assert_eq!(record_no_face(&d, "alice", later).unwrap().no_face, 1);
+        // A success or password login clears both streaks.
+        reset(&d, "alice").unwrap();
+        assert_eq!(load(&d, "alice").unwrap(), Record::default());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn the_later_pause_wins_and_old_counters_still_load() {
+        let d = dir("both");
+        fs::DirBuilder::new().mode(0o700).create(&d).unwrap();
+        // Written by a version without the no-face streak.
+        fs::write(d.join("alice"), "5 1000\n").unwrap();
+        let old = load(&d, "alice").unwrap();
+        assert_eq!(
+            old,
+            Record {
+                failures: 5,
+                last: 1000,
+                ..Record::default()
+            }
+        );
+        assert_eq!(
+            old.pause(1000, 5).map(|p| p.cause),
+            Some(PauseCause::FailedFaces(5))
+        );
+        let both = Record {
+            failures: 5,
+            last: 1000,
+            no_face: MAX_NO_FACE_SCANS,
+            no_face_last: 1100,
+        };
+        assert_eq!(
+            both.pause(1100, 5),
+            Some(Pause {
+                until: 1100 + LOCKOUT.as_secs(),
+                cause: PauseCause::NoFace(MAX_NO_FACE_SCANS)
+            })
+        );
+        // The rewrite keeps both streaks.
+        let r = record_no_face(&d, "alice", 1001).unwrap();
+        assert_eq!((r.failures, r.no_face), (5, 1));
+        assert_eq!(
+            fs::read_to_string(d.join("alice")).unwrap(),
+            "5 1000 1 1001\n"
+        );
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
     fn success_resets_and_state_is_private() {
         let d = dir("reset");
         record_failure(&d, "alice", 10).unwrap();
@@ -240,12 +391,14 @@ mod tests {
         assert!(record_failure(&d, "mallory", 1).is_err());
         assert!(load(&d, "mallory").is_err());
         // Damaged content is an error naming the file, never "no failures".
-        let overlong = format!("3 1000{}junk\n", " ".repeat(60));
+        let overlong = format!("3 1000{}junk\n", " ".repeat(130));
         let damaged: &[&[u8]] = &[
             b"garbage here too\n",
             b"\n",
             b"3\n",
             b"3 1000 7\n",
+            b"3 1000 7 1000 1\n",
+            b"3 1000 x 1000\n",
             b"-1 1000\n",
             b"4294967296 1000\n",
             b"\xff\xfe 1000\n",
@@ -275,11 +428,12 @@ mod tests {
     fn a_failure_on_a_damaged_counter_starts_a_fresh_count() {
         let d = dir("fresh");
         fs::DirBuilder::new().mode(0o700).create(&d).unwrap();
-        let overlong = format!("3 4900{}junk\n", " ".repeat(60));
+        let overlong = format!("3 4900{}junk\n", " ".repeat(130));
         let damaged: &[&[u8]] = &[b"garbage\n", b"\xff\xfe\n", overlong.as_bytes()];
         let fresh = Record {
             failures: 1,
             last: 5000,
+            ..Record::default()
         };
         for content in damaged {
             fs::write(d.join("carol"), content).unwrap();

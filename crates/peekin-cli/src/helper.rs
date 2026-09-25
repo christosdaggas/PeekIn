@@ -395,14 +395,24 @@ fn base64(bytes: &[u8]) -> String {
 
 /// An unreadable state is reported as such, never as "no failures".
 fn attempts(config: &PeekinConfig, user: &str) -> serde_json::Value {
+    attempts_in(Path::new(lockout::STATE_DIR), config, user, lockout::now())
+}
+
+fn attempts_in(dir: &Path, config: &PeekinConfig, user: &str, now: u64) -> serde_json::Value {
     let limit = config.max_failed_attempts();
-    match lockout::load(Path::new(lockout::STATE_DIR), user) {
+    match lockout::load(dir, user) {
         Ok(record) => {
-            let now = lockout::now();
+            let current = record.current(now);
+            let pause = record.pause(now, limit);
             serde_json::json!({
-                "failures": record.current(now).failures,
+                "failures": current.failures,
+                "no_face_scans": current.no_face,
                 "limit": limit,
-                "paused_until": record.locked_until(now, limit),
+                "paused_until": pause.map(|p| p.until),
+                "paused_by": pause.map(|p| match p.cause {
+                    lockout::PauseCause::FailedFaces(_) => "failed-attempts",
+                    lockout::PauseCause::NoFace(_) => "no-face",
+                }),
             })
         }
         Err(error) => serde_json::json!({"error": error.to_string()}),
@@ -580,6 +590,41 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attempts_report_counts_and_the_cause_of_a_pause() {
+        let dir =
+            std::env::temp_dir().join(format!("peekin-helper-attempts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let config =
+            PeekinConfig::parse("[core]\nmax_failed_attempts = 5\n", "<t>".into()).unwrap();
+        let now = 1_790_000_000;
+        let state = |user| attempts_in(&dir, &config, user, now);
+        assert_eq!(
+            state("alice"),
+            serde_json::json!({"failures":0,"no_face_scans":0,"limit":5,"paused_until":null,"paused_by":null})
+        );
+        lockout::record_failure(&dir, "alice", now).unwrap();
+        for _ in 0..lockout::MAX_NO_FACE_SCANS {
+            lockout::record_no_face(&dir, "alice", now - 60).unwrap();
+        }
+        let until = now - 60 + lockout::LOCKOUT.as_secs();
+        assert_eq!(
+            state("alice"),
+            serde_json::json!({"failures":1,"no_face_scans":lockout::MAX_NO_FACE_SCANS,"limit":5,"paused_until":until,"paused_by":"no-face"})
+        );
+        for _ in 0..4 {
+            lockout::record_failure(&dir, "alice", now).unwrap();
+        }
+        assert_eq!(
+            state("alice")["paused_by"],
+            "failed-attempts",
+            "the later pause"
+        );
+        std::fs::write(dir.join("bob"), "garbage\n").unwrap();
+        assert!(state("bob")["error"].is_string());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn only_camera_nodes_reach_attestation() {
