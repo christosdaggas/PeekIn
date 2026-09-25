@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:38+0000\n"
+"POT-Creation-Date: 2026-09-25 14:47+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,6 +52,9 @@ msgid "Movement challenge completed"
 msgstr ""
 
 msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
+msgstr ""
+
+msgid "Another face check is running; use your password"
 msgstr ""
 
 #, rust-format

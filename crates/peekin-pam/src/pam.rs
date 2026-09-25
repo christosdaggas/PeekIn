@@ -244,14 +244,26 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
     }
     // The counter is created before the scan. One that cannot be read or written,
     // or is damaged, stops face login until it is repaired (fail closed); the
-    // password is never blocked, PAM moves on to it.
-    match check_lockout(
+    // password is never blocked, PAM moves on to it. It stays locked until the
+    // result is recorded, so concurrent attempts cannot pass the check together.
+    let scan = match check_lockout(
         &args.state_dir,
         &user,
         lockout::now(),
         config.max_failed_attempts(),
     ) {
-        Lockout::Proceed => {}
+        Lockout::Proceed(scan) => scan,
+        Lockout::Busy => {
+            pam.log(
+                LOG_NOTICE,
+                "Face login skipped: another face scan for this user is running",
+            );
+            pam.tell(
+                false,
+                &tr("Another face check is running; use your password"),
+            );
+            return PamCode::AuthinfoUnavail as c_int;
+        }
         Lockout::Paused { cause, minutes } => {
             let (reason, message) = match cause {
                 PauseCause::FailedFaces(failures) => (
@@ -289,7 +301,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
             );
             return PamCode::AuthinfoUnavail as c_int;
         }
-    }
+    };
     // The worker resolves the camera again and refuses a weaker mode, so a swapped camera fails closed.
     let camera = cameras::resolved_kind(&config.device_path());
     let mode = match ChallengeMode::for_config(config.movement_required(camera)) {
@@ -387,7 +399,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
 
     match run.end {
         RunEnd::Exited(end) => {
-            update_lockout(pam, &args.state_dir, &user, end, mode.is_movement());
+            update_lockout(pam, &args.state_dir, &user, scan, end, mode.is_movement());
             if let Some(outcome) = crate::activity_outcome(end) {
                 let model = crate::matched_model(&run.stdout);
                 record_activity(pam, &args, &user, &session, outcome, model);
@@ -488,30 +500,45 @@ fn record_activity(
     }
 }
 
-fn update_lockout(pam: &Pam, state_dir: &Path, user: &str, end: ChildEnd, movement: bool) {
-    let result = match counter_update(end, movement) {
-        CounterUpdate::Reset => lockout::reset(state_dir, user),
-        CounterUpdate::Failure => {
-            lockout::record_failure(state_dir, user, lockout::now()).map(|record| {
-                pam.log(
-                    LOG_NOTICE,
-                    &format!("Failed face attempt {} in a row", record.failures),
-                );
-            })
+/// Through `scan`, the lock held since the check before the scan; without a
+/// limit there is none and the counter is opened here.
+fn update_lockout(
+    pam: &Pam,
+    state_dir: &Path,
+    user: &str,
+    scan: Option<lockout::ScanGuard>,
+    end: ChildEnd,
+    movement: bool,
+) {
+    let now = lockout::now();
+    let result = match (counter_update(end, movement), scan) {
+        (CounterUpdate::Reset, Some(scan)) => scan.reset(),
+        (CounterUpdate::Reset, None) => lockout::reset(state_dir, user),
+        (CounterUpdate::Failure, scan) => match scan {
+            Some(mut scan) => scan.record_failure(now),
+            None => lockout::record_failure(state_dir, user, now),
         }
-        CounterUpdate::NoFace => {
-            lockout::record_no_face(state_dir, user, lockout::now()).map(|record| {
-                pam.log(
-                    LOG_NOTICE,
-                    &format!(
-                        "No face seen after a head-turn challenge, {} scans in a row (limit {})",
-                        record.no_face,
-                        lockout::MAX_NO_FACE_SCANS
-                    ),
-                );
-            })
+        .map(|record| {
+            pam.log(
+                LOG_NOTICE,
+                &format!("Failed face attempt {} in a row", record.failures),
+            );
+        }),
+        (CounterUpdate::NoFace, scan) => match scan {
+            Some(mut scan) => scan.record_no_face(now),
+            None => lockout::record_no_face(state_dir, user, now),
         }
-        CounterUpdate::Unchanged => Ok(()),
+        .map(|record| {
+            pam.log(
+                LOG_NOTICE,
+                &format!(
+                    "No face seen after a head-turn challenge, {} scans in a row (limit {})",
+                    record.no_face,
+                    lockout::MAX_NO_FACE_SCANS
+                ),
+            );
+        }),
+        (CounterUpdate::Unchanged, _) => Ok(()),
     };
     if let Err(error) = result {
         pam.log(

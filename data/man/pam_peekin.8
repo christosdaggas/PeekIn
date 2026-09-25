@@ -60,7 +60,11 @@ Scans without the challenge that see no face, and camera problems, count
 towards neither limit;
 .B max_failed_attempts
 = 0 turns both off.
-While the limit is on, the counter is created before each scan; one that
+While the limit is on, the counter stays locked from the check before a scan
+until its result is recorded, so attempts running at the same time cannot
+all pass the check: a second attempt for the same user meanwhile goes
+straight to the password and counts nothing.
+The counter is created before each scan; one that
 cannot be read or written, or is damaged, turns face login off, leaving only
 the password, until it is repaired (a password login clears a damaged one).
 .PP

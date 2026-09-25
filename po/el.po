@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:38+0000\n"
+"POT-Creation-Date: 2026-09-25 14:47+0000\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -52,6 +52,9 @@ msgstr "Ο έλεγχος κίνησης ολοκληρώθηκε"
 
 msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
 msgstr "Ο έλεγχος κίνησης απέτυχε (λάθος σειρά, παράλειψη βήματος ή πολύ αργά)· χρησιμοποιήστε τον κωδικό σας ή δοκιμάστε ξανά"
+
+msgid "Another face check is running; use your password"
+msgstr "Εκτελείται ήδη άλλος έλεγχος προσώπου· χρησιμοποιήστε τον κωδικό σας"
 
 #, rust-format
 msgid "Face login paused after too many failed attempts ({minutes} min); use your password"

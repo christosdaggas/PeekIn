@@ -287,6 +287,9 @@ replaces config.ini only when every value in it is valid):
   stepping away from the camera for a moment never pauses face login; a
   rejected face does not end this streak, a face or password login does, and
   it also ends 15 minutes after the last such scan. `0` turns both limits off.
+  Only one face scan per account runs at a time: a second attempt started
+  meanwhile (another sudo, say) goes straight to the password, so parallel
+  attempts cannot get past the limit together.
   Counters: `/var/lib/peekin/failures/<user>` (root, 0600, SELinux type
   `peekin_var_lib_t`); while the limit is on, a counter file that cannot be
   read or written, or is damaged, turns face login off for that account

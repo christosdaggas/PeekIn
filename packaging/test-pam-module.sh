@@ -51,6 +51,7 @@ cat > $W/out/stdin
 id -un > $W/out/who
 echo "OCL=\$OPENCV_OPENCL_RUNTIME BLAS=\$OPENBLAS_NUM_THREADS" > $W/out/env
 code=\$(cat $W/exit-code)
+[ -e $W/slow ] && sleep 3
 if [ "\$code" = 0 ] && [ -s $W/out/stdin ]; then
     if [ -e $W/bad-stages ]; then
         echo "challenge-stage 2"; sleep 0.2; echo "challenge-stage 4"; sleep 5; exit 0
@@ -196,6 +197,23 @@ grep -q "Face login paused after too many scans without a face" "$W/log" || fail
 [ -e "$W/state/$USER_UNDER_TEST" ] && fail "password login must clear the no-face streak"
 run 0 || fail "face login must work again after a password login"
 
+# 8c. Two attempts at once for one user: while the first scans, the second
+#     cannot pass the same check; it starts no worker, counts nothing and
+#     goes to the password. Only the first attempt is counted.
+touch "$W/slow"
+echo 11 > "$W/exit-code"; rm -f "$W/out/args"
+"$HARNESS" "$W/pam" sudo "$USER_UNDER_TEST" > "$W/log-first" 2>&1 &
+first=$!
+i=0; while [ ! -e "$W/out/args" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i + 1)); done
+[ -e "$W/out/args" ] || fail "first attempt did not start its worker"
+run 11 && fail "a concurrent attempt must not authenticate"
+[ -e "$W/out/args" ] && fail "a concurrent attempt started a second worker"
+grep -q "Another face check is running" "$W/log" || fail "concurrent attempt not explained"
+wait "$first" && fail "the first attempt must not authenticate"
+rm "$W/slow"
+[ "$(cut -d' ' -f1 "$W/state/$USER_UNDER_TEST")" = 1 ] || fail "only the first attempt may count ($(cat "$W/state/$USER_UNDER_TEST"))"
+run 0 || fail "face login must work again after concurrent attempts"
+
 # 9. A damaged counter, or a counter directory where no failure could be
 #    recorded, turns face login off: no prompt, no worker, an explanation.
 #    A password login clears a damaged counter.
@@ -262,4 +280,4 @@ sed -i 's/^movement_challenge = true/movement_challenge = perhaps/' "$W/etc/conf
 run 0 && fail "malformed movement_challenge must fail closed"
 [ -e "$W/out/args" ] && fail "worker started with a malformed security setting"
 
-echo "PAM_MODULE_E2E_OK: challenge, per-step prompts, passive, failure messages, preflight, model store, lockout, no-face limit, damaged counter, services, screen light, history, fail-closed"
+echo "PAM_MODULE_E2E_OK: challenge, per-step prompts, passive, failure messages, preflight, model store, lockout, no-face limit, one scan at a time, damaged counter, services, screen light, history, fail-closed"

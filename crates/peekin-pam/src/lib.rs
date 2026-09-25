@@ -123,15 +123,16 @@ pub fn check_enabled(
 }
 
 /// What the failed-attempt counter allows, checked before the face prompt.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Lockout {
-    Proceed,
+    /// Scan; the guard holds the counter locked until the result is recorded
+    /// (`None` while the limit is off).
+    Proceed(Option<lockout::ScanGuard>),
+    /// Another face scan for this user is running.
+    Busy,
     /// Paused after too many rejected faces, or too many scans without a face
     /// after a head-turn challenge, for `minutes` more (at least 1).
-    Paused {
-        cause: PauseCause,
-        minutes: u64,
-    },
+    Paused { cause: PauseCause, minutes: u64 },
     /// The counter cannot be read or written, or is damaged; the reason is for the log.
     Unusable(String),
 }
@@ -144,15 +145,16 @@ pub enum Lockout {
 pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u32) -> Lockout {
     // 0 turns the limit off; the counter then plays no part.
     if max_failures == 0 {
-        return Lockout::Proceed;
+        return Lockout::Proceed(None);
     }
-    match lockout::load_or_create(state_dir, username) {
-        Ok(record) => match record.pause(now, max_failures) {
+    match lockout::begin_scan(state_dir, username) {
+        Ok(lockout::ScanStart::Busy) => Lockout::Busy,
+        Ok(lockout::ScanStart::Ready(guard, record)) => match record.pause(now, max_failures) {
             Some(pause) => Lockout::Paused {
                 cause: pause.cause,
                 minutes: pause.until.saturating_sub(now).div_ceil(60).max(1),
             },
-            None => Lockout::Proceed,
+            None => Lockout::Proceed(Some(guard)),
         },
         Err(error) => Lockout::Unusable(format!(
             "cannot read or write the failed-attempt counter: {error}; \
@@ -632,37 +634,48 @@ mod tests {
         let (dir, _) = setup("lockout");
         let state = dir.join("failures");
         let now = 1_000_000;
-        assert_eq!(check_lockout(&state, "alice", now, 5), Lockout::Proceed);
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 5),
+            Lockout::Proceed(Some(_))
+        ));
         for _ in 0..5 {
             lockout::record_failure(&state, "alice", now - 60).unwrap();
         }
-        assert_eq!(check_lockout(&state, "alice", now, 6), Lockout::Proceed);
-        assert_eq!(
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 6),
+            Lockout::Proceed(Some(_))
+        ));
+        assert!(matches!(
             check_lockout(&state, "alice", now, 5),
             Lockout::Paused {
                 cause: PauseCause::FailedFaces(5),
                 minutes: 14
             }
-        );
+        ));
         // Scans without a face after a head-turn challenge pause on their own.
         let (dir2, _) = setup("lockout-no-face");
         let state2 = dir2.join("failures");
         for i in 0..lockout::MAX_NO_FACE_SCANS {
-            assert_eq!(
-                check_lockout(&state2, "carol", now, 5),
-                Lockout::Proceed,
+            assert!(
+                matches!(
+                    check_lockout(&state2, "carol", now, 5),
+                    Lockout::Proceed(Some(_))
+                ),
                 "{i}"
             );
             lockout::record_no_face(&state2, "carol", now - 120).unwrap();
         }
-        assert_eq!(
+        assert!(matches!(
             check_lockout(&state2, "carol", now, 5),
             Lockout::Paused {
                 cause: PauseCause::NoFace(lockout::MAX_NO_FACE_SCANS),
                 minutes: 13
             }
-        );
-        assert_eq!(check_lockout(&state2, "carol", now, 0), Lockout::Proceed);
+        ));
+        assert!(matches!(
+            check_lockout(&state2, "carol", now, 0),
+            Lockout::Proceed(None)
+        ));
         let _ = fs::remove_dir_all(&dir2);
         // Damaged content, or a directory where the counter belongs.
         fs::write(state.join("alice"), "garbage\n").unwrap();
@@ -681,7 +694,38 @@ mod tests {
             }
         }
         // With the limit off the counter plays no part.
-        assert_eq!(check_lockout(&state, "alice", now, 0), Lockout::Proceed);
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 0),
+            Lockout::Proceed(None)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_second_scan_for_the_same_user_waits_for_none() {
+        let (dir, _) = setup("busy");
+        let state = dir.join("failures");
+        let now = 1_000_000;
+        let Lockout::Proceed(Some(mut first)) = check_lockout(&state, "alice", now, 5) else {
+            panic!("the first scan must proceed")
+        };
+        // While it scans, a concurrent attempt cannot pass the same check.
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 5),
+            Lockout::Busy
+        ));
+        assert!(matches!(
+            check_lockout(&state, "bob", now, 5),
+            Lockout::Proceed(Some(_))
+        ));
+        // Its failure is recorded through its own lock, then the next one runs.
+        first.record_failure(now).unwrap();
+        drop(first);
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 5),
+            Lockout::Proceed(Some(_))
+        ));
+        assert_eq!(lockout::load(&state, "alice").unwrap().failures, 1);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -714,7 +758,10 @@ mod tests {
         }
         // Elsewhere the counter is created before the scan, with no failures.
         let state = dir.join("failures");
-        assert_eq!(check_lockout(&state, "alice", now, 5), Lockout::Proceed);
+        assert!(matches!(
+            check_lockout(&state, "alice", now, 5),
+            Lockout::Proceed(Some(_))
+        ));
         assert_eq!(fs::metadata(state.join("alice")).unwrap().len(), 0);
         let _ = fs::remove_dir_all(&dir);
     }

@@ -147,6 +147,17 @@ fn ensure_dir(dir: &Path) -> io::Result<()> {
 }
 
 fn open_locked(dir: &Path, user: &str, create: bool) -> io::Result<Option<fs::File>> {
+    open_locked_as(dir, user, create, libc::LOCK_EX)
+}
+
+/// `lock` is `LOCK_EX`, or `LOCK_EX | LOCK_NB` for an error of kind
+/// `WouldBlock` while someone else holds it.
+fn open_locked_as(
+    dir: &Path,
+    user: &str,
+    create: bool,
+    lock: libc::c_int,
+) -> io::Result<Option<fs::File>> {
     let path = state_file(dir, user)?;
     if create {
         ensure_dir(dir)?;
@@ -171,7 +182,7 @@ fn open_locked(dir: &Path, user: &str, create: bool) -> io::Result<Option<fs::Fi
         ));
     }
     // SAFETY: flock on a descriptor we own; released when the file is dropped.
-    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+    if unsafe { libc::flock(file.as_raw_fd(), lock) } != 0 {
         return Err(io::Error::last_os_error());
     }
     Ok(Some(file))
@@ -210,12 +221,65 @@ pub fn load(dir: &Path, user: &str) -> io::Result<Record> {
     }
 }
 
+/// A scan in progress: holds the counter's lock from the check before the
+/// scan until its result is recorded, so concurrent attempts for one user
+/// cannot all pass the check before any of them counts.
+#[derive(Debug)]
+pub struct ScanGuard {
+    file: fs::File,
+    path: PathBuf,
+}
+
+#[derive(Debug)]
+pub enum ScanStart {
+    /// The counter is locked for this scan; the record is its current state.
+    Ready(ScanGuard, Record),
+    /// Another face scan for this user holds the counter.
+    Busy,
+}
+
 /// [`load`] for the check before a scan: creates the directory and an empty
-/// counter when missing and opens it for writing under the lock, so an error
+/// counter when missing and locks it for writing without waiting, so an error
 /// also means a failure could not be recorded. [`reset`] removes the file.
-pub fn load_or_create(dir: &Path, user: &str) -> io::Result<Record> {
-    let mut file = open_locked(dir, user, true)?.expect("created");
-    read_record(&mut file)?.ok_or_else(|| damaged(dir, user))
+pub fn begin_scan(dir: &Path, user: &str) -> io::Result<ScanStart> {
+    let mut file = match open_locked_as(dir, user, true, libc::LOCK_EX | libc::LOCK_NB) {
+        Ok(file) => file.expect("created"),
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(ScanStart::Busy),
+        Err(e) => return Err(e),
+    };
+    let record = read_record(&mut file)?.ok_or_else(|| damaged(dir, user))?;
+    Ok(ScanStart::Ready(
+        ScanGuard {
+            file,
+            path: state_file(dir, user)?,
+        },
+        record,
+    ))
+}
+
+impl ScanGuard {
+    pub fn record_failure(&mut self, now: u64) -> io::Result<Record> {
+        update_file(&mut self.file, now, |record| {
+            record.failures = record.failures.saturating_add(1);
+            record.last = now;
+        })
+    }
+
+    /// See [`record_no_face`].
+    pub fn record_no_face(&mut self, now: u64) -> io::Result<Record> {
+        update_file(&mut self.file, now, |record| {
+            record.no_face = record.no_face.saturating_add(1);
+            record.no_face_last = now;
+        })
+    }
+
+    /// A successful face login: removed while still locked.
+    pub fn reset(self) -> io::Result<()> {
+        match fs::remove_file(&self.path) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
 }
 
 pub fn record_failure(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
@@ -237,11 +301,21 @@ pub fn record_no_face(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
 
 fn update(dir: &Path, user: &str, now: u64, count: impl FnOnce(&mut Record)) -> io::Result<Record> {
     let mut file = open_locked(dir, user, true)?.expect("created");
+    update_file(&mut file, now, count)
+}
+
+/// Rewrites a counter the caller holds locked.
+fn update_file(
+    file: &mut fs::File,
+    now: u64,
+    count: impl FnOnce(&mut Record),
+) -> io::Result<Record> {
+    file.rewind()?;
     // Damaged content says nothing trustworthy about earlier counts, so this
     // one starts afresh and the rewrite below repairs the file. PAM refuses
     // face login while the counter is damaged, so only damage that appears
     // during a scan gets here.
-    let mut record = read_record(&mut file)?.unwrap_or_default().current(now);
+    let mut record = read_record(file)?.unwrap_or_default().current(now);
     count(&mut record);
     // One write over the old record, then trim: a failed write leaves the old
     // counts, never an empty file, which would read as no failures.
@@ -262,6 +336,14 @@ pub fn reset(dir: &Path, user: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The record a scan starts from; the guard is released at once.
+    fn ready(dir: &Path, user: &str) -> Record {
+        match begin_scan(dir, user).unwrap() {
+            ScanStart::Ready(_, record) => record,
+            ScanStart::Busy => panic!("busy"),
+        }
+    }
 
     fn dir(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("peekin-lockout-{name}-{}", std::process::id()));
@@ -370,6 +452,38 @@ mod tests {
     }
 
     #[test]
+    fn one_scan_at_a_time_records_through_its_own_lock() {
+        let d = dir("guard");
+        let ScanStart::Ready(mut guard, record) = begin_scan(&d, "alice").unwrap() else {
+            panic!("busy")
+        };
+        assert_eq!(record, Record::default());
+        // A second attempt for the same user while the first is scanning.
+        assert!(matches!(begin_scan(&d, "alice").unwrap(), ScanStart::Busy));
+        // Other users are not affected.
+        assert!(matches!(
+            begin_scan(&d, "bob").unwrap(),
+            ScanStart::Ready(..)
+        ));
+        assert_eq!(guard.record_failure(10).unwrap().failures, 1);
+        assert_eq!(guard.record_no_face(11).unwrap().no_face, 1);
+        drop(guard);
+        let r = ready(&d, "alice");
+        assert_eq!((r.failures, r.no_face), (1, 1));
+        // The next scan sees both counts and can clear them on success.
+        let ScanStart::Ready(guard, _) = begin_scan(&d, "alice").unwrap() else {
+            panic!("busy")
+        };
+        guard.reset().unwrap();
+        assert!(!d.join("alice").exists());
+        assert!(matches!(
+            begin_scan(&d, "alice").unwrap(),
+            ScanStart::Ready(..)
+        ));
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
     fn success_resets_and_state_is_private() {
         let d = dir("reset");
         record_failure(&d, "alice", 10).unwrap();
@@ -451,19 +565,19 @@ mod tests {
     }
 
     #[test]
-    fn load_or_create_proves_that_failures_can_be_recorded() {
+    fn begin_scan_proves_that_failures_can_be_recorded() {
         use std::os::unix::fs::PermissionsExt;
         let d = dir("create");
         // Directory and counter are created; the empty counter means no failures.
-        assert_eq!(load_or_create(&d, "alice").unwrap(), Record::default());
+        assert_eq!(ready(&d, "alice"), Record::default());
         assert_eq!(fs::metadata(&d).unwrap().mode() & 0o777, 0o700);
         let counter = fs::metadata(d.join("alice")).unwrap();
         assert_eq!((counter.len(), counter.mode() & 0o777), (0, 0o600));
         assert_eq!(load(&d, "alice").unwrap(), Record::default());
         let record = record_failure(&d, "alice", 50).unwrap();
-        assert_eq!(load_or_create(&d, "alice").unwrap(), record);
+        assert_eq!(ready(&d, "alice"), record);
         fs::write(d.join("alice"), "garbage\n").unwrap();
-        let error = load_or_create(&d, "alice").unwrap_err();
+        let error = begin_scan(&d, "alice").unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         // Where no failure could be recorded, `load` alone sees "no failures".
         let open = d.join("open");
@@ -484,7 +598,7 @@ mod tests {
         for place in &unusable {
             assert_eq!(load(place, "bob").unwrap(), Record::default());
             assert!(record_failure(place, "bob", 60).is_err());
-            assert!(load_or_create(place, "bob").is_err(), "{}", place.display());
+            assert!(begin_scan(place, "bob").is_err(), "{}", place.display());
         }
         let _ = fs::remove_dir_all(d);
     }
