@@ -1,0 +1,1088 @@
+# French translations for peekin package.
+# Copyright (C) 2026 THE peekin'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the peekin package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: peekin\n"
+"Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
+"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"PO-Revision-Date: 2026-09-25 18:30+0300\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: French\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "administrator-approved infrared"
+msgstr "infrarouge approuvé par l'administrateur"
+
+msgid "possible infrared (not approved)"
+msgstr "infrarouge possible (non approuvé)"
+
+msgid "colour"
+msgstr "couleur"
+
+msgid "Face check: look at the camera, then follow the head-turn instructions."
+msgstr "Vérification du visage : regardez la caméra, puis suivez les instructions pour tourner la tête."
+
+msgid "Face check: look at the camera."
+msgstr "Vérification du visage : regardez la caméra."
+
+msgid "Look straight at the camera"
+msgstr "Regardez droit dans la caméra"
+
+msgid "Turn your head LEFT"
+msgstr "Tournez la tête vers la GAUCHE"
+
+msgid "Turn your head RIGHT"
+msgstr "Tournez la tête vers la DROITE"
+
+msgid "Turn your head as instructed"
+msgstr "Tournez la tête comme indiqué"
+
+msgid "Look straight at the camera again"
+msgstr "Regardez à nouveau droit dans la caméra"
+
+msgid "Movement challenge completed"
+msgstr "Défi de mouvement réussi"
+
+msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
+msgstr "Défi de mouvement échoué (mauvais ordre, étape manquée ou trop lent) ; utilisez votre mot de passe ou réessayez"
+
+msgid "Another face check is running; use your password"
+msgstr "Une autre vérification du visage est déjà en cours ; utilisez votre mot de passe"
+
+#, rust-format
+msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
+msgstr "Connexion par le visage suspendue après trop de tentatives échouées ({minutes} min) ; utilisez votre mot de passe"
+
+#, rust-format
+msgid "Face login paused after too many scans without a face ({minutes} min); use your password"
+msgstr "Connexion par le visage suspendue après trop d'analyses sans visage ({minutes} min) ; utilisez votre mot de passe"
+
+msgid "Face authentication is unavailable (see the system log); use your password"
+msgstr "Authentification faciale indisponible (voir le journal système) ; utilisez votre mot de passe"
+
+msgid "Face recognition timed out; use your password"
+msgstr "Reconnaissance faciale expirée ; utilisez votre mot de passe"
+
+msgid "Face not recognised in time; use your password"
+msgstr "Visage non reconnu à temps ; utilisez votre mot de passe"
+
+msgid "Camera image too dark; use your password"
+msgstr "Image de la caméra trop sombre ; utilisez votre mot de passe"
+
+msgid "The camera could not be opened; use your password"
+msgstr "Impossible d'ouvrir la caméra ; utilisez votre mot de passe"
+
+msgid "Head movement did not follow the instructions; use your password"
+msgstr "Le mouvement de la tête n'a pas suivi les instructions ; utilisez votre mot de passe"
+
+msgid "No face seen; use your password"
+msgstr "Aucun visage détecté ; utilisez votre mot de passe"
+
+#, rust-format
+msgid "Unknown error: {code}"
+msgstr "Erreur inconnue : {code}"
+
+msgid "Face authentication failed unexpectedly; use your password"
+msgstr "Échec inattendu de l'authentification faciale ; utilisez votre mot de passe"
+
+#, rust-format
+msgid "Face recognised: {username}"
+msgstr "Visage reconnu : {username}"
+
+msgid "Authorization was cancelled"
+msgstr "Autorisation annulée"
+
+#, rust-format
+msgid "Cannot run {program}: {error}"
+msgstr "Impossible d'exécuter {program} : {error}"
+
+msgid "Operation cancelled"
+msgstr "Opération annulée"
+
+msgid "Operation timed out. Reload to check whether the change was saved."
+msgstr "Opération expirée. Rechargez pour vérifier si la modification a été enregistrée."
+
+msgid "Command worker stopped unexpectedly"
+msgstr "Le processus de commande s'est arrêté de façon inattendue"
+
+msgid "Another operation is already running"
+msgstr "Une autre opération est déjà en cours"
+
+msgid "Unsaved system-wide settings"
+msgstr "Paramètres système non enregistrés"
+
+msgid "Save these settings before opening the camera, discard them, or cancel. Camera operations always use the settings on disk."
+msgstr "Enregistrez ces paramètres avant d'ouvrir la caméra, abandonnez-les ou annulez. Les opérations de la caméra utilisent toujours les paramètres enregistrés sur disque."
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Discard"
+msgstr "Abandonner"
+
+msgid "Save"
+msgstr "Enregistrer"
+
+#, rust-format
+msgid "Cannot read settings: {e}"
+msgstr "Impossible de lire les paramètres : {e}"
+
+msgid "not installed: config.ini is missing"
+msgstr "non installé : config.ini est manquant"
+
+msgid "settings read failed"
+msgstr "lecture des paramètres échouée"
+
+msgid "invalid configuration"
+msgstr "configuration invalide"
+
+msgid "invalid security settings"
+msgstr "paramètres de sécurité invalides"
+
+msgid "automatic selection found no camera"
+msgstr "la sélection automatique n'a trouvé aucune caméra"
+
+msgid "configured device missing"
+msgstr "périphérique configuré manquant"
+
+msgid "device is not a usable camera"
+msgstr "le périphérique n'est pas une caméra utilisable"
+
+msgid "IR profile not verified"
+msgstr "Profil IR non vérifié"
+
+#, rust-format
+msgid "automatic: {camera}"
+msgstr "automatique : {camera}"
+
+msgid "configured device present"
+msgstr "périphérique configuré présent"
+
+msgid "saved; disabled system-wide"
+msgstr "enregistré ; désactivé pour tout le système"
+
+msgid "saved and enabled"
+msgstr "enregistré et activé"
+
+msgid "sudo/GDM rules present; administrator review required"
+msgstr "règles sudo/GDM présentes ; révision de l'administrateur requise"
+
+msgid "validated sudo/GDM rules not detected"
+msgstr "aucune règle sudo/GDM validée détectée"
+
+#, rust-format
+msgid "Automatic · now {camera}"
+msgstr "Automatique · actuellement {camera}"
+
+msgid "Automatic · no camera found"
+msgstr "Automatique · aucune caméra trouvée"
+
+#, rust-format
+msgid "{camera} · recommended"
+msgstr "{camera} · recommandée"
+
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; approve it under “Infrared cameras” below"
+msgstr "Une caméra infrarouge est connectée mais non approuvée, donc la connexion par le visage ne la préfère pas encore ; approuvez-la sous « Caméras infrarouges » ci-dessous"
+
+msgid "Used for face login; the away lock can use another one"
+msgstr "Utilisée pour la connexion par le visage ; le verrouillage d'absence peut en utiliser une autre"
+
+msgid "Approved: face login may prefer it, and “Infrared camera only” accepts it"
+msgstr "Approuvée : la connexion par le visage peut la préférer, et « Caméra infrarouge uniquement » l'accepte"
+
+msgid "Not approved: face login treats it like a colour camera"
+msgstr "Non approuvée : la connexion par le visage la traite comme une caméra couleur"
+
+msgid "Withdraw"
+msgstr "Retirer"
+
+msgid "Approve…"
+msgstr "Approuver…"
+
+#, rust-format
+msgid "This camera cannot be approved: {error}"
+msgstr "Impossible d'approuver cette caméra : {error}"
+
+msgid "none"
+msgstr "aucune"
+
+msgid "Starting the camera…"
+msgstr "Démarrage de la caméra…"
+
+#, rust-format
+msgid "{camera} · {vid}:{pid} · serial {serial} · interface {interface}, index {index} · {driver}"
+msgstr "{camera} · {vid}:{pid} · série {serial} · interface {interface}, index {index} · {driver}"
+
+msgid "Darken the room: an infrared camera lights your face with its own light. If the image stays dark, its emitter needs switching on first, e.g. with linux-enable-ir-emitter."
+msgstr "Assombrissez la pièce : une caméra infrarouge éclaire votre visage avec sa propre lumière. Si l'image reste sombre, son émetteur doit d'abord être allumé, par ex. avec linux-enable-ir-emitter."
+
+msgid "I confirm that this is the camera's infrared sensor and that its infrared light turns on in a dark room"
+msgstr "Je confirme qu'il s'agit du capteur infrarouge de la caméra et que sa lumière infrarouge s'allume dans une pièce sombre"
+
+msgid "What was checked (saved with the approval)"
+msgstr "Ce qui a été vérifié (enregistré avec l'approbation)"
+
+#, rust-format
+msgid "{camera} ({vid}:{pid}, serial {serial}): infrared sensor and emitter checked in PeekIn Settings on {date}"
+msgstr "{camera} ({vid}:{pid}, série {serial}) : capteur et émetteur infrarouges vérifiés dans les paramètres PeekIn le {date}"
+
+msgid "Approve"
+msgstr "Approuver"
+
+msgid "Approve infrared camera"
+msgstr "Approuver la caméra infrarouge"
+
+#, rust-format
+msgid "The camera cannot be shown: {error}"
+msgstr "Impossible d'afficher la caméra : {error}"
+
+msgid "Waiting for the administrator password…"
+msgstr "En attente du mot de passe administrateur…"
+
+msgid "Infrared camera approved"
+msgstr "Caméra infrarouge approuvée"
+
+#, rust-format
+msgid "Could not approve the camera: {error}"
+msgstr "Impossible d'approuver la caméra : {error}"
+
+msgid "Approving the camera did not finish"
+msgstr "L'approbation de la caméra ne s'est pas terminée"
+
+msgid "Withdraw the approval?"
+msgstr "Retirer l'approbation ?"
+
+#, rust-format
+msgid "{camera} then counts as a possible infrared camera again. With “Infrared camera only” on, face login stops until a camera is approved."
+msgstr "{camera} comptera à nouveau comme caméra infrarouge possible. Avec « Caméra infrarouge uniquement » activé, la connexion par le visage s'arrête jusqu'à ce qu'une caméra soit approuvée."
+
+msgid "Approval withdrawn"
+msgstr "Approbation retirée"
+
+#, rust-format
+msgid "Could not withdraw the approval: {error}"
+msgstr "Impossible de retirer l'approbation : {error}"
+
+msgid "Withdrawing the approval did not finish"
+msgstr "Le retrait de l'approbation ne s'est pas terminé"
+
+msgid "No changes to apply"
+msgstr "Aucune modification à appliquer"
+
+msgid "Settings saved"
+msgstr "Paramètres enregistrés"
+
+msgid "Save cancelled; your edits are still here"
+msgstr "Enregistrement annulé ; vos modifications sont toujours là"
+
+msgid "Save timed out; checked disk and kept any unsaved edits"
+msgstr "Enregistrement expiré ; disque vérifié et modifications non enregistrées conservées"
+
+msgid "System settings saved; could not save Away Lock settings"
+msgstr "Paramètres système enregistrés ; impossible d'enregistrer les paramètres du verrouillage d'absence"
+
+#, rust-format
+msgid "Could not save: {error}"
+msgstr "Impossible d'enregistrer : {error}"
+
+msgid "load cancelled"
+msgstr "chargement annulé"
+
+msgid "Model loading cancelled"
+msgstr "Chargement du modèle annulé"
+
+msgid "load timed out"
+msgstr "chargement expiré"
+
+msgid "Model loading timed out"
+msgstr "Chargement du modèle expiré"
+
+msgid "not available in development mode"
+msgstr "indisponible en mode développement"
+
+msgid "authorization/read failed"
+msgstr "autorisation/lecture échouée"
+
+msgid "invalid helper response"
+msgstr "réponse de l'assistant invalide"
+
+msgid "none; password fallback"
+msgstr "aucun ; repli sur le mot de passe"
+
+msgid "No face models yet"
+msgstr "Pas encore de modèles de visage"
+
+msgid "Use “Add” to enroll your face"
+msgstr "Utilisez « Ajouter » pour enregistrer votre visage"
+
+msgid "Face models are locked"
+msgstr "Les modèles de visage sont verrouillés"
+
+#, rust-format
+msgid "For you: {value}."
+msgstr "Pour vous : {value}."
+
+msgid "Needs a face model with two samples."
+msgstr "Nécessite un modèle de visage avec deux échantillons."
+
+msgid "Could not read model metadata"
+msgstr "Impossible de lire les métadonnées du modèle"
+
+#, rust-format
+msgid "{n} usable sample; Test required"
+msgid_plural "{n} usable samples; Test required"
+msgstr[0] "{n} échantillon utilisable ; test requis"
+msgstr[1] "{n} échantillons utilisables ; test requis"
+
+msgid "no valid current embeddings"
+msgstr "aucune représentation actuelle valide"
+
+#, rust-format
+msgid "Added {created} · last used {when}"
+msgstr "Ajouté {created} · dernière utilisation {when}"
+
+#, rust-format
+msgid "Added {created} · not used yet"
+msgstr "Ajouté {created} · pas encore utilisé"
+
+msgid "Improve recognition: add samples to this model"
+msgstr "Améliorer la reconnaissance : ajoutez des échantillons à ce modèle"
+
+msgid "Remove this model"
+msgstr "Supprimer ce modèle"
+
+msgid "Look straight at the camera. The green box shows that your face was found."
+msgstr "Regardez droit dans la caméra. Le cadre vert indique que votre visage a été trouvé."
+
+msgid "Label (optional), e.g. “With glasses”"
+msgstr "Étiquette (facultatif), par ex. « Avec des lunettes »"
+
+msgid "Capture"
+msgstr "Capturer"
+
+msgid "Add samples where recognition fails, e.g. in dim light or with glasses. The green box shows that your face was found."
+msgstr "Ajoutez des échantillons là où la reconnaissance échoue, par ex. en faible lumière ou avec des lunettes. Le cadre vert indique que votre visage a été trouvé."
+
+#, rust-format
+msgid "Improve “{label}”"
+msgstr "Améliorer « {label} »"
+
+msgid "Add a face model"
+msgstr "Ajouter un modèle de visage"
+
+msgid "Hold still…"
+msgstr "Restez immobile…"
+
+msgid "Taking 5 samples of your face."
+msgstr "Capture de 5 échantillons de votre visage."
+
+msgid "No face found — move into the camera's view"
+msgstr "Aucun visage trouvé — placez-vous devant la caméra"
+
+msgid "Face found — press Capture"
+msgstr "Visage trouvé — appuyez sur Capturer"
+
+msgid "More than one face — only you should be in view"
+msgstr "Plus d'un visage — vous seul devriez être visible"
+
+#, rust-format
+msgid "Sample {n} of {total}"
+msgstr "Échantillon {n} sur {total}"
+
+#, rust-format
+msgid "Could not add the model: {e}"
+msgstr "Impossible d'ajouter le modèle : {e}"
+
+msgid "Your label has been kept. Check the camera and press Retry."
+msgstr "Votre étiquette a été conservée. Vérifiez la caméra et appuyez sur Réessayer."
+
+msgid "Retry capture"
+msgstr "Réessayer la capture"
+
+msgid "Saving…"
+msgstr "Enregistrement…"
+
+msgid "Your password may be requested to store the model."
+msgstr "Votre mot de passe peut être demandé pour enregistrer le modèle."
+
+msgid "Face model improved"
+msgstr "Modèle de visage amélioré"
+
+msgid "Face model added"
+msgstr "Modèle de visage ajouté"
+
+msgid "Save cancelled before handoff"
+msgstr "Enregistrement annulé avant le transfert"
+
+msgid "Save timed out; model list will be reloaded when this dialog closes"
+msgstr "Enregistrement expiré ; la liste des modèles sera rechargée à la fermeture de cette boîte de dialogue"
+
+#, rust-format
+msgid "Could not confirm model save: {detail}"
+msgstr "Impossible de confirmer l'enregistrement du modèle : {detail}"
+
+msgid "The model list will be reconciled from disk. Captured samples remain available for retry until this dialog closes."
+msgstr "La liste des modèles sera réconciliée depuis le disque. Les échantillons capturés restent disponibles pour réessayer jusqu'à la fermeture de cette boîte de dialogue."
+
+msgid "Retry save"
+msgstr "Réessayer l'enregistrement"
+
+#, rust-format
+msgid "“{label}” will be deleted. If this is your last usable model, face authentication for your account stops and the password remains available."
+msgstr "« {label} » sera supprimé. S'il s'agit de votre dernier modèle utilisable, l'authentification faciale de votre compte s'arrête et le mot de passe reste disponible."
+
+msgid "Remove face model?"
+msgstr "Supprimer le modèle de visage ?"
+
+msgid "Remove"
+msgstr "Supprimer"
+
+msgid "Removal cancelled; reloading models"
+msgstr "Suppression annulée ; rechargement des modèles"
+
+msgid "Removal timed out; reloading models to check whether it committed"
+msgstr "Suppression expirée ; rechargement des modèles pour vérifier si elle a été appliquée"
+
+#, rust-format
+msgid "Could not remove model: {e}"
+msgstr "Impossible de supprimer le modèle : {e}"
+
+msgid "Model removed; removing the last usable model disables face authentication for your account"
+msgstr "Modèle supprimé ; la suppression du dernier modèle utilisable désactive l'authentification faciale de votre compte"
+
+msgid "Resume cancelled"
+msgstr "Reprise annulée"
+
+msgid "Resume timed out"
+msgstr "Reprise expirée"
+
+msgid "Face login resumed"
+msgstr "Connexion par le visage reprise"
+
+#, rust-format
+msgid "Could not resume face login: {error}"
+msgstr "Impossible de reprendre la connexion par le visage : {error}"
+
+msgid "The history cannot be read"
+msgstr "Impossible de lire l'historique"
+
+msgid "No face login attempts yet"
+msgstr "Pas encore de tentative de connexion par le visage"
+
+msgid "Clear activity log?"
+msgstr "Effacer le journal d'activité ?"
+
+msgid "All face login attempts recorded for your account will be deleted."
+msgstr "Toutes les tentatives de connexion par le visage enregistrées pour votre compte seront supprimées."
+
+msgid "Clear log"
+msgstr "Effacer le journal"
+
+msgid "Activity log cleared"
+msgstr "Journal d'activité effacé"
+
+#, rust-format
+msgid "Could not clear activity log: {error}"
+msgstr "Impossible d'effacer le journal d'activité : {error}"
+
+msgid "Clearing the activity log did not finish"
+msgstr "L'effacement du journal d'activité ne s'est pas terminé"
+
+msgid "Same as face login"
+msgstr "Comme la connexion par le visage"
+
+msgid "Any colour camera"
+msgstr "N'importe quelle caméra couleur"
+
+msgid "Any infrared camera"
+msgstr "N'importe quelle caméra infrarouge"
+
+msgid "No photos of failed attempts"
+msgstr "Aucune photo de tentative échouée"
+
+#, rust-format
+msgid "Photo of a failed attempt, {time}"
+msgstr "Photo d'une tentative échouée, {time}"
+
+msgid "Delete all photos?"
+msgstr "Supprimer toutes les photos ?"
+
+msgid "The photos of failed attempts on your account will be deleted."
+msgstr "Les photos des tentatives échouées de votre compte seront supprimées."
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Photos deleted"
+msgstr "Photos supprimées"
+
+#, rust-format
+msgid "Could not delete the photos: {error}"
+msgstr "Impossible de supprimer les photos : {error}"
+
+msgid "Deleting the photos did not finish"
+msgstr "La suppression des photos ne s'est pas terminée"
+
+msgid "Starting camera…"
+msgstr "Démarrage de la caméra…"
+
+#, rust-format
+msgid "Live camera frame containing {n} detected face"
+msgid_plural "Live camera frame containing {n} detected faces"
+msgstr[0] "Image en direct contenant {n} visage détecté"
+msgstr[1] "Image en direct contenant {n} visages détectés"
+
+msgid "Starting camera"
+msgstr "Démarrage de la caméra"
+
+msgid "Image too dark"
+msgstr "Image trop sombre"
+
+msgid "Camera covered or unavailable"
+msgstr "Caméra couverte ou indisponible"
+
+msgid "No face found"
+msgstr "Aucun visage trouvé"
+
+msgid "Multiple faces; sequence reset"
+msgstr "Visages multiples ; séquence réinitialisée"
+
+msgid "No match"
+msgstr "Aucune correspondance"
+
+#, rust-format
+msgid "No match ({score})"
+msgstr "Aucune correspondance ({score})"
+
+#, rust-format
+msgid "Matching frame {n} of {total} ({score})"
+msgstr "Image correspondante {n} sur {total} ({score})"
+
+#, rust-format
+msgid "{instruction} · stage {n} of {total}"
+msgstr "{instruction} · étape {n} sur {total}"
+
+#, rust-format
+msgid "Accepted after {n} consistent frames ({score})"
+msgstr "Accepté après {n} images cohérentes ({score})"
+
+#, rust-format
+msgid "{n} second remaining"
+msgid_plural "{n} seconds remaining"
+msgstr[0] "Il reste {n} seconde"
+msgstr[1] "Il reste {n} secondes"
+
+msgid "Identity and movement challenge passed. This is not proof against interactive replay or masks."
+msgstr "Identité et défi de mouvement réussis. Ceci ne protège pas contre la rediffusion interactive ni les masques."
+
+msgid "Face recognised (head-movement check is off). A photo of you could also pass this check."
+msgstr "Visage reconnu (la vérification du mouvement de la tête est désactivée). Une photo de vous pourrait aussi passer cette vérification."
+
+msgid "Test stopped"
+msgstr "Test arrêté"
+
+msgid "Run another test"
+msgstr "Lancer un autre test"
+
+msgid "Automatic"
+msgstr "Automatique"
+
+#, rust-format
+msgid "{path} (not found)"
+msgstr "{path} (introuvable)"
+
+msgid "Raise the match threshold from your own enrollment samples; it is never lowered. Stricter against other faces, but may reject yours more often."
+msgstr "Augmentez le seuil de correspondance à partir de vos propres échantillons d'enregistrement ; il n'est jamais abaissé. Plus strict envers les autres visages, mais peut rejeter le vôtre plus souvent."
+
+msgid "Seconds to look for your face before asking for the password (default 3). The head-movement check gets up to 8 more seconds"
+msgstr "Secondes pour chercher votre visage avant de demander le mot de passe (défaut 3). La vérification du mouvement de la tête obtient jusqu'à 8 secondes de plus"
+
+msgid "10 s is the default of Linux Hello before 1.3, kept by the upgrade. The default is now 3 s. The head-movement check gets up to 8 more seconds"
+msgstr "10 s est la valeur par défaut de Linux Hello avant la 1.3, conservée par la mise à niveau. La valeur par défaut est maintenant de 3 s. La vérification du mouvement de la tête obtient jusqu'à 8 secondes de plus"
+
+msgid "Look. Recognize. Unlock."
+msgstr "Regardez. Reconnaissez. Déverrouillez."
+
+#, rust-format
+msgid "Version {version}"
+msgstr "Version {version}"
+
+msgid "What it does"
+msgstr "Ce qu'il fait"
+
+msgid "PeekIn is face authentication for Linux. It unlocks sudo, the GNOME lock screen and the login screen when you look at the camera, and your password always keeps working. A random head-movement check makes photos harder to use, your face data is encrypted with the TPM, and nothing leaves your computer. Face recognition is a convenience, not a replacement for your password."
+msgstr "PeekIn est l'authentification faciale pour Linux. Il déverrouille sudo, l'écran de verrouillage GNOME et l'écran de connexion quand vous regardez la caméra, et votre mot de passe continue toujours de fonctionner. Une vérification aléatoire du mouvement de la tête rend les photos plus difficiles à utiliser, les données de votre visage sont chiffrées avec le TPM et rien ne quitte votre ordinateur. La reconnaissance faciale est un confort, pas un remplacement de votre mot de passe."
+
+msgid "Author"
+msgstr "Auteur"
+
+msgid "Design and development"
+msgstr "Conception et développement"
+
+msgid "Website"
+msgstr "Site web"
+
+msgid "Email"
+msgstr "E-mail"
+
+msgid "License"
+msgstr "Licence"
+
+msgid "MIT; the face models: MIT (YuNet) and Apache-2.0 (SFace)"
+msgstr "MIT ; les modèles de visage : MIT (YuNet) et Apache-2.0 (SFace)"
+
+msgid "Copyright"
+msgstr "Droit d'auteur"
+
+msgid "could not read failed attempts"
+msgstr "impossible de lire les tentatives échouées"
+
+msgid "Face authentication"
+msgstr "Authentification faciale"
+
+msgid "Offer face unlock for sudo, the lock screen and login"
+msgstr "Proposer le déverrouillage par le visage pour sudo, l'écran de verrouillage et la connexion"
+
+msgid "Camera"
+msgstr "Caméra"
+
+msgid "Infrared camera only"
+msgstr "Caméra infrarouge uniquement"
+
+msgid "Require an administrator-attested physical IR profile. Infrared alone does not prove liveness."
+msgstr "Exiger un profil IR physique attesté par l'administrateur. L'infrarouge seul ne prouve pas la vivacité."
+
+msgid "Match threshold"
+msgstr "Seuil de correspondance"
+
+msgid "Higher is stricter. Default 0.363; calibrate on your hardware"
+msgstr "Plus élevé est plus strict. Défaut 0,363 ; calibrez sur votre matériel"
+
+msgid "Scan time"
+msgstr "Durée d'analyse"
+
+msgid "Dark frame threshold"
+msgstr "Seuil d'image sombre"
+
+msgid "Frames darker than this (percent) are skipped"
+msgstr "Les images plus sombres que cette valeur (pourcent) sont ignorées"
+
+msgid "Announce face scan"
+msgstr "Annoncer l'analyse du visage"
+
+msgid "Show a message before the face scan"
+msgstr "Afficher un message avant l'analyse du visage"
+
+msgid "Confirm recognition"
+msgstr "Confirmer la reconnaissance"
+
+msgid "Show “Face recognised: …” after a match"
+msgstr "Afficher « Visage reconnu : … » après une correspondance"
+
+msgid "Disable for remote sessions"
+msgstr "Désactiver pour les sessions distantes"
+
+msgid "Never scan for SSH logins"
+msgstr "Ne jamais analyser les connexions SSH"
+
+msgid "Disable when the lid is closed"
+msgstr "Désactiver quand le capot est fermé"
+
+msgid "The camera cannot see you"
+msgstr "La caméra ne peut pas vous voir"
+
+msgid "Head-movement check"
+msgstr "Vérification du mouvement de la tête"
+
+msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+msgstr "Demander une séquence aléatoire de tours de tête après vous avoir reconnu. Désactivez pour déverrouiller en regardant simplement la caméra : plus rapide, mais une photo de vous a plus de chances de fonctionner"
+
+msgid "Personal threshold"
+msgstr "Seuil personnel"
+
+msgid "Save photos of failed attempts"
+msgstr "Enregistrer les photos des tentatives échouées"
+
+msgid "When a face is seen but not accepted, keep a photo of it (the newest 20). Only you and administrators can see them, on the Face models page"
+msgstr "Quand un visage est vu mais non accepté, en garder une photo (les 20 plus récentes). Vous seul et les administrateurs pouvez les voir, sur la page Modèles de visage"
+
+msgid "Light up the screen in the dark"
+msgstr "Éclairer l'écran dans le noir"
+
+msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
+msgstr "Mettre l'écran du portable à pleine luminosité pendant que la caméra couleur analyse une pièce sombre, puis le restaurer"
+
+msgid "Keep it on without an infrared camera"
+msgstr "Le garder activé sans caméra infrarouge"
+
+msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+msgstr "Quand la vérification du mouvement de la tête est désactivée, la demander quand même sauf si une caméra infrarouge approuvée par l'administrateur est utilisée. Une photo sur papier ou sur un téléphone ne peut alors pas déverrouiller avec la caméra couleur"
+
+msgid "sudo in a terminal"
+msgstr "sudo dans un terminal"
+
+msgid "Also sudo -i"
+msgstr "Aussi sudo -i"
+
+msgid "Login screen"
+msgstr "Écran de connexion"
+
+msgid "After starting the computer. The keyring stays locked until you enter your password"
+msgstr "Après le démarrage de l'ordinateur. Le trousseau reste verrouillé jusqu'à ce que vous saisissiez votre mot de passe"
+
+msgid "Lock screen"
+msgstr "Écran de verrouillage"
+
+msgid "Unlocking a session that is already running"
+msgstr "Déverrouillage d'une session déjà en cours"
+
+msgid "Administrator dialogs"
+msgstr "Dialogues d'administration"
+
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Dialogues de mot de passe des applis et de pkexec (expérimental)"
+
+msgid "Text console login"
+msgstr "Connexion sur console texte"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Connexion sur un terminal texte local, par ex. Ctrl+Alt+F3 (expérimental)"
+
+msgid "System-wide settings; per-user face models."
+msgstr "Paramètres système ; modèles de visage par utilisateur."
+
+msgid "Configuration"
+msgstr "Configuration"
+
+msgid "Checking settings…"
+msgstr "Vérification des paramètres…"
+
+msgid "PAM integration"
+msgstr "Intégration PAM"
+
+msgid "Face models"
+msgstr "Modèles de visage"
+
+msgid "Failed face attempts"
+msgstr "Tentatives faciales échouées"
+
+msgid "Resume"
+msgstr "Reprendre"
+
+msgid "Allow face login again now"
+msgstr "Autoriser à nouveau la connexion par le visage maintenant"
+
+msgid "General"
+msgstr "Général"
+
+msgid "Use face login for"
+msgstr "Utiliser la connexion par le visage pour"
+
+msgid "Infrared cameras"
+msgstr "Caméras infrarouges"
+
+msgid "Approving tells PeekIn that a camera is a real infrared sensor. It applies to every user of this computer and needs the administrator password each time."
+msgstr "Approuver indique à PeekIn qu'une caméra est un vrai capteur infrarouge. Cela s'applique à chaque utilisateur de cet ordinateur et nécessite le mot de passe administrateur à chaque fois."
+
+msgid "Security level"
+msgstr "Niveau de sécurité"
+
+msgid "Recognition"
+msgstr "Reconnaissance"
+
+msgid "Messages and safety"
+msgstr "Messages et sécurité"
+
+msgid "Lock when you walk away"
+msgstr "Verrouiller quand vous vous éloignez"
+
+msgid "After the time below without keyboard or mouse input, the camera looks for a face; with nobody there for 10 seconds the screen locks. The camera light is on while it looks"
+msgstr "Après le délai ci-dessous sans entrée clavier ni souris, la caméra cherche un visage ; si personne n'est là pendant 10 secondes, l'écran se verrouille. Le voyant de la caméra est allumé pendant la recherche"
+
+msgid "Lock after"
+msgstr "Verrouiller après"
+
+msgid "Seconds without input before the camera looks"
+msgstr "Secondes sans entrée avant que la caméra cherche"
+
+msgid "It only needs to see that someone is there, so it can differ from the face login camera, e.g. the colour camera while face login uses the infrared one"
+msgstr "Elle doit seulement voir que quelqu'un est là, donc elle peut différer de la caméra de connexion par le visage, par ex. la caméra couleur pendant que la connexion par le visage utilise l'infrarouge"
+
+msgid "Tell me about failed attempts"
+msgstr "Me prévenir des tentatives échouées"
+
+msgid "After you unlock, a notification when faces were rejected while you were away"
+msgstr "Après le déverrouillage, une notification quand des visages ont été rejetés pendant votre absence"
+
+msgid "For this account only; press Apply to save changes."
+msgstr "Pour ce compte uniquement ; cliquez sur Appliquer pour enregistrer les modifications."
+
+msgid "Walk-away lock"
+msgstr "Verrouillage d'absence"
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "System status"
+msgstr "État du système"
+
+#, rust-format
+msgid "Face models for {user}"
+msgstr "Modèles de visage pour {user}"
+
+msgid "Each model holds several samples of your face. Add one per look, e.g. with and without glasses."
+msgstr "Chaque modèle contient plusieurs échantillons de votre visage. Ajoutez-en un par apparence, par ex. avec et sans lunettes."
+
+msgid "Load models"
+msgstr "Charger les modèles"
+
+msgid "Add"
+msgstr "Ajouter"
+
+msgid "Activity"
+msgstr "Activité"
+
+msgid "The latest face login attempts on your account."
+msgstr "Les dernières tentatives de connexion par le visage sur votre compte."
+
+msgid "Photos of failed attempts"
+msgstr "Photos des tentatives échouées"
+
+msgid "Faces that were seen but not accepted, when “Save photos of failed attempts” is on."
+msgstr "Visages vus mais non acceptés, quand « Enregistrer les photos des tentatives échouées » est activé."
+
+msgid "Show"
+msgstr "Afficher"
+
+msgid "Delete all"
+msgstr "Tout supprimer"
+
+msgid "Run recognition and movement test"
+msgstr "Lancer le test de reconnaissance et de mouvement"
+
+msgid "Stop"
+msgstr "Arrêter"
+
+msgid "Live camera test preview"
+msgstr "Aperçu en direct du test de la caméra"
+
+msgid "Ready to test"
+msgstr "Prêt à tester"
+
+msgid "Look at the camera. Each line shows whether a face was found and how closely it matches yours."
+msgstr "Regardez la caméra. Chaque ligne montre si un visage a été trouvé et à quel point il correspond au vôtre."
+
+msgid "Diagnostic details"
+msgstr "Détails de diagnostic"
+
+msgid "Settings"
+msgstr "Paramètres"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Away lock"
+msgstr "Verrouillage d'absence"
+
+msgid "About"
+msgstr "À propos"
+
+msgid "Apply"
+msgstr "Appliquer"
+
+msgid "Reload saved settings"
+msgstr "Recharger les paramètres enregistrés"
+
+msgid "Cancelling…"
+msgstr "Annulation…"
+
+msgid "Finishing authorized change…"
+msgstr "Finalisation de la modification autorisée…"
+
+msgid "Discard unsaved settings?"
+msgstr "Abandonner les paramètres non enregistrés ?"
+
+msgid "Reload the current settings from disk. Unsaved changes will be discarded."
+msgstr "Rechargez les paramètres actuels depuis le disque. Les modifications non enregistrées seront abandonnées."
+
+msgid "Reload"
+msgstr "Recharger"
+
+msgid "Please wait for the authorized change to finish before closing."
+msgstr "Veuillez attendre la fin de la modification autorisée avant de fermer."
+
+msgid "Models are only readable by an administrator"
+msgstr "Les modèles ne sont lisibles que par un administrateur"
+
+msgid "Use the refresh button to load them (asks for your password)"
+msgstr "Utilisez le bouton d'actualisation pour les charger (demande votre mot de passe)"
+
+msgid "Waiting for camera exposure…"
+msgstr "En attente de l'exposition de la caméra…"
+
+msgid "Camera appears covered"
+msgstr "La caméra semble couverte"
+
+msgid "Image is too dark"
+msgstr "L'image est trop sombre"
+
+msgid "Move your face into view"
+msgstr "Placez votre visage devant la caméra"
+
+msgid "Only one person may be visible"
+msgstr "Une seule personne doit être visible"
+
+msgid "Hold still and face the camera"
+msgstr "Restez immobile et regardez la caméra"
+
+msgid "Move closer to the camera"
+msgstr "Rapprochez-vous de la caméra"
+
+msgid "Image is blurry; hold still"
+msgstr "L'image est floue ; restez immobile"
+
+msgid "Face samples are inconsistent"
+msgstr "Les échantillons de visage sont incohérents"
+
+msgid "The image is dark: the infrared emitter seems to be off"
+msgstr "L'image est sombre : l'émetteur infrarouge semble éteint"
+
+msgid "Infrared image received; check that the camera's own light lights your face"
+msgstr "Image infrarouge reçue ; vérifiez que la propre lumière de la caméra éclaire votre visage"
+
+msgid "No face completed the identity and movement challenge before the timeout"
+msgstr "Aucun visage n'a terminé le défi d'identité et de mouvement avant l'expiration"
+
+msgid "No enrolled face was recognised before the timeout"
+msgstr "Aucun visage enregistré n'a été reconnu avant l'expiration"
+
+msgid "Authorizing and loading models…"
+msgstr "Autorisation et chargement des modèles…"
+
+msgid "Authorizing and saving…"
+msgstr "Autorisation et enregistrement…"
+
+msgid "Authorizing and removing model…"
+msgstr "Autorisation et suppression du modèle…"
+
+msgid "Authorizing and resuming face login…"
+msgstr "Autorisation et reprise de la connexion par le visage…"
+
+msgid "Authorizing and loading photos…"
+msgstr "Autorisation et chargement des photos…"
+
+msgid "Authorizing and deleting photos…"
+msgstr "Autorisation et suppression des photos…"
+
+msgid "Authorizing and clearing activity…"
+msgstr "Autorisation et effacement de l'activité…"
+
+msgid "Capturing face model…"
+msgstr "Capture du modèle de visage…"
+
+msgid "Running recognition test…"
+msgstr "Test de reconnaissance en cours…"
+
+msgid "Approving the infrared camera…"
+msgstr "Approbation de la caméra infrarouge…"
+
+msgid "Authorizing and withdrawing the approval…"
+msgstr "Autorisation et retrait de l'approbation…"
+
+msgid "not loaded"
+msgstr "non chargé"
+
+msgid "not checked"
+msgstr "non vérifié"
+
+msgid "Fast"
+msgstr "Rapide"
+
+msgid "Balanced"
+msgstr "Équilibré"
+
+msgid "Secure"
+msgstr "Sécurisé"
+
+msgid "Custom"
+msgstr "Personnalisé"
+
+msgid "Just look at the camera. Head turns only without an approved infrared camera. About 1 stranger in 240 could match your face model"
+msgstr "Regardez simplement la caméra. Tours de tête uniquement sans caméra infrarouge approuvée. Environ 1 inconnu sur 240 pourrait correspondre à votre modèle de visage"
+
+msgid "Head turns after recognising you. About 1 stranger in 240 could match your face model; a photo alone does not unlock"
+msgstr "Tours de tête après vous avoir reconnu. Environ 1 inconnu sur 240 pourrait correspondre à votre modèle de visage ; une photo seule ne déverrouille pas"
+
+msgid "Head turns and a stricter match: about 1 stranger in 5,700 or fewer. Your own face may be rejected a little more often"
+msgstr "Tours de tête et correspondance plus stricte : environ 1 inconnu sur 5 700 ou moins. Votre propre visage peut être rejeté un peu plus souvent"
+
+msgid "Your own combination of the settings below"
+msgstr "Votre propre combinaison des paramètres ci-dessous"
+
+msgid "Administrator dialog"
+msgstr "Dialogue d'administration"
+
+msgid "Text console"
+msgstr "Console texte"
+
+msgid "Recognised"
+msgstr "Reconnu"
+
+msgid "Face not recognised"
+msgstr "Visage non reconnu"
+
+msgid "Head movement not followed"
+msgstr "Mouvement de tête non suivi"
+
+msgid "No face seen"
+msgstr "Aucun visage vu"
+
+msgid "Camera not available"
+msgstr "Caméra indisponible"
+
+msgid "Face login paused"
+msgstr "Connexion par le visage suspendue"
+
+#, rust-format
+msgid "face login paused after {failures} failed attempts until {resume_at}; your password still works"
+msgstr "connexion par le visage suspendue après {failures} tentatives échouées jusqu'à {resume_at} ; votre mot de passe fonctionne toujours"
+
+#, rust-format
+msgid "face login paused after {scans} scans without a face until {resume_at}; your password still works"
+msgstr "connexion par le visage suspendue après {scans} analyses sans visage jusqu'à {resume_at} ; votre mot de passe fonctionne toujours"
+
+msgid "no recent failed attempts"
+msgstr "aucune tentative échouée récente"
+
+#, rust-format
+msgid "{n} recent failed attempt"
+msgid_plural "{n} recent failed attempts"
+msgstr[0] "{n} tentative échouée récente"
+msgstr[1] "{n} tentatives échouées récentes"
+
+#, rust-format
+msgid "{recent}; no limit"
+msgstr "{recent} ; aucune limite"
+
+#, rust-format
+msgid "{recent}; pauses after {limit}"
+msgstr "{recent} ; suspend après {limit}"
+
+#, rust-format
+msgid "{n} failed face attempt while you were away"
+msgid_plural "{n} failed face attempts while you were away"
+msgstr[0] "{n} tentative faciale échouée pendant votre absence"
+msgstr[1] "{n} tentatives faciales échouées pendant votre absence"
+
+msgid "Open PeekIn to see when and where (Face models, Activity)."
+msgstr "Ouvrez PeekIn pour voir quand et où (Modèles de visage, Activité)."
+
+#~ msgid "For this account only; changes are saved right away."
+#~ msgstr "Pour ce compte uniquement ; les modifications sont enregistrées aussitôt."

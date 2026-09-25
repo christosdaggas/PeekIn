@@ -1,0 +1,1093 @@
+# Russian translations for peekin package.
+# Copyright (C) 2026 THE peekin'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the peekin package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: peekin\n"
+"Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
+"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"PO-Revision-Date: 2026-09-25 18:30+0300\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "administrator-approved infrared"
+msgstr "инфракрасная камера, одобренная администратором"
+
+msgid "possible infrared (not approved)"
+msgstr "возможно инфракрасная (не одобрена)"
+
+msgid "colour"
+msgstr "цветная"
+
+msgid "Face check: look at the camera, then follow the head-turn instructions."
+msgstr "Проверка лица: посмотрите в камеру, затем следуйте указаниям о поворотах головы."
+
+msgid "Face check: look at the camera."
+msgstr "Проверка лица: посмотрите в камеру."
+
+msgid "Look straight at the camera"
+msgstr "Смотрите прямо в камеру"
+
+msgid "Turn your head LEFT"
+msgstr "Поверните голову ВЛЕВО"
+
+msgid "Turn your head RIGHT"
+msgstr "Поверните голову ВПРАВО"
+
+msgid "Turn your head as instructed"
+msgstr "Поверните голову, как указано"
+
+msgid "Look straight at the camera again"
+msgstr "Снова посмотрите прямо в камеру"
+
+msgid "Movement challenge completed"
+msgstr "Проверка движением пройдена"
+
+msgid "Movement challenge failed (wrong order, missed step, or too slow); use your password or retry"
+msgstr "Проверка движением не пройдена (неверный порядок, пропущенный шаг или слишком медленно); используйте пароль или повторите"
+
+msgid "Another face check is running; use your password"
+msgstr "Другая проверка лица уже выполняется; используйте пароль"
+
+#, rust-format
+msgid "Face login paused after too many failed attempts ({minutes} min); use your password"
+msgstr "Вход по лицу приостановлен после слишком большого числа неудачных попыток ({minutes} мин); используйте пароль"
+
+#, rust-format
+msgid "Face login paused after too many scans without a face ({minutes} min); use your password"
+msgstr "Вход по лицу приостановлен после слишком большого числа сканирований без лица ({minutes} мин); используйте пароль"
+
+msgid "Face authentication is unavailable (see the system log); use your password"
+msgstr "Аутентификация по лицу недоступна (см. системный журнал); используйте пароль"
+
+msgid "Face recognition timed out; use your password"
+msgstr "Время распознавания лица истекло; используйте пароль"
+
+msgid "Face not recognised in time; use your password"
+msgstr "Лицо вовремя не распознано; используйте пароль"
+
+msgid "Camera image too dark; use your password"
+msgstr "Изображение с камеры слишком тёмное; используйте пароль"
+
+msgid "The camera could not be opened; use your password"
+msgstr "Не удалось открыть камеру; используйте пароль"
+
+msgid "Head movement did not follow the instructions; use your password"
+msgstr "Движение головы не соответствовало указаниям; используйте пароль"
+
+msgid "No face seen; use your password"
+msgstr "Лицо не обнаружено; используйте пароль"
+
+#, rust-format
+msgid "Unknown error: {code}"
+msgstr "Неизвестная ошибка: {code}"
+
+msgid "Face authentication failed unexpectedly; use your password"
+msgstr "Аутентификация по лицу неожиданно не удалась; используйте пароль"
+
+#, rust-format
+msgid "Face recognised: {username}"
+msgstr "Лицо распознано: {username}"
+
+msgid "Authorization was cancelled"
+msgstr "Авторизация отменена"
+
+#, rust-format
+msgid "Cannot run {program}: {error}"
+msgstr "Не удаётся запустить {program}: {error}"
+
+msgid "Operation cancelled"
+msgstr "Операция отменена"
+
+msgid "Operation timed out. Reload to check whether the change was saved."
+msgstr "Время операции истекло. Обновите, чтобы проверить, сохранено ли изменение."
+
+msgid "Command worker stopped unexpectedly"
+msgstr "Рабочий процесс команды неожиданно завершился"
+
+msgid "Another operation is already running"
+msgstr "Другая операция уже выполняется"
+
+msgid "Unsaved system-wide settings"
+msgstr "Несохранённые общесистемные настройки"
+
+msgid "Save these settings before opening the camera, discard them, or cancel. Camera operations always use the settings on disk."
+msgstr "Сохраните эти настройки перед открытием камеры, отмените их или прервите. Операции камеры всегда используют настройки, сохранённые на диске."
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Discard"
+msgstr "Отменить"
+
+msgid "Save"
+msgstr "Сохранить"
+
+#, rust-format
+msgid "Cannot read settings: {e}"
+msgstr "Не удаётся прочитать настройки: {e}"
+
+msgid "not installed: config.ini is missing"
+msgstr "не установлено: отсутствует config.ini"
+
+msgid "settings read failed"
+msgstr "чтение настроек не удалось"
+
+msgid "invalid configuration"
+msgstr "недопустимая конфигурация"
+
+msgid "invalid security settings"
+msgstr "недопустимые настройки безопасности"
+
+msgid "automatic selection found no camera"
+msgstr "автовыбор не нашёл камеру"
+
+msgid "configured device missing"
+msgstr "настроенное устройство отсутствует"
+
+msgid "device is not a usable camera"
+msgstr "устройство не является пригодной камерой"
+
+msgid "IR profile not verified"
+msgstr "ИК-профиль не подтверждён"
+
+#, rust-format
+msgid "automatic: {camera}"
+msgstr "автоматически: {camera}"
+
+msgid "configured device present"
+msgstr "настроенное устройство присутствует"
+
+msgid "saved; disabled system-wide"
+msgstr "сохранено; отключено для всей системы"
+
+msgid "saved and enabled"
+msgstr "сохранено и включено"
+
+msgid "sudo/GDM rules present; administrator review required"
+msgstr "правила sudo/GDM присутствуют; требуется проверка администратора"
+
+msgid "validated sudo/GDM rules not detected"
+msgstr "проверенные правила sudo/GDM не обнаружены"
+
+#, rust-format
+msgid "Automatic · now {camera}"
+msgstr "Автоматически · сейчас {camera}"
+
+msgid "Automatic · no camera found"
+msgstr "Автоматически · камера не найдена"
+
+#, rust-format
+msgid "{camera} · recommended"
+msgstr "{camera} · рекомендуется"
+
+msgid "An infrared camera is connected but not approved, so face login does not prefer it yet; approve it under “Infrared cameras” below"
+msgstr "Инфракрасная камера подключена, но не одобрена, поэтому вход по лицу пока её не предпочитает; одобрите её ниже в разделе «Инфракрасные камеры»"
+
+msgid "Used for face login; the away lock can use another one"
+msgstr "Используется для входа по лицу; блокировка при отсутствии может использовать другую"
+
+msgid "Approved: face login may prefer it, and “Infrared camera only” accepts it"
+msgstr "Одобрена: вход по лицу может предпочитать её, и «Только инфракрасная камера» её принимает"
+
+msgid "Not approved: face login treats it like a colour camera"
+msgstr "Не одобрена: вход по лицу считает её цветной камерой"
+
+msgid "Withdraw"
+msgstr "Отозвать"
+
+msgid "Approve…"
+msgstr "Одобрить…"
+
+#, rust-format
+msgid "This camera cannot be approved: {error}"
+msgstr "Эту камеру нельзя одобрить: {error}"
+
+msgid "none"
+msgstr "нет"
+
+msgid "Starting the camera…"
+msgstr "Запуск камеры…"
+
+#, rust-format
+msgid "{camera} · {vid}:{pid} · serial {serial} · interface {interface}, index {index} · {driver}"
+msgstr "{camera} · {vid}:{pid} · серия {serial} · интерфейс {interface}, индекс {index} · {driver}"
+
+msgid "Darken the room: an infrared camera lights your face with its own light. If the image stays dark, its emitter needs switching on first, e.g. with linux-enable-ir-emitter."
+msgstr "Затемните комнату: инфракрасная камера освещает ваше лицо собственным светом. Если изображение остаётся тёмным, сначала нужно включить её излучатель, например с помощью linux-enable-ir-emitter."
+
+msgid "I confirm that this is the camera's infrared sensor and that its infrared light turns on in a dark room"
+msgstr "Подтверждаю, что это инфракрасный сенсор камеры и что её инфракрасная подсветка включается в тёмной комнате"
+
+msgid "What was checked (saved with the approval)"
+msgstr "Что было проверено (сохраняется с одобрением)"
+
+#, rust-format
+msgid "{camera} ({vid}:{pid}, serial {serial}): infrared sensor and emitter checked in PeekIn Settings on {date}"
+msgstr "{camera} ({vid}:{pid}, серия {serial}): инфракрасный сенсор и излучатель проверены в настройках PeekIn {date}"
+
+msgid "Approve"
+msgstr "Одобрить"
+
+msgid "Approve infrared camera"
+msgstr "Одобрить инфракрасную камеру"
+
+#, rust-format
+msgid "The camera cannot be shown: {error}"
+msgstr "Не удаётся показать камеру: {error}"
+
+msgid "Waiting for the administrator password…"
+msgstr "Ожидание пароля администратора…"
+
+msgid "Infrared camera approved"
+msgstr "Инфракрасная камера одобрена"
+
+#, rust-format
+msgid "Could not approve the camera: {error}"
+msgstr "Не удалось одобрить камеру: {error}"
+
+msgid "Approving the camera did not finish"
+msgstr "Одобрение камеры не завершено"
+
+msgid "Withdraw the approval?"
+msgstr "Отозвать одобрение?"
+
+#, rust-format
+msgid "{camera} then counts as a possible infrared camera again. With “Infrared camera only” on, face login stops until a camera is approved."
+msgstr "{camera} снова будет считаться возможной инфракрасной камерой. При включённом «Только инфракрасная камера» вход по лицу остановится, пока камера не будет одобрена."
+
+msgid "Approval withdrawn"
+msgstr "Одобрение отозвано"
+
+#, rust-format
+msgid "Could not withdraw the approval: {error}"
+msgstr "Не удалось отозвать одобрение: {error}"
+
+msgid "Withdrawing the approval did not finish"
+msgstr "Отзыв одобрения не завершён"
+
+msgid "No changes to apply"
+msgstr "Нет изменений для применения"
+
+msgid "Settings saved"
+msgstr "Настройки сохранены"
+
+msgid "Save cancelled; your edits are still here"
+msgstr "Сохранение отменено; ваши правки на месте"
+
+msgid "Save timed out; checked disk and kept any unsaved edits"
+msgstr "Время сохранения истекло; диск проверен, несохранённые правки оставлены"
+
+msgid "System settings saved; could not save Away Lock settings"
+msgstr "Системные настройки сохранены; не удалось сохранить настройки блокировки при уходе"
+
+#, rust-format
+msgid "Could not save: {error}"
+msgstr "Не удалось сохранить: {error}"
+
+msgid "load cancelled"
+msgstr "загрузка отменена"
+
+msgid "Model loading cancelled"
+msgstr "Загрузка модели отменена"
+
+msgid "load timed out"
+msgstr "время загрузки истекло"
+
+msgid "Model loading timed out"
+msgstr "Время загрузки модели истекло"
+
+msgid "not available in development mode"
+msgstr "недоступно в режиме разработки"
+
+msgid "authorization/read failed"
+msgstr "авторизация/чтение не удались"
+
+msgid "invalid helper response"
+msgstr "недопустимый ответ помощника"
+
+msgid "none; password fallback"
+msgstr "нет; запасной вариант — пароль"
+
+msgid "No face models yet"
+msgstr "Моделей лица пока нет"
+
+msgid "Use “Add” to enroll your face"
+msgstr "Используйте «Добавить», чтобы зарегистрировать лицо"
+
+msgid "Face models are locked"
+msgstr "Модели лица заблокированы"
+
+#, rust-format
+msgid "For you: {value}."
+msgstr "Для вас: {value}."
+
+msgid "Needs a face model with two samples."
+msgstr "Нужна модель лица с двумя образцами."
+
+msgid "Could not read model metadata"
+msgstr "Не удалось прочитать метаданные модели"
+
+#, rust-format
+msgid "{n} usable sample; Test required"
+msgid_plural "{n} usable samples; Test required"
+msgstr[0] "{n} пригодный образец; требуется проверка"
+msgstr[1] "{n} пригодных образца; требуется проверка"
+msgstr[2] "{n} пригодных образцов; требуется проверка"
+
+msgid "no valid current embeddings"
+msgstr "нет допустимых текущих эмбеддингов"
+
+#, rust-format
+msgid "Added {created} · last used {when}"
+msgstr "Добавлено {created} · последнее использование {when}"
+
+#, rust-format
+msgid "Added {created} · not used yet"
+msgstr "Добавлено {created} · ещё не использовалось"
+
+msgid "Improve recognition: add samples to this model"
+msgstr "Улучшите распознавание: добавьте образцы в эту модель"
+
+msgid "Remove this model"
+msgstr "Удалить эту модель"
+
+msgid "Look straight at the camera. The green box shows that your face was found."
+msgstr "Смотрите прямо в камеру. Зелёная рамка показывает, что ваше лицо найдено."
+
+msgid "Label (optional), e.g. “With glasses”"
+msgstr "Метка (необязательно), например «В очках»"
+
+msgid "Capture"
+msgstr "Снять"
+
+msgid "Add samples where recognition fails, e.g. in dim light or with glasses. The green box shows that your face was found."
+msgstr "Добавляйте образцы там, где распознавание не удаётся, например при слабом свете или в очках. Зелёная рамка показывает, что ваше лицо найдено."
+
+#, rust-format
+msgid "Improve “{label}”"
+msgstr "Улучшить «{label}»"
+
+msgid "Add a face model"
+msgstr "Добавить модель лица"
+
+msgid "Hold still…"
+msgstr "Не двигайтесь…"
+
+msgid "Taking 5 samples of your face."
+msgstr "Съёмка 5 образцов вашего лица."
+
+msgid "No face found — move into the camera's view"
+msgstr "Лицо не найдено — войдите в поле зрения камеры"
+
+msgid "Face found — press Capture"
+msgstr "Лицо найдено — нажмите «Снять»"
+
+msgid "More than one face — only you should be in view"
+msgstr "Больше одного лица — в кадре должны быть только вы"
+
+#, rust-format
+msgid "Sample {n} of {total}"
+msgstr "Образец {n} из {total}"
+
+#, rust-format
+msgid "Could not add the model: {e}"
+msgstr "Не удалось добавить модель: {e}"
+
+msgid "Your label has been kept. Check the camera and press Retry."
+msgstr "Ваша метка сохранена. Проверьте камеру и нажмите «Повторить»."
+
+msgid "Retry capture"
+msgstr "Повторить съёмку"
+
+msgid "Saving…"
+msgstr "Сохранение…"
+
+msgid "Your password may be requested to store the model."
+msgstr "Для сохранения модели может быть запрошен ваш пароль."
+
+msgid "Face model improved"
+msgstr "Модель лица улучшена"
+
+msgid "Face model added"
+msgstr "Модель лица добавлена"
+
+msgid "Save cancelled before handoff"
+msgstr "Сохранение отменено до передачи"
+
+msgid "Save timed out; model list will be reloaded when this dialog closes"
+msgstr "Время сохранения истекло; список моделей будет перезагружен при закрытии этого диалога"
+
+#, rust-format
+msgid "Could not confirm model save: {detail}"
+msgstr "Не удалось подтвердить сохранение модели: {detail}"
+
+msgid "The model list will be reconciled from disk. Captured samples remain available for retry until this dialog closes."
+msgstr "Список моделей будет сверен с диском. Снятые образцы останутся доступны для повтора, пока этот диалог не закроется."
+
+msgid "Retry save"
+msgstr "Повторить сохранение"
+
+#, rust-format
+msgid "“{label}” will be deleted. If this is your last usable model, face authentication for your account stops and the password remains available."
+msgstr "«{label}» будет удалена. Если это ваша последняя пригодная модель, аутентификация по лицу для вашей учётной записи прекратится, а пароль останется доступен."
+
+msgid "Remove face model?"
+msgstr "Удалить модель лица?"
+
+msgid "Remove"
+msgstr "Удалить"
+
+msgid "Removal cancelled; reloading models"
+msgstr "Удаление отменено; модели перезагружаются"
+
+msgid "Removal timed out; reloading models to check whether it committed"
+msgstr "Время удаления истекло; модели перезагружаются, чтобы проверить, применено ли оно"
+
+#, rust-format
+msgid "Could not remove model: {e}"
+msgstr "Не удалось удалить модель: {e}"
+
+msgid "Model removed; removing the last usable model disables face authentication for your account"
+msgstr "Модель удалена; удаление последней пригодной модели отключает аутентификацию по лицу для вашей учётной записи"
+
+msgid "Resume cancelled"
+msgstr "Возобновление отменено"
+
+msgid "Resume timed out"
+msgstr "Время возобновления истекло"
+
+msgid "Face login resumed"
+msgstr "Вход по лицу возобновлён"
+
+#, rust-format
+msgid "Could not resume face login: {error}"
+msgstr "Не удалось возобновить вход по лицу: {error}"
+
+msgid "The history cannot be read"
+msgstr "Не удаётся прочитать историю"
+
+msgid "No face login attempts yet"
+msgstr "Попыток входа по лицу пока нет"
+
+msgid "Clear activity log?"
+msgstr "Очистить журнал активности?"
+
+msgid "All face login attempts recorded for your account will be deleted."
+msgstr "Все попытки входа по лицу, записанные для вашей учётной записи, будут удалены."
+
+msgid "Clear log"
+msgstr "Очистить журнал"
+
+msgid "Activity log cleared"
+msgstr "Журнал активности очищен"
+
+#, rust-format
+msgid "Could not clear activity log: {error}"
+msgstr "Не удалось очистить журнал активности: {error}"
+
+msgid "Clearing the activity log did not finish"
+msgstr "Очистка журнала активности не завершена"
+
+msgid "Same as face login"
+msgstr "Как при входе по лицу"
+
+msgid "Any colour camera"
+msgstr "Любая цветная камера"
+
+msgid "Any infrared camera"
+msgstr "Любая инфракрасная камера"
+
+msgid "No photos of failed attempts"
+msgstr "Нет фото неудачных попыток"
+
+#, rust-format
+msgid "Photo of a failed attempt, {time}"
+msgstr "Фото неудачной попытки, {time}"
+
+msgid "Delete all photos?"
+msgstr "Удалить все фото?"
+
+msgid "The photos of failed attempts on your account will be deleted."
+msgstr "Фото неудачных попыток в вашей учётной записи будут удалены."
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Photos deleted"
+msgstr "Фото удалены"
+
+#, rust-format
+msgid "Could not delete the photos: {error}"
+msgstr "Не удалось удалить фото: {error}"
+
+msgid "Deleting the photos did not finish"
+msgstr "Удаление фото не завершено"
+
+msgid "Starting camera…"
+msgstr "Запуск камеры…"
+
+#, rust-format
+msgid "Live camera frame containing {n} detected face"
+msgid_plural "Live camera frame containing {n} detected faces"
+msgstr[0] "Кадр с камеры в реальном времени, содержащий {n} обнаруженное лицо"
+msgstr[1] "Кадр с камеры в реальном времени, содержащий {n} обнаруженных лица"
+msgstr[2] "Кадр с камеры в реальном времени, содержащий {n} обнаруженных лиц"
+
+msgid "Starting camera"
+msgstr "Запуск камеры"
+
+msgid "Image too dark"
+msgstr "Изображение слишком тёмное"
+
+msgid "Camera covered or unavailable"
+msgstr "Камера закрыта или недоступна"
+
+msgid "No face found"
+msgstr "Лицо не найдено"
+
+msgid "Multiple faces; sequence reset"
+msgstr "Несколько лиц; последовательность сброшена"
+
+msgid "No match"
+msgstr "Нет совпадения"
+
+#, rust-format
+msgid "No match ({score})"
+msgstr "Нет совпадения ({score})"
+
+#, rust-format
+msgid "Matching frame {n} of {total} ({score})"
+msgstr "Совпавший кадр {n} из {total} ({score})"
+
+#, rust-format
+msgid "{instruction} · stage {n} of {total}"
+msgstr "{instruction} · этап {n} из {total}"
+
+#, rust-format
+msgid "Accepted after {n} consistent frames ({score})"
+msgstr "Принято после {n} совпадающих кадров ({score})"
+
+#, rust-format
+msgid "{n} second remaining"
+msgid_plural "{n} seconds remaining"
+msgstr[0] "Осталась {n} секунда"
+msgstr[1] "Осталось {n} секунды"
+msgstr[2] "Осталось {n} секунд"
+
+msgid "Identity and movement challenge passed. This is not proof against interactive replay or masks."
+msgstr "Проверка личности и движения пройдена. Это не защита от интерактивного повтора или масок."
+
+msgid "Face recognised (head-movement check is off). A photo of you could also pass this check."
+msgstr "Лицо распознано (проверка движения головы выключена). Ваше фото тоже могло бы пройти эту проверку."
+
+msgid "Test stopped"
+msgstr "Проверка остановлена"
+
+msgid "Run another test"
+msgstr "Запустить другую проверку"
+
+msgid "Automatic"
+msgstr "Автоматически"
+
+#, rust-format
+msgid "{path} (not found)"
+msgstr "{path} (не найден)"
+
+msgid "Raise the match threshold from your own enrollment samples; it is never lowered. Stricter against other faces, but may reject yours more often."
+msgstr "Повысьте порог совпадения на основе собственных регистрационных образцов; он никогда не понижается. Строже к чужим лицам, но может чаще отклонять ваше."
+
+msgid "Seconds to look for your face before asking for the password (default 3). The head-movement check gets up to 8 more seconds"
+msgstr "Секунды поиска вашего лица перед запросом пароля (по умолчанию 3). Проверка движения головы получает до 8 секунд дополнительно"
+
+msgid "10 s is the default of Linux Hello before 1.3, kept by the upgrade. The default is now 3 s. The head-movement check gets up to 8 more seconds"
+msgstr "10 с — значение по умолчанию Linux Hello до 1.3, сохранённое обновлением. Теперь по умолчанию 3 с. Проверка движения головы получает до 8 секунд дополнительно"
+
+msgid "Look. Recognize. Unlock."
+msgstr "Посмотри. Распознай. Разблокируй."
+
+#, rust-format
+msgid "Version {version}"
+msgstr "Версия {version}"
+
+msgid "What it does"
+msgstr "Что это делает"
+
+msgid "PeekIn is face authentication for Linux. It unlocks sudo, the GNOME lock screen and the login screen when you look at the camera, and your password always keeps working. A random head-movement check makes photos harder to use, your face data is encrypted with the TPM, and nothing leaves your computer. Face recognition is a convenience, not a replacement for your password."
+msgstr "PeekIn — аутентификация по лицу для Linux. Разблокирует sudo, экран блокировки GNOME и экран входа, когда вы смотрите в камеру, а ваш пароль продолжает работать всегда. Случайная проверка движения головы затрудняет использование фото, данные вашего лица шифруются с помощью TPM, и ничего не покидает ваш компьютер. Распознавание лица — это удобство, а не замена пароля."
+
+msgid "Author"
+msgstr "Автор"
+
+msgid "Design and development"
+msgstr "Дизайн и разработка"
+
+msgid "Website"
+msgstr "Сайт"
+
+msgid "Email"
+msgstr "Эл. почта"
+
+msgid "License"
+msgstr "Лицензия"
+
+msgid "MIT; the face models: MIT (YuNet) and Apache-2.0 (SFace)"
+msgstr "MIT; модели лица: MIT (YuNet) и Apache-2.0 (SFace)"
+
+msgid "Copyright"
+msgstr "Авторские права"
+
+msgid "could not read failed attempts"
+msgstr "не удалось прочитать неудачные попытки"
+
+msgid "Face authentication"
+msgstr "Аутентификация по лицу"
+
+msgid "Offer face unlock for sudo, the lock screen and login"
+msgstr "Предлагать разблокировку лицом для sudo, экрана блокировки и входа"
+
+msgid "Camera"
+msgstr "Камера"
+
+msgid "Infrared camera only"
+msgstr "Только инфракрасная камера"
+
+msgid "Require an administrator-attested physical IR profile. Infrared alone does not prove liveness."
+msgstr "Требовать физический ИК-профиль, подтверждённый администратором. Один инфракрасный свет не доказывает, что человек жив."
+
+msgid "Match threshold"
+msgstr "Порог совпадения"
+
+msgid "Higher is stricter. Default 0.363; calibrate on your hardware"
+msgstr "Выше — строже. По умолчанию 0,363; откалибруйте на своём оборудовании"
+
+msgid "Scan time"
+msgstr "Время сканирования"
+
+msgid "Dark frame threshold"
+msgstr "Порог тёмного кадра"
+
+msgid "Frames darker than this (percent) are skipped"
+msgstr "Кадры темнее этого значения (в процентах) пропускаются"
+
+msgid "Announce face scan"
+msgstr "Объявлять сканирование лица"
+
+msgid "Show a message before the face scan"
+msgstr "Показывать сообщение перед сканированием лица"
+
+msgid "Confirm recognition"
+msgstr "Подтверждать распознавание"
+
+msgid "Show “Face recognised: …” after a match"
+msgstr "Показывать «Лицо распознано: …» после совпадения"
+
+msgid "Disable for remote sessions"
+msgstr "Отключать для удалённых сеансов"
+
+msgid "Never scan for SSH logins"
+msgstr "Никогда не сканировать при входах SSH"
+
+msgid "Disable when the lid is closed"
+msgstr "Отключать при закрытой крышке"
+
+msgid "The camera cannot see you"
+msgstr "Камера вас не видит"
+
+msgid "Head-movement check"
+msgstr "Проверка движения головы"
+
+msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+msgstr "Запрашивать случайную последовательность поворотов головы после распознавания. Отключите, чтобы разблокировать, просто глядя в камеру: быстрее, но тогда с большей вероятностью сработает ваше фото"
+
+msgid "Personal threshold"
+msgstr "Личный порог"
+
+msgid "Save photos of failed attempts"
+msgstr "Сохранять фото неудачных попыток"
+
+msgid "When a face is seen but not accepted, keep a photo of it (the newest 20). Only you and administrators can see them, on the Face models page"
+msgstr "Когда лицо видно, но не принято, сохранять его фото (20 самых новых). Только вы и администраторы могут их видеть, на странице моделей лица"
+
+msgid "Light up the screen in the dark"
+msgstr "Подсвечивать экран в темноте"
+
+msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
+msgstr "Увеличивать яркость экрана ноутбука до максимума, пока цветная камера сканирует тёмную комнату, затем возвращать обратно"
+
+msgid "Keep it on without an infrared camera"
+msgstr "Оставлять включённым без инфракрасной камеры"
+
+msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+msgstr "Когда проверка движения головы выключена, всё равно запрашивать её, если не используется инфракрасная камера, одобренная администратором. Тогда фото на бумаге или на телефоне не сможет разблокировать через цветную камеру"
+
+msgid "sudo in a terminal"
+msgstr "sudo в терминале"
+
+msgid "Also sudo -i"
+msgstr "Также sudo -i"
+
+msgid "Login screen"
+msgstr "Экран входа"
+
+msgid "After starting the computer. The keyring stays locked until you enter your password"
+msgstr "После включения компьютера. Связка ключей остаётся заблокированной, пока вы не введёте пароль"
+
+msgid "Lock screen"
+msgstr "Экран блокировки"
+
+msgid "Unlocking a session that is already running"
+msgstr "Разблокировка уже запущенного сеанса"
+
+msgid "Administrator dialogs"
+msgstr "Диалоги администратора"
+
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Диалоги паролей приложений и pkexec (экспериментально)"
+
+msgid "Text console login"
+msgstr "Вход в текстовой консоли"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Вход в локальном текстовом терминале, например Ctrl+Alt+F3 (экспериментально)"
+
+msgid "System-wide settings; per-user face models."
+msgstr "Общесистемные настройки; модели лица для каждого пользователя."
+
+msgid "Configuration"
+msgstr "Конфигурация"
+
+msgid "Checking settings…"
+msgstr "Проверка настроек…"
+
+msgid "PAM integration"
+msgstr "Интеграция PAM"
+
+msgid "Face models"
+msgstr "Модели лица"
+
+msgid "Failed face attempts"
+msgstr "Неудачные попытки по лицу"
+
+msgid "Resume"
+msgstr "Возобновить"
+
+msgid "Allow face login again now"
+msgstr "Снова разрешить вход по лицу"
+
+msgid "General"
+msgstr "Общие"
+
+msgid "Use face login for"
+msgstr "Использовать вход по лицу для"
+
+msgid "Infrared cameras"
+msgstr "Инфракрасные камеры"
+
+msgid "Approving tells PeekIn that a camera is a real infrared sensor. It applies to every user of this computer and needs the administrator password each time."
+msgstr "Одобрение сообщает PeekIn, что камера — настоящий инфракрасный сенсор. Действует для всех пользователей этого компьютера и каждый раз требует пароль администратора."
+
+msgid "Security level"
+msgstr "Уровень безопасности"
+
+msgid "Recognition"
+msgstr "Распознавание"
+
+msgid "Messages and safety"
+msgstr "Сообщения и безопасность"
+
+msgid "Lock when you walk away"
+msgstr "Блокировать при уходе"
+
+msgid "After the time below without keyboard or mouse input, the camera looks for a face; with nobody there for 10 seconds the screen locks. The camera light is on while it looks"
+msgstr "После указанного ниже времени без ввода с клавиатуры или мыши камера ищет лицо; если никого нет 10 секунд, экран блокируется. Во время поиска горит индикатор камеры"
+
+msgid "Lock after"
+msgstr "Блокировать через"
+
+msgid "Seconds without input before the camera looks"
+msgstr "Секунды без ввода до начала поиска камерой"
+
+msgid "It only needs to see that someone is there, so it can differ from the face login camera, e.g. the colour camera while face login uses the infrared one"
+msgstr "Ей нужно лишь видеть, что кто-то есть, поэтому она может отличаться от камеры входа по лицу, например цветная камера, пока вход по лицу использует инфракрасную"
+
+msgid "Tell me about failed attempts"
+msgstr "Сообщать о неудачных попытках"
+
+msgid "After you unlock, a notification when faces were rejected while you were away"
+msgstr "После разблокировки — уведомление, если лица отклонялись, пока вас не было"
+
+msgid "For this account only; press Apply to save changes."
+msgstr "Только для этой учётной записи; нажмите «Применить», чтобы сохранить изменения."
+
+msgid "Walk-away lock"
+msgstr "Блокировка при уходе"
+
+msgid "Notifications"
+msgstr "Уведомления"
+
+msgid "System status"
+msgstr "Состояние системы"
+
+#, rust-format
+msgid "Face models for {user}"
+msgstr "Модели лица для {user}"
+
+msgid "Each model holds several samples of your face. Add one per look, e.g. with and without glasses."
+msgstr "Каждая модель содержит несколько образцов вашего лица. Добавьте по одной на каждый образ, например с очками и без."
+
+msgid "Load models"
+msgstr "Загрузить модели"
+
+msgid "Add"
+msgstr "Добавить"
+
+msgid "Activity"
+msgstr "Активность"
+
+msgid "The latest face login attempts on your account."
+msgstr "Последние попытки входа по лицу в вашей учётной записи."
+
+msgid "Photos of failed attempts"
+msgstr "Фото неудачных попыток"
+
+msgid "Faces that were seen but not accepted, when “Save photos of failed attempts” is on."
+msgstr "Лица, которые были видны, но не приняты, когда включено «Сохранять фото неудачных попыток»."
+
+msgid "Show"
+msgstr "Показать"
+
+msgid "Delete all"
+msgstr "Удалить всё"
+
+msgid "Run recognition and movement test"
+msgstr "Запустить проверку распознавания и движения"
+
+msgid "Stop"
+msgstr "Стоп"
+
+msgid "Live camera test preview"
+msgstr "Предпросмотр проверки камеры в реальном времени"
+
+msgid "Ready to test"
+msgstr "Готово к проверке"
+
+msgid "Look at the camera. Each line shows whether a face was found and how closely it matches yours."
+msgstr "Смотрите в камеру. Каждая строка показывает, найдено ли лицо и насколько оно совпадает с вашим."
+
+msgid "Diagnostic details"
+msgstr "Диагностические сведения"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Test"
+msgstr "Проверка"
+
+msgid "Away lock"
+msgstr "Блокировка при уходе"
+
+msgid "About"
+msgstr "О программе"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Reload saved settings"
+msgstr "Перезагрузить сохранённые настройки"
+
+msgid "Cancelling…"
+msgstr "Отмена…"
+
+msgid "Finishing authorized change…"
+msgstr "Завершение разрешённого изменения…"
+
+msgid "Discard unsaved settings?"
+msgstr "Отменить несохранённые настройки?"
+
+msgid "Reload the current settings from disk. Unsaved changes will be discarded."
+msgstr "Перезагрузите текущие настройки с диска. Несохранённые изменения будут отменены."
+
+msgid "Reload"
+msgstr "Перезагрузить"
+
+msgid "Please wait for the authorized change to finish before closing."
+msgstr "Дождитесь завершения разрешённого изменения перед закрытием."
+
+msgid "Models are only readable by an administrator"
+msgstr "Модели доступны для чтения только администратору"
+
+msgid "Use the refresh button to load them (asks for your password)"
+msgstr "Используйте кнопку обновления, чтобы загрузить их (запросит ваш пароль)"
+
+msgid "Waiting for camera exposure…"
+msgstr "Ожидание экспозиции камеры…"
+
+msgid "Camera appears covered"
+msgstr "Камера, похоже, закрыта"
+
+msgid "Image is too dark"
+msgstr "Изображение слишком тёмное"
+
+msgid "Move your face into view"
+msgstr "Поместите лицо в кадр"
+
+msgid "Only one person may be visible"
+msgstr "В кадре должен быть только один человек"
+
+msgid "Hold still and face the camera"
+msgstr "Не двигайтесь и смотрите в камеру"
+
+msgid "Move closer to the camera"
+msgstr "Подойдите ближе к камере"
+
+msgid "Image is blurry; hold still"
+msgstr "Изображение размыто; не двигайтесь"
+
+msgid "Face samples are inconsistent"
+msgstr "Образцы лица несогласованы"
+
+msgid "The image is dark: the infrared emitter seems to be off"
+msgstr "Изображение тёмное: похоже, инфракрасный излучатель выключен"
+
+msgid "Infrared image received; check that the camera's own light lights your face"
+msgstr "Инфракрасное изображение получено; проверьте, что собственная подсветка камеры освещает ваше лицо"
+
+msgid "No face completed the identity and movement challenge before the timeout"
+msgstr "Ни одно лицо не прошло проверку личности и движения до истечения времени"
+
+msgid "No enrolled face was recognised before the timeout"
+msgstr "Ни одно зарегистрированное лицо не распознано до истечения времени"
+
+msgid "Authorizing and loading models…"
+msgstr "Авторизация и загрузка моделей…"
+
+msgid "Authorizing and saving…"
+msgstr "Авторизация и сохранение…"
+
+msgid "Authorizing and removing model…"
+msgstr "Авторизация и удаление модели…"
+
+msgid "Authorizing and resuming face login…"
+msgstr "Авторизация и возобновление входа по лицу…"
+
+msgid "Authorizing and loading photos…"
+msgstr "Авторизация и загрузка фото…"
+
+msgid "Authorizing and deleting photos…"
+msgstr "Авторизация и удаление фото…"
+
+msgid "Authorizing and clearing activity…"
+msgstr "Авторизация и очистка активности…"
+
+msgid "Capturing face model…"
+msgstr "Съёмка модели лица…"
+
+msgid "Running recognition test…"
+msgstr "Выполняется проверка распознавания…"
+
+msgid "Approving the infrared camera…"
+msgstr "Одобрение инфракрасной камеры…"
+
+msgid "Authorizing and withdrawing the approval…"
+msgstr "Авторизация и отзыв одобрения…"
+
+msgid "not loaded"
+msgstr "не загружено"
+
+msgid "not checked"
+msgstr "не проверено"
+
+msgid "Fast"
+msgstr "Быстро"
+
+msgid "Balanced"
+msgstr "Сбалансированно"
+
+msgid "Secure"
+msgstr "Безопасно"
+
+msgid "Custom"
+msgstr "Своё"
+
+msgid "Just look at the camera. Head turns only without an approved infrared camera. About 1 stranger in 240 could match your face model"
+msgstr "Просто смотрите в камеру. Повороты головы — только без одобренной инфракрасной камеры. Примерно 1 незнакомец из 240 мог бы совпасть с вашей моделью лица"
+
+msgid "Head turns after recognising you. About 1 stranger in 240 could match your face model; a photo alone does not unlock"
+msgstr "Повороты головы после распознавания. Примерно 1 незнакомец из 240 мог бы совпасть с вашей моделью лица; одно фото не разблокирует"
+
+msgid "Head turns and a stricter match: about 1 stranger in 5,700 or fewer. Your own face may be rejected a little more often"
+msgstr "Повороты головы и более строгое совпадение: примерно 1 незнакомец из 5700 или меньше. Ваше собственное лицо может отклоняться немного чаще"
+
+msgid "Your own combination of the settings below"
+msgstr "Ваша собственная комбинация настроек ниже"
+
+msgid "Administrator dialog"
+msgstr "Диалог администратора"
+
+msgid "Text console"
+msgstr "Текстовая консоль"
+
+msgid "Recognised"
+msgstr "Распознано"
+
+msgid "Face not recognised"
+msgstr "Лицо не распознано"
+
+msgid "Head movement not followed"
+msgstr "Движение головы не выполнено"
+
+msgid "No face seen"
+msgstr "Лицо не обнаружено"
+
+msgid "Camera not available"
+msgstr "Камера недоступна"
+
+msgid "Face login paused"
+msgstr "Вход по лицу приостановлен"
+
+#, rust-format
+msgid "face login paused after {failures} failed attempts until {resume_at}; your password still works"
+msgstr "вход по лицу приостановлен после {failures} неудачных попыток до {resume_at}; ваш пароль продолжает работать"
+
+#, rust-format
+msgid "face login paused after {scans} scans without a face until {resume_at}; your password still works"
+msgstr "вход по лицу приостановлен после {scans} сканирований без лица до {resume_at}; ваш пароль продолжает работать"
+
+msgid "no recent failed attempts"
+msgstr "недавних неудачных попыток нет"
+
+#, rust-format
+msgid "{n} recent failed attempt"
+msgid_plural "{n} recent failed attempts"
+msgstr[0] "{n} недавняя неудачная попытка"
+msgstr[1] "{n} недавние неудачные попытки"
+msgstr[2] "{n} недавних неудачных попыток"
+
+#, rust-format
+msgid "{recent}; no limit"
+msgstr "{recent}; без ограничения"
+
+#, rust-format
+msgid "{recent}; pauses after {limit}"
+msgstr "{recent}; пауза после {limit}"
+
+#, rust-format
+msgid "{n} failed face attempt while you were away"
+msgid_plural "{n} failed face attempts while you were away"
+msgstr[0] "{n} неудачная попытка по лицу в ваше отсутствие"
+msgstr[1] "{n} неудачные попытки по лицу в ваше отсутствие"
+msgstr[2] "{n} неудачных попыток по лицу в ваше отсутствие"
+
+msgid "Open PeekIn to see when and where (Face models, Activity)."
+msgstr "Откройте PeekIn, чтобы увидеть когда и где (Модели лица, Активность)."
+
+#~ msgid "For this account only; changes are saved right away."
+#~ msgstr "Только для этой учётной записи; изменения сохраняются сразу."

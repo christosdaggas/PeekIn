@@ -1,6 +1,6 @@
 Name:           peekin
 Version:        1.0.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Face authentication for Linux
 Packager:       Christos A. Daggas <info@chrisdaggas.com>
 Vendor:         Christos A. Daggas
@@ -209,6 +209,12 @@ fi
 %{_mandir}/man8/pam_peekin.8*
 
 %changelog
+* Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-4
+- Move the recognition test to a resizable window and stabilize its live status
+- Load existing face models when opening the tab; add a separate Activity tab
+- Apply Away Lock changes with the Apply button and add activity log clearing
+- Fix the recognized icon and add six translations
+
 * Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-3
 - Face model changes are applied to the encrypted and the active copy or to
   neither, so a failed encryption can no longer bring a removed face back

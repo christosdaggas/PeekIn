@@ -71,10 +71,12 @@ else
 fi
 
 [ "${SRPM_ONLY:-0}" = 1 ] && { echo ">>> Done: $TOP/SRPMS"; exit 0; }
-# Only this build's packages, so a glob in dist/rpm never matches an old one.
+# Only this build's main binary package, so dist/rpm holds exactly one
+# installable RPM (no debuginfo/debugsource, no older releases).
+RELEASE="$(sed -n 's/^Release:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SPEC")"
 mkdir -p "$DIST"
 rm -f "$DIST"/$NAME-*.rpm
-find "$TOP/RPMS" -name "$NAME-*$VERSION-*.rpm" -exec cp -p {} "$DIST"/ \;
+find "$TOP/RPMS" -name "$NAME-$VERSION-$RELEASE.*.rpm" -exec cp -p {} "$DIST"/ \;
 
 echo
 echo ">>> Done:"

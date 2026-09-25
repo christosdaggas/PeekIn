@@ -79,6 +79,40 @@ pub fn read(dir: &Path, user: &str) -> io::Result<Vec<Entry>> {
     Ok(parse(&raw))
 }
 
+/// Clear only this user's history, retaining the file and its read ACL. Locking
+/// the file also serializes a clear with a scan that is recording an attempt.
+pub fn clear(dir: &Path, user: &str) -> io::Result<()> {
+    let path = file(dir, user)?;
+    let dir_meta = fs::symlink_metadata(dir)?;
+    if !dir_meta.is_dir() || dir_meta.uid() != 0 || dir_meta.mode() & 0o022 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "unsafe activity directory",
+        ));
+    }
+    let file = match OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+        .open(&path)
+    {
+        Ok(file) => file,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    let meta = file.metadata()?;
+    if !meta.is_file() || meta.uid() != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unsafe activity file",
+        ));
+    }
+    // SAFETY: flock on a descriptor we own; released when it is closed.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    file.set_len(0)
+}
+
 /// ACL xattr: user::rw- user:uid:r-- group::--- mask::r-- other::---
 fn read_acl(uid: u32) -> Vec<u8> {
     const ENTRIES: [(u16, u16, u32); 5] = [

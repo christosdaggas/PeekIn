@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use peekin_core::management::{apply_settings, revision, SettingsUpdate};
 use peekin_core::models::{self, FaceModel, ModelError, EMBEDDING_FORMAT};
 use peekin_core::snapshots;
-use peekin_core::{ir_profile, lockout};
+use peekin_core::{activity, ir_profile, lockout};
 use peekin_core::{PeekinConfig, PeekinPaths};
 use std::ffi::CStr;
 use std::io::{Read, Write};
@@ -556,6 +556,14 @@ fn main() -> Result<()> {
                 other => other?,
             };
             println!("removed {removed}");
+        }
+        "clear-activity" if rest.is_empty() => {
+            ready_for_write()?;
+            if input(16)? != "clear\n" {
+                bail!("clear confirmation token missing");
+            }
+            activity::clear(Path::new(activity::ACTIVITY_DIR), &user)?;
+            println!("cleared");
         }
         "reset-attempts" if rest.is_empty() => {
             ready_for_write()?;

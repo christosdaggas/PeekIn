@@ -58,10 +58,12 @@ struct Ui {
     away_cameras: RefCell<Vec<peekin_core::session::CameraChoice>>,
     /// Set while session settings are being shown, so that does not save them.
     loading_session: Cell<bool>,
+    loaded_session: RefCell<peekin_core::session::SessionSettings>,
     notify_failed: adw::SwitchRow,
     snapshots_flow: gtk::FlowBox,
     activity_group: adw::PreferencesGroup,
     activity_rows: RefCell<Vec<gtk::Widget>>,
+    clear_activity: gtk::Button,
     show_snapshots: gtk::Button,
     clear_snapshots: gtk::Button,
     service_sudo: adw::SwitchRow,
@@ -79,6 +81,7 @@ struct Ui {
     loading_settings: Cell<bool>,
     models_group: adw::PreferencesGroup,
     model_rows: RefCell<Vec<gtk::Widget>>,
+    models_requested: Cell<bool>,
     readiness: adw::ActionRow,
     readiness_camera: adw::ActionRow,
     readiness_pam: adw::ActionRow,
@@ -86,11 +89,11 @@ struct Ui {
     readiness_attempts: adw::ActionRow,
     resume_face_login: gtk::Button,
     readiness_state: RefCell<Readiness>,
-    #[cfg(test)]
     stack: adw::ViewStack,
     refresh_models: gtk::Button,
     add_model_button: gtk::Button,
     test_output: gtk::TextView,
+    test_window: adw::ApplicationWindow,
     test_picture: gtk::Picture,
     test_status: gtk::Label,
     test_button: gtk::Button,
@@ -134,6 +137,22 @@ impl Ui {
         self.operation.set(Operation::Idle);
         self.operation_status.set_label("");
         self.refresh_controls();
+        self.maybe_load_models();
+    }
+
+    fn maybe_load_models(&self) {
+        if self.stack.visible_child_name().as_deref() != Some("models")
+            || self.operation.get() != Operation::Idle
+            || self.models_requested.replace(true)
+        {
+            return;
+        }
+        let weak = self.this.clone();
+        glib::spawn_future_local(async move {
+            if let Some(ui) = weak.upgrade() {
+                ui.load_models().await;
+            }
+        });
     }
 
     fn refresh_controls(&self) {
@@ -163,14 +182,23 @@ impl Ui {
         self.resume_face_login.set_sensitive(idle);
         self.show_snapshots.set_sensitive(idle);
         self.clear_snapshots.set_sensitive(idle);
+        self.clear_activity.set_sensitive(idle);
         self.refresh_readiness();
     }
 
     fn is_dirty(&self) -> bool {
+        self.system_dirty() || self.session_dirty()
+    }
+
+    fn system_dirty(&self) -> bool {
         self.loaded
             .borrow()
             .as_ref()
             .is_some_and(|old| *old != self.read_widgets())
+    }
+
+    fn session_dirty(&self) -> bool {
+        *self.loaded_session.borrow() != self.read_session_widgets()
     }
 
     fn refresh_apply(&self) {
@@ -231,7 +259,7 @@ impl Ui {
         if self.operation.get() != Operation::Idle {
             return false;
         }
-        if !self.is_dirty() {
+        if !self.system_dirty() {
             return true;
         }
         let dialog = adw::AlertDialog::new(
@@ -890,10 +918,15 @@ impl Ui {
             return false;
         };
         let new = self.read_widgets();
+        let session = self.read_session_widgets();
         if old == new {
-            self.toast(&tr("No changes to apply"));
+            if !self.session_dirty() {
+                self.toast(&tr("No changes to apply"));
+            } else if self.save_session_settings(&session) {
+                self.toast(&tr("Settings saved"));
+            }
             self.end_operation();
-            return true;
+            return !self.session_dirty();
         }
         let request = serde_json::json!({
             "expected_revision": old.revision, "enabled": new.enabled,
@@ -925,20 +958,24 @@ impl Ui {
         if self.load_settings() && !success {
             self.restore_pending_settings(&new);
         }
+        let saved = !success || self.save_session_settings(&session);
         self.end_operation();
         let message = match result.termination {
             commands::Termination::Cancelled => tr("Save cancelled; your edits are still here"),
             commands::Termination::TimedOut => {
                 tr("Save timed out; checked disk and kept any unsaved edits")
             }
-            commands::Termination::Completed if success => tr("Settings saved"),
+            commands::Termination::Completed if success && saved => tr("Settings saved"),
+            commands::Termination::Completed if success => {
+                tr("System settings saved; could not save Away Lock settings")
+            }
             commands::Termination::Completed => tr_args(
                 "Could not save: {error}",
                 &[("error", &error_summary(result.exit_code, &result.output))],
             ),
         };
         self.toast(&message);
-        success
+        success && saved
     }
 
     fn clear_model_rows(&self) {
@@ -1561,6 +1598,7 @@ impl Ui {
         let entries = match peekin_core::activity::read(dir, &self.backend.user) {
             Ok(entries) => entries,
             Err(error) => {
+                self.clear_activity.set_visible(false);
                 add(adw::ActionRow::builder()
                     .title(tr("The history cannot be read"))
                     .subtitle(error.to_string())
@@ -1569,15 +1607,17 @@ impl Ui {
             }
         };
         if entries.is_empty() {
+            self.clear_activity.set_visible(false);
             add(adw::ActionRow::builder()
                 .title(tr("No face login attempts yet"))
                 .build());
             return;
         }
+        self.clear_activity.set_visible(self.backend.elevate);
         for entry in entries.iter().rev().take(20) {
             let when = local_date(entry.time as i64);
             let icon = if entry.outcome == peekin_core::activity::Outcome::Success {
-                "emblem-ok-symbolic"
+                "object-select-symbolic"
             } else if entry.outcome.is_failed_face() {
                 "dialog-warning-symbolic"
             } else {
@@ -1595,6 +1635,37 @@ impl Ui {
         }
     }
 
+    async fn clear_activity(self: &Rc<Self>) {
+        if !self.backend.elevate
+            || !self
+                .confirm(
+                    &tr("Clear activity log?"),
+                    &tr("All face login attempts recorded for your account will be deleted."),
+                    &tr("Clear log"),
+                    true,
+                    None,
+                )
+                .await
+        {
+            return;
+        }
+        if !self.begin_operation(Operation::ClearingActivity) {
+            return;
+        }
+        let argv = self.backend.management_argv("clear-activity", &[]);
+        let result = self.run_command(argv, "clear\n".into(), true, |_| {}).await;
+        self.end_operation();
+        self.toast(&match result.termination {
+            commands::Termination::Completed if result.exit_code == 0 => tr("Activity log cleared"),
+            commands::Termination::Completed => tr_args(
+                "Could not clear activity log: {error}",
+                &[("error", &error_summary(result.exit_code, &result.output))],
+            ),
+            _ => tr("Clearing the activity log did not finish"),
+        });
+        self.load_activity();
+    }
+
     fn load_session_settings(&self) {
         if let Some((config, state)) = peekin_core::session::xdg_bases() {
             let _ = peekin_core::session::migrate_legacy_files(&config, &state);
@@ -1607,7 +1678,9 @@ impl Ui {
         self.away_secs.set_value(f64::from(s.away_secs));
         self.notify_failed.set_active(s.notify_failed_attempts);
         self.fill_away_cameras(&s.camera);
+        *self.loaded_session.borrow_mut() = s;
         self.loading_session.set(false);
+        self.refresh_controls();
     }
 
     /// The kinds, then every connected camera (and the saved one, if it is not connected now).
@@ -1648,11 +1721,8 @@ impl Ui {
         *self.away_cameras.borrow_mut() = choices;
     }
 
-    fn save_session_settings(&self) {
-        if self.loading_session.get() {
-            return;
-        }
-        let settings = peekin_core::session::SessionSettings {
+    fn read_session_widgets(&self) -> peekin_core::session::SessionSettings {
+        peekin_core::session::SessionSettings {
             lock_when_away: self.lock_when_away.is_active(),
             away_secs: self.away_secs.value().round() as u32,
             notify_failed_attempts: self.notify_failed.is_active(),
@@ -1662,12 +1732,22 @@ impl Ui {
                 .get(self.away_camera.selected() as usize)
                 .cloned()
                 .unwrap_or_default(),
-        };
+        }
+    }
+
+    fn save_session_settings(&self, settings: &peekin_core::session::SessionSettings) -> bool {
         let saved = peekin_core::session::SessionSettings::path()
             .ok_or_else(|| std::io::Error::other("no home directory"))
             .and_then(|path| settings.save(&path));
-        if let Err(e) = saved {
-            self.toast(&tr_args("Could not save: {error}", &[("error", &e)]));
+        match saved {
+            Ok(()) => {
+                *self.loaded_session.borrow_mut() = settings.clone();
+                true
+            }
+            Err(e) => {
+                self.toast(&tr_args("Could not save: {error}", &[("error", &e)]));
+                false
+            }
         }
     }
 
@@ -1780,6 +1860,9 @@ impl Ui {
         }
         let buffer = self.test_output.buffer();
         buffer.set_text("");
+        self.test_picture
+            .set_paintable(None::<&gtk::gdk::Paintable>);
+        self.test_window.present();
         let argv = if self.backend.elevate {
             self.backend
                 .management_argv("test", &[TEST_SECONDS.to_string()])
@@ -1808,6 +1891,7 @@ impl Ui {
         self.test_stop.set_sensitive(true);
         self.test_status.set_label(&tr("Starting camera…"));
         let mut challenge_instruction = String::new();
+        let mut last_status = None;
         while let Ok(event) = events.recv().await {
             match event {
                 preview::Event::Frame(f) => {
@@ -1828,6 +1912,14 @@ impl Ui {
                         ))]);
                 }
                 preview::Event::Status(status) => {
+                    let now = std::time::Instant::now();
+                    if last_status.is_some_and(|(state, time)| {
+                        state == status.state
+                            && now.duration_since(time) < Duration::from_millis(200)
+                    }) {
+                        continue;
+                    }
+                    last_status = Some((status.state, now));
                     let detail = match status.state {
                         preview::TestState::Starting => tr("Starting camera"),
                         preview::TestState::Dark => tr("Image too dark"),
@@ -2358,7 +2450,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("After you unlock, a notification when faces were rejected while you were away"),
     );
     let away_page = adw::PreferencesPage::new();
-    away_page.set_description(&tr("For this account only; changes are saved right away."));
+    away_page.set_description(&tr("For this account only; press Apply to save changes."));
     away_page.add(&group(
         &tr("Walk-away lock"),
         &[
@@ -2405,7 +2497,15 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .title(tr("Activity"))
         .description(tr("The latest face login attempts on your account."))
         .build();
-    models_page.add(&activity_group);
+    let activity_page = adw::PreferencesPage::new();
+    let clear_activity = gtk::Button::builder()
+        .label(tr("Clear log"))
+        .valign(gtk::Align::Center)
+        .css_classes(["destructive-action"])
+        .visible(false)
+        .build();
+    activity_group.set_header_suffix(Some(&clear_activity));
+    activity_page.add(&activity_group);
     let snapshots_group = adw::PreferencesGroup::builder()
         .title(tr("Photos of failed attempts"))
         .description(tr(
@@ -2433,7 +2533,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .column_spacing(12)
         .build();
     snapshots_group.add(&snapshots_flow);
-    models_page.add(&snapshots_group);
+    activity_page.add(&snapshots_group);
 
     let test_output = gtk::TextView::builder()
         .editable(false)
@@ -2462,12 +2562,17 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .build();
     let test_picture = gtk::Picture::builder()
         .content_fit(gtk::ContentFit::Contain)
-        .height_request(320)
+        .can_shrink(true)
+        .hexpand(true)
         .tooltip_text(tr("Live camera test preview"))
         .build();
     let test_status = gtk::Label::builder()
         .label(tr("Ready to test"))
         .wrap(true)
+        .lines(3)
+        .ellipsize(gtk::pango::EllipsizeMode::End)
+        .height_request(96)
+        .valign(gtk::Align::Center)
         .css_classes(["heading"])
         .build();
     let test_hint = gtk::Label::builder()
@@ -2484,19 +2589,46 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .margin_end(24)
         .build();
     test_page.append(&test_hint);
-    test_page.append(&test_picture);
-    test_page.append(&test_status);
     test_page.append(&test_button);
-    test_page.append(&test_stop);
+    let preview_page = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(12)
+        .margin_top(24)
+        .margin_bottom(24)
+        .margin_start(24)
+        .margin_end(24)
+        .build();
+    let preview_image = gtk::Box::builder()
+        .height_request(320)
+        .hexpand(true)
+        .build();
+    preview_image.append(&test_picture);
+    preview_page.append(&preview_image);
+    preview_page.append(&test_status);
+    preview_page.append(&test_stop);
     test_scroll.set_min_content_height(160);
     let diagnostics = gtk::Expander::builder()
         .label(tr("Diagnostic details"))
         .child(&test_scroll)
         .build();
-    test_page.append(&diagnostics);
+    preview_page.append(&diagnostics);
     let test_clamp = adw::Clamp::builder()
         .maximum_size(800)
-        .child(&test_page)
+        .child(&preview_page)
+        .build();
+    let preview_scroll = gtk::ScrolledWindow::builder()
+        .child(&test_clamp)
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .build();
+    let test_toolbar = adw::ToolbarView::new();
+    test_toolbar.add_top_bar(&adw::HeaderBar::new());
+    test_toolbar.set_content(Some(&preview_scroll));
+    let test_window = adw::ApplicationWindow::builder()
+        .application(app)
+        .title(tr("Run recognition and movement test"))
+        .default_width(760)
+        .default_height(640)
+        .content(&test_toolbar)
         .build();
 
     let stack = adw::ViewStack::new();
@@ -2512,8 +2644,14 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("Face models"),
         "avatar-default-symbolic",
     );
+    stack.add_titled_with_icon(
+        &activity_page,
+        Some("activity"),
+        &tr("Activity"),
+        "view-list-symbolic",
+    );
     let test_page_scroll = gtk::ScrolledWindow::builder()
-        .child(&test_clamp)
+        .child(&test_page)
         .hscrollbar_policy(gtk::PolicyType::Never)
         .build();
     stack.add_titled_with_icon(
@@ -2549,8 +2687,8 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .icon_name("view-refresh-symbolic")
         .tooltip_text(tr("Reload saved settings"))
         .build();
+    header.pack_start(&apply);
     header.pack_start(&reload);
-    header.pack_end(&apply);
     let operation_spinner = gtk::Spinner::new();
     operation_spinner.set_visible(false);
     let operation_status = gtk::Label::builder()
@@ -2628,10 +2766,12 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         away_camera,
         away_cameras: RefCell::new(Vec::new()),
         loading_session: Cell::new(false),
+        loaded_session: RefCell::new(peekin_core::session::SessionSettings::default()),
         notify_failed,
         snapshots_flow,
         activity_group,
         activity_rows: RefCell::new(Vec::new()),
+        clear_activity: clear_activity.clone(),
         show_snapshots: show_snapshots.clone(),
         clear_snapshots: clear_snapshots.clone(),
         service_sudo,
@@ -2649,6 +2789,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         loading_settings: Cell::new(false),
         models_group,
         model_rows: RefCell::new(Vec::new()),
+        models_requested: Cell::new(false),
         readiness,
         readiness_camera,
         readiness_pam,
@@ -2656,11 +2797,11 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         readiness_attempts,
         resume_face_login: resume_face_login.clone(),
         readiness_state: RefCell::new(Readiness::default()),
-        #[cfg(test)]
         stack: stack.clone(),
         refresh_models: refresh.clone(),
         add_model_button: add.clone(),
         test_output,
+        test_window: test_window.clone(),
         test_picture,
         test_status,
         test_button: test_button.clone(),
@@ -2679,11 +2820,28 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     });
     on_click(&add, &ui, |ui| async move { ui.add_model(None).await });
     on_click(&test_button, &ui, |ui| async move { ui.run_test().await });
+    {
+        let weak = Rc::downgrade(&ui);
+        test_window.connect_close_request(move |window| {
+            if let Some(ui) = weak.upgrade() {
+                if let Some(control) = ui.active_test.borrow().as_ref() {
+                    control
+                        .cancel
+                        .store(true, std::sync::atomic::Ordering::Release);
+                }
+            }
+            window.set_visible(false);
+            glib::Propagation::Stop
+        });
+    }
     on_click(&show_snapshots, &ui, |ui| async move {
         ui.load_snapshots().await
     });
     on_click(&clear_snapshots, &ui, |ui| async move {
         ui.clear_snapshots().await
+    });
+    on_click(&clear_activity, &ui, |ui| async move {
+        ui.clear_activity().await
     });
     on_click(&resume_face_login, &ui, |ui| async move {
         ui.resume_face_login().await
@@ -2723,6 +2881,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
                 .await
         {
             ui.load_settings();
+            ui.load_session_settings();
         }
     });
     {
@@ -2755,6 +2914,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
                             .store(true, std::sync::atomic::Ordering::Release);
                     }
                 }
+                ui.test_window.close();
             }
             glib::Propagation::Proceed
         });
@@ -2815,11 +2975,15 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
             .connect_selected_notify(move |_| ui2.apply_preset());
     }
     {
-        let save = {
+        let update = {
             let ui = ui.clone();
-            move || ui.save_session_settings()
+            move || {
+                if !ui.loading_session.get() {
+                    ui.refresh_controls();
+                }
+            }
         };
-        let (a, b, c, d) = (save.clone(), save.clone(), save.clone(), save);
+        let (a, b, c, d) = (update.clone(), update.clone(), update.clone(), update);
         ui.lock_when_away.connect_active_notify(move |_| a());
         ui.away_secs.connect_value_notify(move |_| b());
         ui.notify_failed.connect_active_notify(move |_| c());
@@ -2829,9 +2993,16 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("Models are only readable by an administrator"),
         &tr("Use the refresh button to load them (asks for your password)"),
     );
-    if !ui.backend.elevate {
-        let ui = ui.clone();
-        glib::spawn_future_local(async move { ui.load_models().await });
+    {
+        let weak = Rc::downgrade(&ui);
+        stack.connect_visible_child_name_notify(move |stack| {
+            let Some(ui) = weak.upgrade() else { return };
+            match stack.visible_child_name().as_deref() {
+                Some("models") => ui.maybe_load_models(),
+                Some("activity") => ui.load_activity(),
+                _ => {}
+            }
+        });
     }
     window.present();
     ui
@@ -3082,9 +3253,19 @@ mod gtk_tests {
         pump();
         assert!(ui.window.current_breakpoint().is_some());
         assert!(ui.stack.child_by_name("test").is_some());
+        assert!(ui.stack.child_by_name("activity").is_some());
+        assert!(!ui.test_window.is_visible());
+        assert!(ui.test_window.transient_for().is_none());
+        assert_eq!(ui.test_status.height_request(), 96);
         assert_eq!(ui.min_similarity.value(), 0.99);
         assert!(!ui.is_dirty());
         assert!(!ui.apply.is_sensitive());
+        let original_away = ui.lock_when_away.is_active();
+        ui.lock_when_away.set_active(!original_away);
+        assert!(ui.is_dirty() && ui.apply.is_sensitive());
+        assert_eq!(ui.loaded_session.borrow().lock_when_away, original_away);
+        ui.lock_when_away.set_active(original_away);
+        assert!(!ui.is_dirty() && !ui.apply.is_sensitive());
         ui.detection_notice
             .set_active(!ui.detection_notice.is_active());
         assert!(ui.is_dirty() && ui.apply.is_sensitive());

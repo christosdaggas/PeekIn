@@ -13,6 +13,7 @@ pub enum Operation {
     Resuming,
     LoadingSnapshots,
     ClearingSnapshots,
+    ClearingActivity,
     Enrolling,
     Testing,
     ApprovingInfrared,
@@ -27,6 +28,7 @@ impl Operation {
                 | Self::Removing
                 | Self::Resuming
                 | Self::ClearingSnapshots
+                | Self::ClearingActivity
                 | Self::ApprovingInfrared
                 | Self::WithdrawingInfrared
         )
@@ -41,6 +43,7 @@ impl Operation {
             Self::Resuming => tr("Authorizing and resuming face login…"),
             Self::LoadingSnapshots => tr("Authorizing and loading photos…"),
             Self::ClearingSnapshots => tr("Authorizing and deleting photos…"),
+            Self::ClearingActivity => tr("Authorizing and clearing activity…"),
             Self::Enrolling => tr("Capturing face model…"),
             Self::Testing => tr("Running recognition test…"),
             Self::ApprovingInfrared => tr("Approving the infrared camera…"),

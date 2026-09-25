@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:47+0000\n"
+"POT-Creation-Date: 2026-09-25 18:51+0300\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -276,14 +276,17 @@ msgstr "Η ανάκληση της έγκρισης δεν ολοκληρώθη�
 msgid "No changes to apply"
 msgstr "Καμία αλλαγή για εφαρμογή"
 
+msgid "Settings saved"
+msgstr "Οι ρυθμίσεις αποθηκεύτηκαν"
+
 msgid "Save cancelled; your edits are still here"
 msgstr "Η αποθήκευση ακυρώθηκε· οι αλλαγές σας παραμένουν"
 
 msgid "Save timed out; checked disk and kept any unsaved edits"
 msgstr "Ο χρόνος αποθήκευσης έληξε· ελέγχθηκε ο δίσκος και διατηρήθηκαν οι μη αποθηκευμένες αλλαγές"
 
-msgid "Settings saved"
-msgstr "Οι ρυθμίσεις αποθηκεύτηκαν"
+msgid "System settings saved; could not save Away Lock settings"
+msgstr "Οι ρυθμίσεις συστήματος αποθηκεύτηκαν· αδυναμία αποθήκευσης των ρυθμίσεων κλειδώματος κατά την απομάκρυνση"
 
 #, rust-format
 msgid "Could not save: {error}"
@@ -472,6 +475,25 @@ msgstr "Δεν είναι δυνατή η ανάγνωση του ιστορικ
 
 msgid "No face login attempts yet"
 msgstr "Δεν υπάρχουν ακόμη προσπάθειες σύνδεσης με πρόσωπο"
+
+msgid "Clear activity log?"
+msgstr "Εκκαθάριση του αρχείου καταγραφής δραστηριότητας;"
+
+msgid "All face login attempts recorded for your account will be deleted."
+msgstr "Όλες οι καταγεγραμμένες προσπάθειες σύνδεσης με πρόσωπο για τον λογαριασμό σας θα διαγραφούν."
+
+msgid "Clear log"
+msgstr "Εκκαθάριση αρχείου"
+
+msgid "Activity log cleared"
+msgstr "Το αρχείο δραστηριότητας εκκαθαρίστηκε"
+
+#, rust-format
+msgid "Could not clear activity log: {error}"
+msgstr "Αδυναμία εκκαθάρισης του αρχείου δραστηριότητας: {error}"
+
+msgid "Clearing the activity log did not finish"
+msgstr "Η εκκαθάριση του αρχείου δραστηριότητας δεν ολοκληρώθηκε"
 
 msgid "Same as face login"
 msgstr "Ίδια με τη σύνδεση με πρόσωπο"
@@ -799,8 +821,8 @@ msgstr "Ειδοποίηση για αποτυχημένες προσπάθει�
 msgid "After you unlock, a notification when faces were rejected while you were away"
 msgstr "Μετά το ξεκλείδωμα, ειδοποίηση όταν απορρίφθηκαν πρόσωπα όσο λείπατε"
 
-msgid "For this account only; changes are saved right away."
-msgstr "Μόνο για αυτόν τον λογαριασμό· οι αλλαγές αποθηκεύονται αμέσως."
+msgid "For this account only; press Apply to save changes."
+msgstr "Μόνο για αυτόν τον λογαριασμό· πατήστε Εφαρμογή για να αποθηκεύσετε τις αλλαγές."
 
 msgid "Walk-away lock"
 msgstr "Κλείδωμα απουσίας"
@@ -959,6 +981,9 @@ msgstr "Εξουσιοδότηση και φόρτωση φωτογραφιών�
 msgid "Authorizing and deleting photos…"
 msgstr "Εξουσιοδότηση και διαγραφή φωτογραφιών…"
 
+msgid "Authorizing and clearing activity…"
+msgstr "Εξουσιοδότηση και εκκαθάριση δραστηριότητας…"
+
 msgid "Capturing face model…"
 msgstr "Λήψη μοντέλου προσώπου…"
 
@@ -1058,3 +1083,6 @@ msgstr[1] "{n} αποτυχημένες προσπάθειες προσώπου 
 
 msgid "Open PeekIn to see when and where (Face models, Activity)."
 msgstr "Ανοίξτε το PeekIn για να δείτε πότε και πού («Μοντέλα προσώπου», «Δραστηριότητα»)."
+
+#~ msgid "For this account only; changes are saved right away."
+#~ msgstr "Μόνο για αυτόν τον λογαριασμό· οι αλλαγές αποθηκεύονται αμέσως."

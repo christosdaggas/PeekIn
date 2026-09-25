@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:47+0000\n"
+"POT-Creation-Date: 2026-09-25 18:51+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -277,13 +277,16 @@ msgstr ""
 msgid "No changes to apply"
 msgstr ""
 
+msgid "Settings saved"
+msgstr ""
+
 msgid "Save cancelled; your edits are still here"
 msgstr ""
 
 msgid "Save timed out; checked disk and kept any unsaved edits"
 msgstr ""
 
-msgid "Settings saved"
+msgid "System settings saved; could not save Away Lock settings"
 msgstr ""
 
 #, rust-format
@@ -472,6 +475,25 @@ msgid "The history cannot be read"
 msgstr ""
 
 msgid "No face login attempts yet"
+msgstr ""
+
+msgid "Clear activity log?"
+msgstr ""
+
+msgid "All face login attempts recorded for your account will be deleted."
+msgstr ""
+
+msgid "Clear log"
+msgstr ""
+
+msgid "Activity log cleared"
+msgstr ""
+
+#, rust-format
+msgid "Could not clear activity log: {error}"
+msgstr ""
+
+msgid "Clearing the activity log did not finish"
 msgstr ""
 
 msgid "Same as face login"
@@ -800,7 +822,7 @@ msgstr ""
 msgid "After you unlock, a notification when faces were rejected while you were away"
 msgstr ""
 
-msgid "For this account only; changes are saved right away."
+msgid "For this account only; press Apply to save changes."
 msgstr ""
 
 msgid "Walk-away lock"
@@ -958,6 +980,9 @@ msgid "Authorizing and loading photos…"
 msgstr ""
 
 msgid "Authorizing and deleting photos…"
+msgstr ""
+
+msgid "Authorizing and clearing activity…"
 msgstr ""
 
 msgid "Capturing face model…"
