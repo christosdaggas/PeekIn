@@ -116,6 +116,42 @@ pub fn save(dir: &Path, user: &str, time: u64, jpeg: &[u8], keep: u32) -> io::Re
     Ok(path)
 }
 
+/// Larger than any JPEG the worker writes (one camera frame).
+pub const MAX_PHOTO_BYTES: u64 = 16 * 1024 * 1024;
+
+/// The bytes of a listed photo, for root (the settings helper). The directory
+/// belongs to the worker account, which could swap a listed photo for a link
+/// or another name for a file it cannot read, so the file is opened without
+/// following links and must still be a regular file with one link, owned by
+/// `owner` (the worker account) and at most [`MAX_PHOTO_BYTES`] long.
+pub fn read(snapshot: &Snapshot, owner: libc::uid_t) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    use std::os::unix::fs::MetadataExt;
+    let refused = |why: &str| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{}: {why}", snapshot.path.display()),
+        )
+    };
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+        .open(&snapshot.path)?;
+    let meta = file.metadata()?;
+    if !meta.is_file() || meta.nlink() != 1 {
+        return Err(refused("not a photo file"));
+    }
+    if meta.uid() != owner {
+        return Err(refused("not written by the recognition worker"));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_PHOTO_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_PHOTO_BYTES {
+        return Err(refused("too large for a photo"));
+    }
+    Ok(bytes)
+}
+
 pub fn clear(dir: &Path, user: &str) -> io::Result<usize> {
     let mine = list(dir, user)?;
     for snapshot in &mine {
@@ -154,6 +190,40 @@ mod tests {
         assert_eq!(fs::read(&alice[0].path).unwrap(), b"jpeg");
         assert_eq!(list(&d, "bob").unwrap().len(), 2);
         assert_eq!(list_all(&d).unwrap().len(), 5);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn photos_are_read_only_as_regular_files_of_their_owner() {
+        use std::os::unix::fs::MetadataExt;
+        let d = dir("read");
+        let uid = fs::metadata(&d).unwrap().uid();
+        let path = save(&d, "alice", 1, b"jpeg", 5).unwrap();
+        let photo = |d: &Path| list(d, "alice").unwrap().remove(0);
+        assert_eq!(read(&photo(&d), uid).unwrap(), b"jpeg");
+        // Another owner than the worker account.
+        assert!(read(&photo(&d), uid.wrapping_add(1)).is_err());
+        let secret = d.join("secret");
+        fs::write(&secret, "root only").unwrap();
+        let listed = photo(&d);
+        // Swapped for a link after listing: never followed.
+        fs::remove_file(&path).unwrap();
+        std::os::unix::fs::symlink(&secret, &path).unwrap();
+        let error = read(&listed, uid).unwrap_err().to_string();
+        assert!(!error.contains("root only"), "{error}");
+        // A second name for another file.
+        fs::remove_file(&path).unwrap();
+        fs::hard_link(&secret, &path).unwrap();
+        assert!(read(&listed, uid).is_err());
+        // A FIFO would block a plain open.
+        fs::remove_file(&path).unwrap();
+        let fifo = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        assert!(read(&listed, uid).is_err());
+        // Larger than any photo the worker writes.
+        fs::remove_file(&path).unwrap();
+        fs::write(&path, vec![0u8; MAX_PHOTO_BYTES as usize + 1]).unwrap();
+        assert!(read(&listed, uid).is_err());
         let _ = fs::remove_dir_all(d);
     }
 

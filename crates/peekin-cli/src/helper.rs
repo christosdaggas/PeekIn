@@ -533,9 +533,12 @@ fn main() -> Result<()> {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
                 Err(e) => return Err(e.into()),
             };
+            // Written by the worker account into its own directory: read
+            // only its regular files, never through a link.
+            let (worker_uid, _, _) = service_identity()?;
             let mut rows = Vec::new();
             for item in items.iter().rev() {
-                let bytes = std::fs::read(&item.path)?;
+                let bytes = snapshots::read(item, worker_uid)?;
                 rows.push(serde_json::json!({"time": item.time, "jpeg": base64(&bytes)}));
             }
             println!(
