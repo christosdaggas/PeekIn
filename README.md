@@ -256,7 +256,8 @@ Logs are written under the calling program (sudo, gdm-session-worker):
 ### Configuration
 
 `/etc/peekin/config.ini`, editable with the settings app or
-`sudo peekin config`:
+`sudo peekin config` (your editor opens a copy as you, not as root; the copy
+replaces config.ini only when every value in it is valid):
 
 - `[core] movement_challenge` (default `true`): after recognising the face,
   ask for a random sequence of three head turns. `false` unlocks as soon as

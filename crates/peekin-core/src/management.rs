@@ -195,26 +195,48 @@ pub fn apply_settings(path: &Path, update: &SettingsUpdate) -> Result<String, Ma
     for (key, enabled) in update.services.values() {
         candidate = set_option::apply_known(&candidate, key, &enabled.to_string())?;
     }
-    let parsed = PeekinConfig::parse(&candidate, path.display().to_string())
-        .map_err(|e| ManagementError::Invalid(e.to_string()))?;
-    parsed
-        .validate()
-        .map_err(|e| ManagementError::Invalid(e.join("; ")))?;
+    validate_candidate(path, &candidate)?;
     atomic_write(path, candidate.as_bytes(), None)?;
     Ok(revision(&candidate))
+}
+
+/// Every value of `candidate` must be valid, not only the security ones: the
+/// file is replaced as a whole.
+fn validate_candidate(path: &Path, candidate: &str) -> Result<(), ManagementError> {
+    PeekinConfig::parse(candidate, path.display().to_string())
+        .map_err(|e| ManagementError::Invalid(e.to_string()))?
+        .validate()
+        .map_err(|e| ManagementError::Invalid(e.join("; ")))
 }
 
 pub fn update_option(path: &Path, name: &str, value: &str) -> Result<(), ManagementError> {
     let _lock = lock_for(path)?;
     let raw = std::fs::read_to_string(path)?;
     let candidate = set_option::apply_known(&raw, name, value)?;
-    let parsed = PeekinConfig::parse(&candidate, path.display().to_string())
-        .map_err(|e| ManagementError::Invalid(e.to_string()))?;
-    parsed
-        .validate()
-        .map_err(|e| ManagementError::Invalid(e.join("; ")))?;
+    validate_candidate(path, &candidate)?;
     atomic_write(path, candidate.as_bytes(), None)?;
     Ok(())
+}
+
+/// Replace the whole file with `candidate`, an edited copy of the version
+/// with `expected_revision` (`peekin config`). Refused when the file changed
+/// since, or when any value is invalid; the file is then left as it was.
+/// Returns the new revision.
+pub fn replace_config(
+    path: &Path,
+    expected_revision: &str,
+    candidate: &str,
+) -> Result<String, ManagementError> {
+    let _lock = lock_for(path)?;
+    let raw = std::fs::read_to_string(path)?;
+    if revision(&raw) != expected_revision {
+        return Err(ManagementError::Conflict);
+    }
+    validate_candidate(path, candidate)?;
+    if candidate != raw {
+        atomic_write(path, candidate.as_bytes(), None)?;
+    }
+    Ok(revision(candidate))
 }
 
 #[cfg(test)]
@@ -392,6 +414,52 @@ mod tests {
         assert!([2, 3].contains(&stored.video_timeout_secs()));
         assert_eq!(stored.min_similarity(), 0.99);
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn an_edited_copy_replaces_the_file_only_when_valid_and_current() {
+        use std::os::unix::fs::PermissionsExt;
+        let (p, raw) = fixture();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let rev = revision(&raw);
+        // Invalid values anywhere, or no INI at all, change nothing.
+        for bad in [
+            raw.replace("timeout = 4", "timeout = 999"),
+            raw.replace("dark_threshold = 80", "dark_threshold = dim"),
+            "[video\ntimeout = 4\n".to_string(),
+        ] {
+            assert!(
+                matches!(
+                    replace_config(&p, &rev, &bad),
+                    Err(ManagementError::Invalid(_))
+                ),
+                "{bad}"
+            );
+            assert_eq!(std::fs::read_to_string(&p).unwrap(), raw);
+        }
+        // A stale revision is a conflict, whatever the candidate.
+        let edited = raw.replace("timeout = 4", "timeout = 6");
+        assert!(matches!(
+            replace_config(&p, "0000000000000000", &edited),
+            Err(ManagementError::Conflict)
+        ));
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), raw);
+        // A valid edit is written whole, comments included, with the old mode.
+        assert_eq!(
+            replace_config(&p, &rev, &edited).unwrap(),
+            revision(&edited)
+        );
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), edited);
+        assert_eq!(
+            std::fs::metadata(&p).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+        // The old revision is now stale.
+        assert!(matches!(
+            replace_config(&p, &rev, &raw),
+            Err(ManagementError::Conflict)
+        ));
+        let _ = std::fs::remove_file(p);
     }
 
     #[test]

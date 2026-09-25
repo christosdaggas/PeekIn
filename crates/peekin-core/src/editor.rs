@@ -1,4 +1,5 @@
-//! `peekin config`: open config.ini in `$EDITOR`, else nano, else vi.
+//! Which editor `peekin config` uses: `$EDITOR`, else nano, else vi. It runs
+//! as the invoking user (see `peekin-cli/src/edit.rs`).
 
 use std::path::{Path, PathBuf};
 

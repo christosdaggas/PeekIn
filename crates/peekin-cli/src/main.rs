@@ -1,6 +1,7 @@
 //! The `peekin` command-line tool.
 
 mod doctor;
+mod edit;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
@@ -84,7 +85,8 @@ enum Command {
     },
     /// Remove all face models for a user.
     Clear,
-    /// Open config.ini in an editor.
+    /// Edit config.ini: your editor opens a copy as you (from sudo), and the
+    /// copy replaces config.ini only when every value in it is valid.
     Config,
     /// Enable (0) or disable (1) face authentication.
     Disable { value: String },
@@ -633,21 +635,53 @@ fn cmd_disable(paths: &PeekinPaths, value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Edit a copy as the account that ran sudo, then validate and apply it as
+/// root in one locked, atomic step; the editor never runs as root.
 fn cmd_config(paths: &PeekinPaths) -> Result<()> {
     use peekin_core::editor;
+    use peekin_core::management::{replace_config, revision, ManagementError};
+    let invoker = edit::Invoker::from_env()?;
     let editor_bin = editor::resolve_editor_from_env().map_err(|e| anyhow!("{e}"))?;
-    println!(
-        "Editing config.ini with {}",
-        editor::editor_display_name(&editor_bin)
-    );
-    let status = std::process::Command::new(&editor_bin)
-        .arg(paths.config_file_path())
-        .status()
-        .with_context(|| format!("opening {}", paths.config_file_path().display()))?;
-    if !status.success() {
-        bail!("Editor exited with status {status}");
+    let path = paths.config_file_path();
+    let original =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let staged = edit::Staged::new(&original, &invoker)?;
+    loop {
+        println!(
+            "Editing a copy of config.ini with {} as {}",
+            editor::editor_display_name(&editor_bin),
+            invoker.name
+        );
+        let status = staged.edit(&editor_bin, &invoker)?;
+        if !status.success() {
+            bail!("Editor exited with status {status}; config.ini was not changed");
+        }
+        let candidate = staged.read(&invoker)?;
+        if candidate == original {
+            println!("No changes");
+            return Ok(());
+        }
+        match replace_config(&path, &revision(&original), &candidate) {
+            Ok(_) => {
+                println!("Settings saved");
+                return Ok(());
+            }
+            Err(ManagementError::Invalid(reason)) => {
+                eprintln!("config.ini was not changed: {reason}");
+                // Never answered by -y: that would loop with an editor that changes nothing.
+                if !confirm("Edit your copy again?", false)? {
+                    bail!("config.ini was not changed");
+                }
+            }
+            Err(ManagementError::Conflict) => bail!(
+                "config.ini was changed by someone else while you edited it, so your copy was \
+                 not applied and config.ini was not changed; run 'sudo peekin config' again"
+            ),
+            Err(error) => {
+                return Err(anyhow!(error).context("config.ini was not changed"));
+            }
+        }
     }
-    Ok(())
 }
 
 fn cmd_set(paths: &PeekinPaths, args: &[String]) -> Result<()> {
@@ -861,6 +895,10 @@ fn main() -> Result<()> {
     if let Command::UnsealModels = &cli.command {
         return cmd_unseal_models(&paths);
     }
+    // The editing account is always the one that ran sudo, whatever -U says.
+    if let Command::Config = &cli.command {
+        return cmd_config(&paths);
+    }
     let user = resolve_user(cli.user.clone())?;
 
     match &cli.command {
@@ -870,7 +908,7 @@ fn main() -> Result<()> {
         Command::ImportModel { label } => cmd_import_model(&paths, &user, label.clone()),
         Command::ImportSamples { id } => cmd_import_samples(&paths, &user, id),
         Command::Clear => cmd_clear(&paths, &user, cli.assume_yes),
-        Command::Config => cmd_config(&paths),
+        Command::Config => unreachable!("handled before resolving a user"),
         Command::Disable { value } => cmd_disable(&paths, value),
         Command::Doctor => {
             let report = doctor::run(&paths, &user);

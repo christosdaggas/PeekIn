@@ -107,9 +107,21 @@ for example
 The file is validated before it is replaced; comments are kept.
 .TP
 .B config
-Open
-.I /etc/peekin/config.ini
-in an editor.
+Edit
+.IR /etc/peekin/config.ini .
+The editor
+.RB ( $EDITOR ,
+else nano, else vi) opens a private copy and runs as the account that called
+.BR sudo ,
+never as root, since any editor can run commands; without
+.B SUDO_USER
+(or when it names root) the command refuses to start.
+The copy replaces the file only when every value in it is valid and nobody
+changed the file in the meantime; it is written atomically and keeps the
+mode of the file. An invalid copy can be edited again.
+.B sudo \-E peekin config
+keeps your
+.BR EDITOR .
 .TP
 .BR disable " \fB1\fP|\fB0\fP"
 Disable (1) or enable (0) face authentication system-wide.
