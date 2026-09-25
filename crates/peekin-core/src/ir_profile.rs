@@ -5,13 +5,19 @@
 //! name. USB descriptors are firmware data, so a cloned device can still pass;
 //! this is not liveness detection.
 
+use crate::cameras::{self, CameraKind};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Read;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 
-const PROFILES: &str = "/etc/peekin/ir-profiles.json";
+pub const PROFILES: &str = "/etc/peekin/ir-profiles.json";
+const MAX_PROFILES: usize = 32;
+const MAX_FILE_BYTES: u64 = 65536;
+const EVIDENCE_MIN: usize = 10;
+const EVIDENCE_MAX: usize = 500;
 
 /// Attested fields of an interface `modalias`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,14 +91,14 @@ pub struct Identity {
 }
 
 /// Part of an attestation that must equal the live [`Identity`].
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct AttestedIdentity {
     vid: String,
     pid: String,
     bcd_device: String,
     /// Pins one unit; omit to attest every unit of this model and release.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     serial: Option<String>,
     interface_number: u32,
     interface_class: String,
@@ -100,7 +106,7 @@ struct AttestedIdentity {
     driver: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
     identity: AttestedIdentity,
@@ -111,8 +117,17 @@ fn physical_path(path: &Path) -> bool {
     path.starts_with("/sys/devices") && !path.starts_with("/sys/devices/virtual")
 }
 
+/// Placeholders such as `<describe the check>` are never evidence.
+fn evidence_ok(evidence: &str) -> bool {
+    let e = evidence.trim();
+    e.chars().count() >= EVIDENCE_MIN && !(e.starts_with('<') && e.ends_with('>'))
+}
+
 fn matches(profile: &Profile, identity: &Identity) -> bool {
-    let a = &profile.identity;
+    same_device(&profile.identity, identity) && evidence_ok(&profile.evidence)
+}
+
+fn same_device(a: &AttestedIdentity, identity: &Identity) -> bool {
     physical_path(Path::new(&identity.sysfs_device))
         && a.vid.eq_ignore_ascii_case(&identity.vid)
         && a.pid.eq_ignore_ascii_case(&identity.pid)
@@ -125,7 +140,6 @@ fn matches(profile: &Profile, identity: &Identity) -> bool {
         && a.serial
             .as_deref()
             .is_none_or(|s| identity.serial.as_deref() == Some(s))
-        && profile.evidence.trim().len() >= 10
 }
 
 /// Read the physical identity of the node at `path`. `driver` (from
@@ -173,61 +187,201 @@ pub fn observed_identity(path: &Path, driver: &str) -> Option<Identity> {
     })
 }
 
-/// Attestation profile for the live node, for review before installing;
-/// `evidence` must be filled in.
-pub fn attestation_template(path: &Path, driver: &str) -> Option<String> {
-    let identity = observed_identity(path, driver)?;
-    let profile = serde_json::json!([{
-        "identity": {
-            "vid": identity.vid,
-            "pid": identity.pid,
-            "bcd_device": identity.bcd_device,
-            "serial": identity.serial,
-            "interface_number": identity.interface_number,
-            "interface_class": identity.interface_class,
-            "capture_index": identity.capture_index,
-            "driver": identity.driver,
-        },
-        "evidence": "<replace: where the IR sensor is documented and how you verified the emitter locally>",
-    }]);
-    serde_json::to_string_pretty(&profile).ok()
+#[derive(Debug, Error)]
+pub enum AttestError {
+    #[error("{0} is not a camera that can be opened")]
+    NotACamera(String),
+    #[error("{0} delivers colour images; only an infrared node can be attested")]
+    Colour(String),
+    #[error("{0} is not a physical USB camera, or its identity cannot be read")]
+    NotPhysical(String),
+    #[error(
+        "evidence must be {EVIDENCE_MIN} to {EVIDENCE_MAX} characters without control characters, \
+         and say how the infrared sensor was checked"
+    )]
+    Evidence,
+    #[error("{0} already holds {MAX_PROFILES} attestations")]
+    Full(String),
+    #[error("{path} is unsafe or invalid ({reason}); fix or remove it by hand")]
+    Unsafe { path: String, reason: String },
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
-/// Attestation and its directory must be root-controlled; anything missing or
-/// malformed fails closed.
-pub fn approved(path: &Path, driver: &str) -> bool {
-    let read = || -> Option<bool> {
-        let identity = observed_identity(path, driver)?;
-        let dir = fs::symlink_metadata(Path::new(PROFILES).parent()?).ok()?;
-        if !dir.is_dir() || dir.uid() != 0 || dir.mode() & 0o022 != 0 {
-            return None;
+/// Trimmed evidence, if a person could have written it about this device.
+pub fn validate_evidence(evidence: &str) -> Result<&str, AttestError> {
+    let e = evidence.trim();
+    let ok =
+        evidence_ok(e) && e.chars().count() <= EVIDENCE_MAX && !e.chars().any(char::is_control);
+    ok.then_some(e).ok_or(AttestError::Evidence)
+}
+
+/// A camera as the kernel reports it, read by the caller itself.
+#[derive(Debug, Clone)]
+pub struct Candidate {
+    pub name: String,
+    pub kind: CameraKind,
+    pub identity: Identity,
+}
+
+/// Identity of the infrared node at `camera`; colour and virtual nodes fail.
+pub fn inspect(camera: &Path) -> Result<Candidate, AttestError> {
+    let shown = camera.display().to_string();
+    let probe = cameras::probe(camera).ok_or_else(|| AttestError::NotACamera(shown.clone()))?;
+    if probe.kind == CameraKind::Colour {
+        return Err(AttestError::Colour(shown));
+    }
+    let identity =
+        observed_identity(camera, &probe.driver).ok_or(AttestError::NotPhysical(shown))?;
+    Ok(Candidate {
+        name: probe.name,
+        kind: probe.kind,
+        identity,
+    })
+}
+
+fn profile_for(identity: &Identity, evidence: &str, pin_serial: bool) -> Profile {
+    Profile {
+        identity: AttestedIdentity {
+            vid: identity.vid.clone(),
+            pid: identity.pid.clone(),
+            bcd_device: identity.bcd_device.clone(),
+            serial: identity.serial.clone().filter(|_| pin_serial),
+            interface_number: identity.interface_number,
+            interface_class: identity.interface_class.clone(),
+            capture_index: identity.capture_index,
+            driver: identity.driver.clone(),
+        },
+        evidence: evidence.to_owned(),
+    }
+}
+
+/// The entry [`Store::attest`] would add, for review.
+pub fn profile_json(identity: &Identity, evidence: &str, pin_serial: bool) -> String {
+    serde_json::to_string_pretty(&[profile_for(identity, evidence, pin_serial)])
+        .expect("profiles serialise")
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Attested {
+    Added,
+    AlreadyAttested,
+}
+
+/// The attestation file. Only `uid` may own it and its directory, and nobody
+/// else may write them; readable by all, since the worker and the user's own
+/// session check cameras too.
+pub struct Store {
+    path: PathBuf,
+    uid: libc::uid_t,
+    gid: libc::gid_t,
+}
+
+impl Store {
+    pub fn system() -> Self {
+        Store::at(PROFILES, 0, 0)
+    }
+
+    pub fn at(path: impl Into<PathBuf>, uid: libc::uid_t, gid: libc::gid_t) -> Self {
+        Store {
+            path: path.into(),
+            uid,
+            gid,
         }
-        let file = fs::OpenOptions::new()
+    }
+
+    fn unsafe_file(&self, reason: &str) -> AttestError {
+        AttestError::Unsafe {
+            path: self.path.display().to_string(),
+            reason: reason.into(),
+        }
+    }
+
+    /// Every entry; an absent file is empty, anything doubtful is an error.
+    fn load(&self) -> Result<Vec<Profile>, AttestError> {
+        let dir = self.path.parent().unwrap_or(Path::new("/"));
+        let dir = fs::symlink_metadata(dir)?;
+        if !dir.is_dir() || dir.uid() != self.uid || dir.mode() & 0o022 != 0 {
+            return Err(self.unsafe_file("its directory is not controlled by root"));
+        }
+        let file = match fs::OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
-            .open(PROFILES)
-            .ok()?;
-        let metadata = file.metadata().ok()?;
+            .open(&self.path)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(_) => return Err(self.unsafe_file("it cannot be opened safely")),
+        };
+        let metadata = file.metadata()?;
         if !metadata.is_file()
-            || metadata.uid() != 0
+            || metadata.uid() != self.uid
             || metadata.mode() & 0o022 != 0
             || metadata.nlink() != 1
-            || metadata.len() > 65536
+            || metadata.len() > MAX_FILE_BYTES
         {
-            return None;
+            return Err(self.unsafe_file("wrong type, owner, mode or size"));
         }
         let mut bytes = Vec::new();
-        file.take(65537).read_to_end(&mut bytes).ok()?;
-        if bytes.len() > 65536 {
-            return None;
+        file.take(MAX_FILE_BYTES + 1).read_to_end(&mut bytes)?;
+        let profiles: Vec<Profile> =
+            serde_json::from_slice(&bytes).map_err(|_| self.unsafe_file("not valid JSON"))?;
+        if bytes.len() as u64 > MAX_FILE_BYTES || profiles.len() > MAX_PROFILES {
+            return Err(self.unsafe_file("too large"));
         }
-        let profiles: Vec<Profile> = serde_json::from_slice(&bytes).ok()?;
-        if profiles.len() > 32 {
-            return None;
+        Ok(profiles)
+    }
+
+    fn approves(&self, identity: &Identity) -> bool {
+        self.load()
+            .is_ok_and(|profiles| profiles.iter().any(|p| matches(p, identity)))
+    }
+
+    fn save(&self, profiles: &[Profile]) -> Result<(), AttestError> {
+        let mut json = serde_json::to_vec_pretty(profiles).expect("profiles serialise");
+        json.push(b'\n');
+        crate::fsutil::atomic_write_owned(&self.path, &json, 0o644, self.uid, self.gid)?;
+        Ok(())
+    }
+
+    pub fn attest(
+        &self,
+        identity: &Identity,
+        evidence: &str,
+        pin_serial: bool,
+    ) -> Result<Attested, AttestError> {
+        let evidence = validate_evidence(evidence)?;
+        let _lock = crate::management::lock_for(&self.path)?;
+        let mut profiles = self.load()?;
+        if profiles.iter().any(|p| matches(p, identity)) {
+            return Ok(Attested::AlreadyAttested);
         }
-        Some(profiles.iter().any(|p| matches(p, &identity)))
-    };
-    read().unwrap_or(false)
+        if profiles.len() >= MAX_PROFILES {
+            return Err(AttestError::Full(self.path.display().to_string()));
+        }
+        profiles.push(profile_for(identity, evidence, pin_serial));
+        self.save(&profiles)?;
+        Ok(Attested::Added)
+    }
+
+    /// Remove every entry for this device, even ones without valid evidence;
+    /// returns how many.
+    pub fn revoke(&self, identity: &Identity) -> Result<usize, AttestError> {
+        let _lock = crate::management::lock_for(&self.path)?;
+        let mut profiles = self.load()?;
+        let before = profiles.len();
+        profiles.retain(|p| !same_device(&p.identity, identity));
+        let removed = before - profiles.len();
+        if removed > 0 {
+            self.save(&profiles)?;
+        }
+        Ok(removed)
+    }
+}
+
+/// Whether the node at `path` is attested; anything doubtful fails closed.
+pub fn approved(path: &Path, driver: &str) -> bool {
+    observed_identity(path, driver).is_some_and(|identity| Store::system().approves(&identity))
 }
 
 #[cfg(test)]
@@ -392,6 +546,143 @@ mod tests {
         .unwrap();
         assert_eq!(ok.len(), 1);
         assert_eq!(ok[0].identity.serial, None);
+    }
+
+    const EVIDENCE: &str = "Brio 4K IR node; emitter seen lit in a dark room";
+
+    struct TempStore {
+        dir: PathBuf,
+        store: Store,
+    }
+
+    impl Drop for TempStore {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn temp_store(name: &str) -> TempStore {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("peekin-ir-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+        // SAFETY: getuid/getgid have no preconditions.
+        let (uid, gid) = unsafe { (libc::getuid(), libc::getgid()) };
+        let store = Store::at(dir.join("ir-profiles.json"), uid, gid);
+        TempStore { dir, store }
+    }
+
+    #[test]
+    fn evidence_must_be_written_by_a_person() {
+        assert_eq!(
+            validate_evidence(&format!("  {EVIDENCE} ")).unwrap(),
+            EVIDENCE
+        );
+        for bad in [
+            "",
+            "too short",
+            "<replace: where the IR sensor is documented and how you verified it>",
+            "<describe the check here>",
+            "emitter lit\nsecond line",
+            &"x".repeat(EVIDENCE_MAX + 1),
+        ] {
+            assert!(validate_evidence(bad).is_err(), "{bad:?}");
+        }
+        let mut placeholder = brio_profile(Some("95016168"));
+        placeholder.evidence = "<replace: where the IR sensor is documented>".into();
+        assert!(!matches(&placeholder, &brio_ir()));
+    }
+
+    #[test]
+    fn attest_revoke_round_trip() {
+        use std::os::unix::fs::PermissionsExt;
+        let t = temp_store("roundtrip");
+        let brio = brio_ir();
+        assert!(!t.store.approves(&brio));
+        assert_eq!(
+            t.store.attest(&brio, EVIDENCE, true).unwrap(),
+            Attested::Added
+        );
+        let mode = fs::metadata(&t.store.path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o644);
+        assert!(t.store.approves(&brio));
+        assert_eq!(
+            t.store.attest(&brio, EVIDENCE, true).unwrap(),
+            Attested::AlreadyAttested
+        );
+        let mut other_unit = brio_ir();
+        other_unit.serial = Some("DEADBEEF".into());
+        assert!(!t.store.approves(&other_unit), "the serial is pinned");
+        assert_eq!(t.store.revoke(&brio).unwrap(), 1);
+        assert!(!t.store.approves(&brio));
+        assert_eq!(t.store.revoke(&brio).unwrap(), 0);
+    }
+
+    #[test]
+    fn any_unit_attestation_leaves_the_serial_out() {
+        let t = temp_store("anyunit");
+        t.store.attest(&brio_ir(), EVIDENCE, false).unwrap();
+        assert!(!fs::read_to_string(&t.store.path)
+            .unwrap()
+            .contains("serial"));
+        let mut other_unit = brio_ir();
+        other_unit.serial = Some("DEADBEEF".into());
+        assert!(t.store.approves(&other_unit));
+    }
+
+    #[test]
+    fn existing_entries_are_kept_and_the_limit_holds() {
+        let t = temp_store("limit");
+        let mut profiles = Vec::new();
+        for index in 0..MAX_PROFILES as u32 {
+            let mut other = brio_ir();
+            other.capture_index = 10 + index;
+            profiles.push(profile_for(&other, EVIDENCE, true));
+        }
+        t.store.save(&profiles[..1]).unwrap();
+        t.store.attest(&brio_ir(), EVIDENCE, true).unwrap();
+        assert_eq!(t.store.load().unwrap().len(), 2);
+        t.store.save(&profiles).unwrap();
+        assert!(matches!(
+            t.store.attest(&brio_ir(), EVIDENCE, true),
+            Err(AttestError::Full(_))
+        ));
+    }
+
+    #[test]
+    fn a_doubtful_file_is_never_replaced() {
+        use std::os::unix::fs::PermissionsExt;
+        let t = temp_store("doubtful");
+        fs::write(&t.store.path, "not json").unwrap();
+        assert!(matches!(
+            t.store.attest(&brio_ir(), EVIDENCE, true),
+            Err(AttestError::Unsafe { .. })
+        ));
+        assert_eq!(fs::read_to_string(&t.store.path).unwrap(), "not json");
+
+        t.store.save(&[]).unwrap();
+        fs::set_permissions(&t.store.path, fs::Permissions::from_mode(0o666)).unwrap();
+        assert!(t.store.attest(&brio_ir(), EVIDENCE, true).is_err());
+        assert!(!t.store.approves(&brio_ir()));
+
+        fs::remove_file(&t.store.path).unwrap();
+        std::os::unix::fs::symlink("/etc/hostname", &t.store.path).unwrap();
+        assert!(t.store.attest(&brio_ir(), EVIDENCE, true).is_err());
+        fs::remove_file(&t.store.path).unwrap();
+
+        fs::set_permissions(&t.dir, fs::Permissions::from_mode(0o775)).unwrap();
+        assert!(t.store.attest(&brio_ir(), EVIDENCE, true).is_err());
+    }
+
+    #[test]
+    fn revoke_also_removes_entries_without_valid_evidence() {
+        let t = temp_store("revoke");
+        let mut placeholder = profile_for(&brio_ir(), EVIDENCE, true);
+        placeholder.evidence = "<replace: evidence>".into();
+        t.store.save(&[placeholder]).unwrap();
+        assert!(!t.store.approves(&brio_ir()));
+        assert_eq!(t.store.revoke(&brio_ir()).unwrap(), 1);
     }
 
     /// Needs a USB camera; run with `cargo test -- --ignored`.

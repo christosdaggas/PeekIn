@@ -115,7 +115,15 @@ fn c_string(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).trim().to_string()
 }
 
-fn query(path: &Path) -> Option<(String, CameraKind)> {
+/// What the kernel reports for a node, without streaming.
+#[derive(Debug, Clone)]
+pub struct Probe {
+    pub name: String,
+    pub driver: String,
+    pub kind: CameraKind,
+}
+
+pub fn probe(path: &Path) -> Option<Probe> {
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -138,18 +146,20 @@ fn query(path: &Path) -> Option<(String, CameraKind)> {
         }
         formats.push(desc.pixelformat);
     }
-    let name = c_string(&cap.card);
+    let driver = c_string(&cap.driver);
     let mut kind = classify(cap.capabilities, cap.device_caps, &formats)?;
-    if kind == CameraKind::InfraredCandidate
-        && crate::ir_profile::approved(path, &c_string(&cap.driver))
-    {
+    if kind == CameraKind::InfraredCandidate && crate::ir_profile::approved(path, &driver) {
         kind = CameraKind::VerifiedInfrared;
     }
-    Some((name, kind))
+    Some(Probe {
+        name: c_string(&cap.card),
+        driver,
+        kind,
+    })
 }
 
 pub fn kind_of(path: &Path) -> Option<CameraKind> {
-    query(path).map(|(_, kind)| kind)
+    probe(path).map(|p| p.kind)
 }
 
 pub fn list_in(by_path: &Path) -> Vec<Camera> {
@@ -187,7 +197,7 @@ pub fn list_in_dirs(by_path: &Path, by_id: Option<&Path>) -> Vec<Camera> {
         if !seen.insert(target.clone()) {
             continue;
         }
-        let Some((name, kind)) = query(&target) else {
+        let Some(Probe { name, kind, .. }) = probe(&target) else {
             continue;
         };
         let node = target

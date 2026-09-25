@@ -85,7 +85,7 @@ pub fn revision(raw: &str) -> String {
     format!("{hash:016x}")
 }
 
-fn lock_for(path: &Path) -> Result<File, std::io::Error> {
+pub(crate) fn lock_for(path: &Path) -> Result<File, std::io::Error> {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     let lock_path = path.with_file_name(format!(".{name}.lock"));
     let lock = OpenOptions::new()
