@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"POT-Creation-Date: 2026-09-25 20:31+0300\n"
 "PO-Revision-Date: 2026-09-25 18:30+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: Spanish\n"
@@ -701,8 +701,17 @@ msgstr "La cámara no puede verle"
 msgid "Head-movement check"
 msgstr "Comprobación de movimiento"
 
-msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
-msgstr "Pida una secuencia aleatoria de giros de cabeza tras reconocerle. Desactive para desbloquear solo mirando a la cámara: más rápido, pero es más probable que funcione una foto suya"
+msgid "Choose when a head turn is required; Off never asks you to turn your head"
+msgstr "Elija cuándo se requiere girar la cabeza; Desactivado nunca pide girarla"
+
+msgid "Always"
+msgstr "Siempre"
+
+msgid "Only without an approved infrared camera"
+msgstr "Solo sin una cámara de infrarrojos aprobada"
+
+msgid "Off"
+msgstr "Desactivado"
 
 msgid "Personal threshold"
 msgstr "Umbral personal"
@@ -718,12 +727,6 @@ msgstr "Iluminar la pantalla en la oscuridad"
 
 msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
 msgstr "Suba la pantalla del portátil al brillo máximo mientras la cámara en color analiza una habitación oscura, luego restáurala"
-
-msgid "Keep it on without an infrared camera"
-msgstr "Mantenerlo activado sin cámara de infrarrojos"
-
-msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
-msgstr "Cuando la comprobación de movimiento esté desactivada, pídala igualmente a menos que se use una cámara de infrarrojos aprobada por el administrador. Así una foto en papel o en un teléfono no podrá desbloquear con la cámara en color"
 
 msgid "sudo in a terminal"
 msgstr "sudo en un terminal"
@@ -1083,6 +1086,15 @@ msgstr[1] "{n} intentos faciales fallidos mientras estaba ausente"
 
 msgid "Open PeekIn to see when and where (Face models, Activity)."
 msgstr "Abra PeekIn para ver cuándo y dónde (Modelos faciales, Actividad)."
+
+#~ msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+#~ msgstr "Pida una secuencia aleatoria de giros de cabeza tras reconocerle. Desactive para desbloquear solo mirando a la cámara: más rápido, pero es más probable que funcione una foto suya"
+
+#~ msgid "Keep it on without an infrared camera"
+#~ msgstr "Mantenerlo activado sin cámara de infrarrojos"
+
+#~ msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+#~ msgstr "Cuando la comprobación de movimiento esté desactivada, pídala igualmente a menos que se use una cámara de infrarrojos aprobada por el administrador. Así una foto en papel o en un teléfono no podrá desbloquear con la cámara en color"
 
 #~ msgid "For this account only; changes are saved right away."
 #~ msgstr "Solo para esta cuenta; los cambios se guardan de inmediato."

@@ -1,6 +1,6 @@
 Name:           peekin
 Version:        1.0.0
-Release:        4%{?dist}
+Release:        6%{?dist}
 Summary:        Face authentication for Linux
 Packager:       Christos A. Daggas <info@chrisdaggas.com>
 Vendor:         Christos A. Daggas
@@ -209,6 +209,16 @@ fi
 %{_mandir}/man8/pam_peekin.8*
 
 %changelog
+* Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-6
+- Make the head-movement choices explicit: always, only without approved IR,
+  or off; verify all system settings round-trip through the settings helper
+- Open the settings window at 1100 px and widen preference cards
+
+* Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-5
+- Keep the test window responsive while camera events stream and return to the
+  main window when the test closes or the app is reopened
+- Let the test window shrink and scroll its content
+
 * Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-4
 - Move the recognition test to a resizable window and stabilize its live status
 - Load existing face models when opening the tab; add a separate Activity tab

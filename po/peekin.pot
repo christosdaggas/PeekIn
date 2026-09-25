@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"POT-Creation-Date: 2026-09-25 20:31+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -702,7 +702,16 @@ msgstr ""
 msgid "Head-movement check"
 msgstr ""
 
-msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+msgid "Choose when a head turn is required; Off never asks you to turn your head"
+msgstr ""
+
+msgid "Always"
+msgstr ""
+
+msgid "Only without an approved infrared camera"
+msgstr ""
+
+msgid "Off"
 msgstr ""
 
 msgid "Personal threshold"
@@ -718,12 +727,6 @@ msgid "Light up the screen in the dark"
 msgstr ""
 
 msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
-msgstr ""
-
-msgid "Keep it on without an infrared camera"
-msgstr ""
-
-msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
 msgstr ""
 
 msgid "sudo in a terminal"

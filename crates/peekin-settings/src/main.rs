@@ -45,8 +45,7 @@ struct Ui {
     confirm_success: adw::SwitchRow,
     abort_if_ssh: adw::SwitchRow,
     abort_if_lid_closed: adw::SwitchRow,
-    movement_challenge: adw::SwitchRow,
-    require_movement_without_ir: adw::SwitchRow,
+    movement_mode: adw::ComboRow,
     personal_threshold: adw::SwitchRow,
     brighten_screen: adw::SwitchRow,
     save_failed_snapshots: adw::SwitchRow,
@@ -207,9 +206,11 @@ impl Ui {
     }
 
     fn recognition_widgets(&self) -> ui_state::Recognition {
+        let (movement_challenge, require_movement_without_ir) =
+            ui_state::MovementMode::from_index(self.movement_mode.selected()).config();
         ui_state::Recognition {
-            movement_challenge: self.movement_challenge.is_active(),
-            require_movement_without_ir: self.require_movement_without_ir.is_active(),
+            movement_challenge,
+            require_movement_without_ir,
             min_similarity: self.min_similarity.value(),
             personal_threshold: self.personal_threshold.is_active(),
         }
@@ -240,9 +241,13 @@ impl Ui {
             .unwrap_or(ui_state::Preset::Custom);
         if let Some(v) = preset.values() {
             self.applying_preset.set(true);
-            self.movement_challenge.set_active(v.movement_challenge);
-            self.require_movement_without_ir
-                .set_active(v.require_movement_without_ir);
+            self.movement_mode.set_selected(
+                ui_state::MovementMode::from_config(
+                    v.movement_challenge,
+                    v.require_movement_without_ir,
+                )
+                .index(),
+            );
             self.min_similarity.set_value(v.min_similarity);
             self.personal_threshold.set_active(v.personal_threshold);
             self.applying_preset.set(false);
@@ -327,6 +332,20 @@ impl Ui {
 
     fn read_widgets(&self) -> Settings {
         let devices = self.devices.borrow();
+        let (movement_challenge, mut require_movement_without_ir) =
+            ui_state::MovementMode::from_index(self.movement_mode.selected()).config();
+        // Older configurations may store true/false, which has the same
+        // behaviour as Always. Preserve it until the user chooses a new mode.
+        if movement_challenge {
+            if let Some(old) = self
+                .loaded
+                .borrow()
+                .as_ref()
+                .filter(|s| s.movement_challenge)
+            {
+                require_movement_without_ir = old.require_movement_without_ir;
+            }
+        }
         Settings {
             revision: self
                 .loaded
@@ -347,8 +366,8 @@ impl Ui {
             confirm_success: self.confirm_success.is_active(),
             abort_if_ssh: self.abort_if_ssh.is_active(),
             abort_if_lid_closed: self.abort_if_lid_closed.is_active(),
-            movement_challenge: self.movement_challenge.is_active(),
-            require_movement_without_ir: self.require_movement_without_ir.is_active(),
+            movement_challenge,
+            require_movement_without_ir,
             personal_threshold: self.personal_threshold.is_active(),
             brighten_screen: self.brighten_screen.is_active(),
             save_failed_snapshots: self.save_failed_snapshots.is_active(),
@@ -375,10 +394,13 @@ impl Ui {
         self.abort_if_ssh.set_active(pending.abort_if_ssh);
         self.abort_if_lid_closed
             .set_active(pending.abort_if_lid_closed);
-        self.movement_challenge
-            .set_active(pending.movement_challenge);
-        self.require_movement_without_ir
-            .set_active(pending.require_movement_without_ir);
+        self.movement_mode.set_selected(
+            ui_state::MovementMode::from_config(
+                pending.movement_challenge,
+                pending.require_movement_without_ir,
+            )
+            .index(),
+        );
         self.personal_threshold
             .set_active(pending.personal_threshold);
         self.brighten_screen.set_active(pending.brighten_screen);
@@ -450,9 +472,13 @@ impl Ui {
         self.confirm_success.set_active(s.confirm_success);
         self.abort_if_ssh.set_active(s.abort_if_ssh);
         self.abort_if_lid_closed.set_active(s.abort_if_lid_closed);
-        self.movement_challenge.set_active(s.movement_challenge);
-        self.require_movement_without_ir
-            .set_active(s.require_movement_without_ir);
+        self.movement_mode.set_selected(
+            ui_state::MovementMode::from_config(
+                s.movement_challenge,
+                s.require_movement_without_ir,
+            )
+            .index(),
+        );
         self.personal_threshold.set_active(s.personal_threshold);
         self.brighten_screen.set_active(s.brighten_screen);
         self.save_failed_snapshots
@@ -928,21 +954,7 @@ impl Ui {
             self.end_operation();
             return !self.session_dirty();
         }
-        let request = serde_json::json!({
-            "expected_revision": old.revision, "enabled": new.enabled,
-            "device_path": new.device_path, "ir_only": new.ir_only,
-            "min_similarity": new.min_similarity, "timeout": new.timeout,
-            "dark_threshold": new.dark_threshold, "detection_notice": new.detection_notice,
-            "confirm_success": new.confirm_success, "abort_if_ssh": new.abort_if_ssh,
-            "abort_if_lid_closed": new.abort_if_lid_closed,
-            "movement_challenge": new.movement_challenge,
-            "require_movement_without_ir": new.require_movement_without_ir,
-            "personal_threshold": new.personal_threshold,
-            "brighten_screen": new.brighten_screen,
-            "save_failed_snapshots": new.save_failed_snapshots,
-            "services": new.services
-        })
-        .to_string();
+        let request = serde_json::to_string(&new.update()).expect("settings serialize");
         let result = self
             .run_command(
                 self.backend.management_argv("apply-settings", &[]),
@@ -1893,6 +1905,9 @@ impl Ui {
         let mut challenge_instruction = String::new();
         let mut last_status = None;
         while let Ok(event) = events.recv().await {
+            // A full event queue can make recv() complete without suspending this
+            // task. Yield regularly so GTK can dispatch Stop/close/resize input.
+            glib::timeout_future(Duration::from_millis(8)).await;
             match event {
                 preview::Event::Frame(f) => {
                     let bytes = glib::Bytes::from_owned(f.rgb);
@@ -2103,6 +2118,24 @@ fn group(title: &str, rows: &[&gtk::Widget]) -> adw::PreferencesGroup {
     g
 }
 
+/// Give the preference groups room in the wider main window.
+fn widen_preferences(page: &adw::PreferencesPage) {
+    fn visit(widget: &gtk::Widget) {
+        if let Some(clamp) = widget.downcast_ref::<adw::ClampScrollable>() {
+            clamp.set_maximum_size(780);
+        }
+        if let Some(clamp) = widget.downcast_ref::<adw::Clamp>() {
+            clamp.set_maximum_size(780);
+        }
+        let mut child = widget.first_child();
+        while let Some(widget) = child {
+            visit(&widget);
+            child = widget.next_sibling();
+        }
+    }
+    visit(page.upcast_ref());
+}
+
 fn personal_subtitle() -> String {
     tr(
         "Raise the match threshold from your own enrollment samples; it is never lowered. \
@@ -2304,8 +2337,17 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("Disable when the lid is closed"),
         &tr("The camera cannot see you"),
     );
-    let movement_challenge = switch(&tr("Head-movement check"), &tr("Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"),
-    );
+    let movement_mode = adw::ComboRow::builder()
+        .title(tr("Head-movement check"))
+        .subtitle(tr(
+            "Choose when a head turn is required; Off never asks you to turn your head",
+        ))
+        .model(&gtk::StringList::new(&[
+            &tr("Always"),
+            &tr("Only without an approved infrared camera"),
+            &tr("Off"),
+        ]))
+        .build();
     let personal_threshold = switch(&tr("Personal threshold"), &personal_subtitle());
     let save_failed_snapshots = switch(
         &tr("Save photos of failed attempts"),
@@ -2315,8 +2357,6 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         ),
     );
     let brighten_screen = switch(&tr("Light up the screen in the dark"), &tr("Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"),
-    );
-    let require_movement_without_ir = switch(&tr("Keep it on without an infrared camera"), &tr("When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"),
     );
 
     let service_sudo = switch(&tr("sudo in a terminal"), &tr("Also sudo -i"));
@@ -2398,8 +2438,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("Recognition"),
         &[
             security_level.upcast_ref(),
-            movement_challenge.upcast_ref(),
-            require_movement_without_ir.upcast_ref(),
+            movement_mode.upcast_ref(),
             min_similarity.upcast_ref(),
             personal_threshold.upcast_ref(),
         ],
@@ -2473,7 +2512,10 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
 
     let models_page = adw::PreferencesPage::new();
     let models_group = adw::PreferencesGroup::builder()
-        .title(tr_args("Face models for {user}", &[("user", &backend.user)]))
+        .title(tr_args(
+            "Face models for {user}",
+            &[("user", &backend.user)],
+        ))
         .description(tr("Each model holds several samples of your face. Add one per look, e.g. with and without glasses."))
         .build();
     let header_box = gtk::Box::builder()
@@ -2599,14 +2641,14 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .margin_end(24)
         .build();
     let preview_image = gtk::Box::builder()
-        .height_request(320)
+        .height_request(240)
         .hexpand(true)
         .build();
     preview_image.append(&test_picture);
     preview_page.append(&preview_image);
     preview_page.append(&test_status);
     preview_page.append(&test_stop);
-    test_scroll.set_min_content_height(160);
+    test_scroll.set_min_content_height(100);
     let diagnostics = gtk::Expander::builder()
         .label(tr("Diagnostic details"))
         .child(&test_scroll)
@@ -2619,6 +2661,8 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     let preview_scroll = gtk::ScrolledWindow::builder()
         .child(&test_clamp)
         .hscrollbar_policy(gtk::PolicyType::Never)
+        .min_content_width(320)
+        .min_content_height(240)
         .build();
     let test_toolbar = adw::ToolbarView::new();
     test_toolbar.add_top_bar(&adw::HeaderBar::new());
@@ -2631,6 +2675,16 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         .content(&test_toolbar)
         .build();
 
+    let about = about_page();
+    for page in [
+        &settings_page,
+        &models_page,
+        &activity_page,
+        &away_page,
+        &about,
+    ] {
+        widen_preferences(page);
+    }
     let stack = adw::ViewStack::new();
     stack.add_titled_with_icon(
         &settings_page,
@@ -2666,12 +2720,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         &tr("Away lock"),
         "system-lock-screen-symbolic",
     );
-    stack.add_titled_with_icon(
-        &about_page(),
-        Some("about"),
-        &tr("About"),
-        "help-about-symbolic",
-    );
+    stack.add_titled_with_icon(&about, Some("about"), &tr("About"), "help-about-symbolic");
 
     let apply = gtk::Button::builder()
         .label(tr("Apply"))
@@ -2708,7 +2757,6 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     operation_box.append(&operation_status);
     operation_box.append(&operation_cancel);
     header.pack_end(&operation_box);
-
     let toasts = adw::ToastOverlay::new();
     toasts.set_child(Some(&stack));
     let toolbar = adw::ToolbarView::new();
@@ -2718,7 +2766,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("PeekIn")
-        .default_width(900)
+        .default_width(1100)
         .default_height(680)
         .width_request(360)
         .height_request(480)
@@ -2754,8 +2802,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
         confirm_success,
         abort_if_ssh,
         abort_if_lid_closed,
-        movement_challenge,
-        require_movement_without_ir,
+        movement_mode,
         personal_threshold,
         brighten_screen,
         save_failed_snapshots,
@@ -2831,6 +2878,9 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
                 }
             }
             window.set_visible(false);
+            if let Some(ui) = weak.upgrade() {
+                ui.window.present();
+            }
             glib::Propagation::Stop
         });
     }
@@ -2914,7 +2964,7 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
                             .store(true, std::sync::atomic::Ordering::Release);
                     }
                 }
-                ui.test_window.close();
+                ui.test_window.destroy();
             }
             glib::Propagation::Proceed
         });
@@ -2938,18 +2988,13 @@ fn build_ui(app: &adw::Application, backend: Backend) -> Rc<Ui> {
     dirty_switch!(ui.confirm_success);
     dirty_switch!(ui.abort_if_ssh);
     dirty_switch!(ui.abort_if_lid_closed);
-    dirty_switch!(ui.movement_challenge);
-    dirty_switch!(ui.require_movement_without_ir);
     dirty_switch!(ui.personal_threshold);
     dirty_switch!(ui.brighten_screen);
     dirty_switch!(ui.save_failed_snapshots);
     {
-        let row = ui.require_movement_without_ir.clone();
-        ui.movement_challenge
-            .bind_property("active", &row, "sensitive")
-            .invert_boolean()
-            .sync_create()
-            .build();
+        let ui2 = ui.clone();
+        ui.movement_mode
+            .connect_selected_notify(move |_| ui2.refresh_apply());
     }
     dirty_switch!(ui.service_sudo);
     dirty_switch!(ui.service_login_screen);
@@ -3146,9 +3191,16 @@ fn main() -> glib::ExitCode {
     let backend = options.backend;
     app.connect_startup(|_| gtk::Window::set_default_icon_name(APP_ID));
     app.connect_activate(move |app| {
-        if let Some(window) = app.active_window() {
+        if let Some(window) = app
+            .windows()
+            .into_iter()
+            .find(|window| window.title().as_deref() == Some("PeekIn"))
+        {
             window.present();
         } else {
+            for window in app.windows() {
+                window.destroy();
+            }
             build_ui(app, backend.clone());
         }
     });
@@ -3225,6 +3277,25 @@ mod gtk_tests {
             user: "fixture".into(),
         };
         let ui = build_ui(&app, backend);
+        // Broadway's virtual display caps the requested 1100 px at 1024 px.
+        assert!(ui.window.default_size().0 >= 1024);
+        fn clamp_width(widget: &gtk::Widget) -> Option<i32> {
+            if let Some(clamp) = widget.downcast_ref::<adw::ClampScrollable>() {
+                return Some(clamp.maximum_size());
+            }
+            if let Some(clamp) = widget.downcast_ref::<adw::Clamp>() {
+                return Some(clamp.maximum_size());
+            }
+            let mut child = widget.first_child();
+            while let Some(widget) = child {
+                if let Some(width) = clamp_width(&widget) {
+                    return Some(width);
+                }
+                child = widget.next_sibling();
+            }
+            None
+        }
+        assert_eq!(clamp_width(ui.settings_page.upcast_ref()), Some(780));
         assert!(ui.stack.child_by_name("setup").is_none());
         assert_eq!(ui.stack.visible_child_name().as_deref(), Some("settings"));
         let infrared = ui
@@ -3323,22 +3394,21 @@ mod gtk_tests {
         assert!(!ui.operation_spinner.is_visible());
         assert!(ui.load_settings());
         assert_eq!(ui.min_similarity.value(), 0.99);
-        assert!(ui.movement_challenge.is_active(), "challenge defaults on");
-        assert!(ui.require_movement_without_ir.is_active());
-        assert!(
-            !ui.require_movement_without_ir.is_sensitive(),
-            "only matters while the check itself is off"
+        assert_eq!(
+            ui.movement_mode.selected(),
+            0,
+            "challenge defaults to Always"
         );
         assert!(ui.service_sudo.is_active() && !ui.service_console.is_active());
         ui.service_console.set_active(true);
         assert!(ui.is_dirty() && ui.read_widgets().services.console);
         ui.service_console.set_active(false);
-        ui.movement_challenge.set_active(false);
+        ui.movement_mode.set_selected(1);
         assert!(ui.is_dirty() && ui.apply.is_sensitive());
-        assert!(ui.require_movement_without_ir.is_sensitive());
-        ui.require_movement_without_ir.set_active(false);
+        assert!(!ui.read_widgets().movement_challenge);
+        assert!(ui.read_widgets().require_movement_without_ir);
+        ui.movement_mode.set_selected(2);
         assert!(!ui.read_widgets().require_movement_without_ir);
-        ui.require_movement_without_ir.set_active(true);
         assert!(!ui.read_widgets().movement_challenge);
         ui.ir_only.set_active(true);
         ui.enabled.set_active(false);
@@ -3355,18 +3425,18 @@ mod gtk_tests {
         );
         assert!(!ui.enabled.is_active());
         assert!(
-            !ui.movement_challenge.is_active(),
+            ui.movement_mode.selected() == 2,
             "a pending challenge change must survive reconciliation"
         );
         ui.load_settings();
-        assert!(ui.movement_challenge.is_active());
+        assert_eq!(ui.movement_mode.selected(), 0);
         assert_eq!(ui.security_level.selected(), 3, "Custom");
         ui.security_level.set_selected(2); // Secure
         assert_eq!(ui.min_similarity.value(), 0.45);
-        assert!(ui.personal_threshold.is_active() && ui.movement_challenge.is_active());
+        assert!(ui.personal_threshold.is_active() && ui.movement_mode.selected() == 0);
         assert_eq!(ui.security_level.selected(), 2);
         ui.security_level.set_selected(0); // Fast
-        assert!(!ui.movement_challenge.is_active());
+        assert_eq!(ui.movement_mode.selected(), 1);
         ui.min_similarity.set_value(0.5);
         assert_eq!(ui.security_level.selected(), 3, "a hand edit is Custom");
         assert!(ui.load_settings());
@@ -3418,10 +3488,54 @@ mod gtk_tests {
         .unwrap();
         assert!(ui.load_settings());
         assert!(ui.timeout.subtitle().unwrap().contains("before 1.3"));
+        std::fs::write(
+            root.join("config.ini"),
+            include_str!("../../../data/config.ini")
+                .replace("movement_challenge = true", "movement_challenge = false"),
+        )
+        .unwrap();
+        assert!(ui.load_settings());
+        assert_eq!(ui.movement_mode.selected(), 1, "show the effective mode");
+        assert!(
+            !ui.is_dirty(),
+            "opening settings must not change the config"
+        );
+        ui.movement_mode.set_selected(2);
+        assert!(ui.is_dirty() && ui.apply.is_sensitive());
+        let off = ui.read_widgets();
+        assert!(!off.movement_challenge && !off.require_movement_without_ir);
+        std::fs::write(
+            root.join("config.ini"),
+            include_str!("../../../data/config.ini").replace(
+                "require_movement_without_ir = true",
+                "require_movement_without_ir = false",
+            ),
+        )
+        .unwrap();
+        assert!(ui.load_settings());
+        assert_eq!(ui.movement_mode.selected(), 0);
+        assert!(
+            !ui.is_dirty(),
+            "legacy Always should not create unsaved edits"
+        );
         std::fs::remove_file(root.join("config.ini")).unwrap();
         assert!(!ui.load_settings());
         assert!(ui.loaded.borrow().is_none());
         assert!(!ui.apply.is_sensitive());
+        ui.test_window.present();
+        pump();
+        assert!(ui.test_window.is_visible());
+        ui.test_window.close();
+        pump();
+        assert!(
+            !ui.test_window.is_visible(),
+            "closing the test must hide its window"
+        );
+        assert!(
+            ui.window.is_visible(),
+            "the main window must stay available"
+        );
+        ui.test_window.destroy();
         ui.window.destroy();
         std::fs::remove_dir_all(root).unwrap();
     }

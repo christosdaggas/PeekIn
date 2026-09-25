@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"POT-Creation-Date: 2026-09-25 20:31+0300\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -701,8 +701,17 @@ msgstr "Η κάμερα δεν μπορεί να σας δει"
 msgid "Head-movement check"
 msgstr "Έλεγχος κίνησης κεφαλιού"
 
-msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
-msgstr "Ζητά μια τυχαία σειρά από στροφές του κεφαλιού αφού σας αναγνωρίσει. Απενεργοποιήστε το για ξεκλείδωμα μόνο κοιτάζοντας την κάμερα: πιο γρήγορο, αλλά μια φωτογραφία σας είναι πιθανότερο να λειτουργήσει"
+msgid "Choose when a head turn is required; Off never asks you to turn your head"
+msgstr "Επιλέξτε πότε απαιτείται κίνηση κεφαλιού· η επιλογή Ανενεργό δεν ζητά ποτέ να γυρίσετε το κεφάλι"
+
+msgid "Always"
+msgstr "Πάντα"
+
+msgid "Only without an approved infrared camera"
+msgstr "Μόνο χωρίς εγκεκριμένη υπέρυθρη κάμερα"
+
+msgid "Off"
+msgstr "Ανενεργό"
 
 msgid "Personal threshold"
 msgstr "Προσωπικό όριο"
@@ -718,12 +727,6 @@ msgstr "Φωτισμός από την οθόνη στο σκοτάδι"
 
 msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
 msgstr "Ανεβάζει τη φωτεινότητα της οθόνης του φορητού στο μέγιστο όσο η έγχρωμη κάμερα σαρώνει ένα σκοτεινό δωμάτιο και μετά την επαναφέρει"
-
-msgid "Keep it on without an infrared camera"
-msgstr "Ενεργός χωρίς υπέρυθρη κάμερα"
-
-msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
-msgstr "Όταν ο έλεγχος κίνησης κεφαλιού είναι κλειστός, ζητείται παρ' όλα αυτά, εκτός αν χρησιμοποιείται υπέρυθρη κάμερα εγκεκριμένη από διαχειριστή. Έτσι μια φωτογραφία σε χαρτί ή κινητό δεν μπορεί να ξεκλειδώσει μέσω της έγχρωμης κάμερας"
 
 msgid "sudo in a terminal"
 msgstr "sudo σε τερματικό"
@@ -1083,6 +1086,15 @@ msgstr[1] "{n} αποτυχημένες προσπάθειες προσώπου 
 
 msgid "Open PeekIn to see when and where (Face models, Activity)."
 msgstr "Ανοίξτε το PeekIn για να δείτε πότε και πού («Μοντέλα προσώπου», «Δραστηριότητα»)."
+
+#~ msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+#~ msgstr "Ζητά μια τυχαία σειρά από στροφές του κεφαλιού αφού σας αναγνωρίσει. Απενεργοποιήστε το για ξεκλείδωμα μόνο κοιτάζοντας την κάμερα: πιο γρήγορο, αλλά μια φωτογραφία σας είναι πιθανότερο να λειτουργήσει"
+
+#~ msgid "Keep it on without an infrared camera"
+#~ msgstr "Ενεργός χωρίς υπέρυθρη κάμερα"
+
+#~ msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+#~ msgstr "Όταν ο έλεγχος κίνησης κεφαλιού είναι κλειστός, ζητείται παρ' όλα αυτά, εκτός αν χρησιμοποιείται υπέρυθρη κάμερα εγκεκριμένη από διαχειριστή. Έτσι μια φωτογραφία σε χαρτί ή κινητό δεν μπορεί να ξεκλειδώσει μέσω της έγχρωμης κάμερας"
 
 #~ msgid "For this account only; changes are saved right away."
 #~ msgstr "Μόνο για αυτόν τον λογαριασμό· οι αλλαγές αποθηκεύονται αμέσως."

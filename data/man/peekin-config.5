@@ -37,8 +37,12 @@ command still works.
 .BR movement_challenge " = true"
 .B security.
 After recognising the face, ask for a random sequence of three head turns.
-Off: unlock by looking at the camera, which is faster but lets a photo of the
-user work more easily.
+With this and
+.B require_movement_without_ir
+both off: unlock by looking at the camera, which is faster but lets a photo
+of the user work more easily. The settings app offers three explicit choices:
+Always (true/true), Only without an approved infrared camera (false/true),
+and Off (false/false).
 .TP
 .BR require_movement_without_ir " = true"
 .B security.
@@ -47,7 +51,10 @@ With
 off, still ask for the head turns unless the camera in use is an
 administrator-approved infrared camera (see
 .BR ir_only ).
-A photo on paper or a phone then cannot unlock with a colour camera.
+A photo on paper or a phone then cannot unlock with a colour camera. Turning
+off only
+.B movement_challenge
+does not disable turns while this option remains enabled.
 .TP
 .BR max_failed_attempts " = 5"
 .B security.

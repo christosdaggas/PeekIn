@@ -307,6 +307,49 @@ pub struct Recognition {
     pub personal_threshold: bool,
 }
 
+/// The two stored booleans describe one user-facing choice. In particular,
+/// `movement_challenge = false` alone does not mean that turns are disabled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MovementMode {
+    Always,
+    WithoutApprovedInfrared,
+    Off,
+}
+
+impl MovementMode {
+    pub fn from_config(movement_challenge: bool, require_movement_without_ir: bool) -> Self {
+        match (movement_challenge, require_movement_without_ir) {
+            (true, _) => Self::Always,
+            (false, true) => Self::WithoutApprovedInfrared,
+            (false, false) => Self::Off,
+        }
+    }
+
+    pub fn from_index(index: u32) -> Self {
+        match index {
+            1 => Self::WithoutApprovedInfrared,
+            2 => Self::Off,
+            _ => Self::Always,
+        }
+    }
+
+    pub fn index(self) -> u32 {
+        match self {
+            Self::Always => 0,
+            Self::WithoutApprovedInfrared => 1,
+            Self::Off => 2,
+        }
+    }
+
+    pub fn config(self) -> (bool, bool) {
+        match self {
+            Self::Always => (true, true),
+            Self::WithoutApprovedInfrared => (false, true),
+            Self::Off => (false, false),
+        }
+    }
+}
+
 impl Preset {
     pub const ALL: [Preset; 4] = [Self::Fast, Self::Balanced, Self::Secure, Self::Custom];
 
@@ -589,6 +632,34 @@ mod tests {
         };
         assert_eq!(Preset::of(shipped), Preset::Balanced);
         assert!(Preset::Custom.values().is_none());
+    }
+
+    #[test]
+    fn movement_choice_matches_the_config_used_by_login_and_test() {
+        use peekin_core::cameras::CameraKind;
+        use peekin_core::config::movement_required;
+
+        // This was the reported installed config: the first boolean is false,
+        // but the second still requires turns for colour cameras.
+        assert_eq!(
+            MovementMode::from_config(false, true),
+            MovementMode::WithoutApprovedInfrared
+        );
+        assert_eq!(MovementMode::from_config(false, false), MovementMode::Off);
+        for mode in [
+            MovementMode::Always,
+            MovementMode::WithoutApprovedInfrared,
+            MovementMode::Off,
+        ] {
+            let (always, without_ir) = mode.config();
+            assert_eq!(MovementMode::from_index(mode.index()), mode);
+            assert_eq!(MovementMode::from_config(always, without_ir), mode);
+            let colour = movement_required(always, without_ir, Some(CameraKind::Colour));
+            let infrared =
+                movement_required(always, without_ir, Some(CameraKind::VerifiedInfrared));
+            assert_eq!(colour, mode != MovementMode::Off);
+            assert_eq!(infrared, mode == MovementMode::Always);
+        }
     }
 
     #[test]

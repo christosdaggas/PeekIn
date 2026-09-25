@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 18:51+0300\n"
+"POT-Creation-Date: 2026-09-25 20:31+0300\n"
 "PO-Revision-Date: 2026-09-25 18:30+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: Russian\n"
@@ -704,8 +704,17 @@ msgstr "Камера вас не видит"
 msgid "Head-movement check"
 msgstr "Проверка движения головы"
 
-msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
-msgstr "Запрашивать случайную последовательность поворотов головы после распознавания. Отключите, чтобы разблокировать, просто глядя в камеру: быстрее, но тогда с большей вероятностью сработает ваше фото"
+msgid "Choose when a head turn is required; Off never asks you to turn your head"
+msgstr "Выберите, когда требуется поворот головы; в режиме «Выключено» он никогда не запрашивается"
+
+msgid "Always"
+msgstr "Всегда"
+
+msgid "Only without an approved infrared camera"
+msgstr "Только без одобренной инфракрасной камеры"
+
+msgid "Off"
+msgstr "Выключено"
 
 msgid "Personal threshold"
 msgstr "Личный порог"
@@ -721,12 +730,6 @@ msgstr "Подсвечивать экран в темноте"
 
 msgid "Raise the laptop screen to full brightness while the colour camera scans a dark room, then restore it"
 msgstr "Увеличивать яркость экрана ноутбука до максимума, пока цветная камера сканирует тёмную комнату, затем возвращать обратно"
-
-msgid "Keep it on without an infrared camera"
-msgstr "Оставлять включённым без инфракрасной камеры"
-
-msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
-msgstr "Когда проверка движения головы выключена, всё равно запрашивать её, если не используется инфракрасная камера, одобренная администратором. Тогда фото на бумаге или на телефоне не сможет разблокировать через цветную камеру"
 
 msgid "sudo in a terminal"
 msgstr "sudo в терминале"
@@ -1088,6 +1091,15 @@ msgstr[2] "{n} неудачных попыток по лицу в ваше от�
 
 msgid "Open PeekIn to see when and where (Face models, Activity)."
 msgstr "Откройте PeekIn, чтобы увидеть когда и где (Модели лица, Активность)."
+
+#~ msgid "Ask for a random sequence of head turns after recognising you. Turn off to unlock by just looking at the camera: faster, but a photo of you is more likely to work"
+#~ msgstr "Запрашивать случайную последовательность поворотов головы после распознавания. Отключите, чтобы разблокировать, просто глядя в камеру: быстрее, но тогда с большей вероятностью сработает ваше фото"
+
+#~ msgid "Keep it on without an infrared camera"
+#~ msgstr "Оставлять включённым без инфракрасной камеры"
+
+#~ msgid "When the head-movement check is off, still ask for it unless an administrator-approved infrared camera is used. A photo on paper or a phone then cannot unlock with the colour camera"
+#~ msgstr "Когда проверка движения головы выключена, всё равно запрашивать её, если не используется инфракрасная камера, одобренная администратором. Тогда фото на бумаге или на телефоне не сможет разблокировать через цветную камеру"
 
 #~ msgid "For this account only; changes are saved right away."
 #~ msgstr "Только для этой учётной записи; изменения сохраняются сразу."
