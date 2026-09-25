@@ -57,17 +57,23 @@ fn parse(raw: &str) -> Vec<Entry> {
         .collect()
 }
 
+/// Waits (shared lock) while [`record`] rewrites the file, so a reader never
+/// sees it truncated or half written.
 pub fn read(dir: &Path, user: &str) -> io::Result<Vec<Entry>> {
     let path = file(dir, user)?;
     let file = match OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(&path)
     {
         Ok(file) => file,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e),
     };
+    // SAFETY: flock on a descriptor we own; released when it is closed.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_SH) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
     let mut raw = String::new();
     file.take(MAX_BYTES).read_to_string(&mut raw)?;
     Ok(parse(&raw))
@@ -220,6 +226,37 @@ mod tests {
         assert_eq!(entries.len(), MAX_ENTRIES + 6);
         assert_eq!(entries.last().unwrap().model, Some(3));
         assert!(read(&dir, "../x").is_err());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_reader_waits_for_a_rewrite_in_progress() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        let dir = std::env::temp_dir().join(format!("peekin-activity-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let line = |t| serde_json::to_string(&entry(t, Outcome::Rejected, None)).unwrap() + "\n";
+        fs::write(dir.join("alice"), line(1)).unwrap();
+        // A writer in the middle of `record`: locked, truncated, not yet rewritten.
+        let mut writer = OpenOptions::new()
+            .write(true)
+            .open(dir.join("alice"))
+            .unwrap();
+        assert_eq!(unsafe { libc::flock(writer.as_raw_fd(), libc::LOCK_EX) }, 0);
+        writer.set_len(0).unwrap();
+        let (tx, rx) = mpsc::channel();
+        let reader_dir = dir.clone();
+        let reader = std::thread::spawn(move || tx.send(read(&reader_dir, "alice").unwrap()));
+        assert!(
+            rx.recv_timeout(Duration::from_millis(300)).is_err(),
+            "read the history while it was being rewritten"
+        );
+        writer.write_all((line(1) + &line(2)).as_bytes()).unwrap();
+        drop(writer);
+        let seen = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        reader.join().unwrap().unwrap();
+        assert_eq!(seen.iter().map(|e| e.time).collect::<Vec<_>>(), [1, 2]);
         let _ = fs::remove_dir_all(dir);
     }
 
