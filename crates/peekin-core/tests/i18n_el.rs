@@ -1,7 +1,7 @@
 //! The Greek catalogue compiles and is used at runtime. A separate test
 //! binary, because the locale is process-wide.
 
-use peekin_core::compare::ChallengeMode;
+use peekin_core::compare::{ChallengeMode, ChallengeStage};
 use peekin_core::i18n::{bind, tr, tr_args, trn};
 use std::path::Path;
 use std::process::Command;
@@ -50,11 +50,21 @@ fn greek_messages_are_used_in_a_greek_session() {
         ChallengeMode::Passive.prompt(),
         "Έλεγχος προσώπου: κοιτάξτε την κάμερα."
     );
-    let movement = ChallengeMode::for_config(true).unwrap().prompt();
+    let mode = ChallengeMode::for_config(true).unwrap();
+    let movement = mode.prompt();
     assert!(movement.starts_with("Έλεγχος προσώπου"), "{movement}");
+    // The prompt before the scan names no turn; each one comes on its own.
     assert!(
-        movement.contains("ΑΡΙΣΤΕΡΑ") || movement.contains("ΔΕΞΙΑ"),
+        !movement.contains("ΑΡΙΣΤΕΡΑ") && !movement.contains("ΔΕΞΙΑ"),
         "{movement}"
+    );
+    let ChallengeMode::Movement(order) = mode else {
+        panic!("movement expected")
+    };
+    let turn = ChallengeStage::Turn(0).instruction(order);
+    assert!(
+        turn == "Γυρίστε το κεφάλι ΑΡΙΣΤΕΡΑ" || turn == "Γυρίστε το κεφάλι ΔΕΞΙΑ",
+        "{turn}"
     );
     assert_eq!(
         tr("A message nobody translated"),

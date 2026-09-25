@@ -32,9 +32,11 @@ These are documented in the README and docs/THRESHOLDS.md:
 - The head-movement check is not certified presentation-attack detection: an
   interactive video replay or a mask may pass it. Without it, a photo of the
   user may pass with a colour camera.
-- A video of the user turning their head passes the head-movement check if it
-  is cut to the turns asked for, or replayed until its own turns come up: PAM
-  shows the whole sequence before the scan, and there are only 8 orders.
+- A video of the user turning their head passes the head-movement check if
+  someone switches between clips of left and right turns as each instruction
+  appears (PAM shows one turn at a time, only after the face was recognised
+  and the previous step done), or if it happens to show the turns asked for:
+  there are only 8 orders.
 - Face recognition accepts some strangers: about 1 in 240 matches a 5-sample
   face model at the default threshold (measured on LFW; see
   docs/THRESHOLDS.md), more often for relatives and look-alikes.

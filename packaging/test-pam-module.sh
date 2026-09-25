@@ -41,13 +41,22 @@ chown root:"$GID" "$W/etc/models" "$W/etc/models/$USER_UNDER_TEST.dat"
 chmod 0750 "$W/etc/models"
 chmod 0640 "$W/etc/models/$USER_UNDER_TEST.dat"
 
-# Stub worker: records its argv and identity, exits with the requested code.
+# Stub worker: records its argv, stdin (the head-turn sequence) and identity,
+# reports each challenge stage as a real worker does when it matches, and
+# exits with the requested code. With $W/bad-stages it skips a stage.
 cat > "$W/compare" <<EOF
 #!/bin/sh
 echo "\$*" > $W/out/args
+cat > $W/out/stdin
 id -un > $W/out/who
 echo "OCL=\$OPENCV_OPENCL_RUNTIME BLAS=\$OPENBLAS_NUM_THREADS" > $W/out/env
 code=\$(cat $W/exit-code)
+if [ "\$code" = 0 ] && [ -s $W/out/stdin ]; then
+    if [ -e $W/bad-stages ]; then
+        echo "challenge-stage 2"; sleep 0.2; echo "challenge-stage 4"; sleep 5; exit 0
+    fi
+    for n in 2 3 4 5 6 7; do echo "challenge-stage \$n"; sleep 0.1; done
+fi
 [ "\$code" = 0 ] && echo "matched-model 1"
 if [ -e $W/low-light ]; then
     echo low-light
@@ -72,10 +81,23 @@ run() { # $1 = worker exit code; prints the harness conversation to $W/log
     "$HARNESS" "$W/pam" sudo "$USER_UNDER_TEST" > "$W/log" 2>&1 && return 0 || return 1
 }
 
-# 1. Movement challenge on (default): randomized sequence announced and passed.
+# 1. Movement challenge on (default): a fresh sequence goes to the worker on
+#    stdin, never on its command line; the prompt before the scan names no
+#    turn, and each turn is shown only once the worker reports the step
+#    before it, in the order of the sequence.
 run 0 || fail "matching worker must authenticate"
-grep -q "turn your head" "$W/log" || fail "challenge prompt missing"
-grep -Eq -- "--challenge (left|right),(left|right),(left|right) -- $USER_UNDER_TEST" "$W/out/args" || fail "challenge not passed to worker"
+grep -q "follow the head-turn instructions" "$W/log" || fail "challenge prompt missing"
+grep -q -- "--challenge movement -- $USER_UNDER_TEST" "$W/out/args" || fail "challenge mode not passed to worker"
+grep -Eq "left|right" "$W/out/args" && fail "the head-turn sequence is on the worker's command line"
+grep -Eqx "(left|right),(left|right),(left|right)" "$W/out/stdin" || fail "sequence not passed on stdin"
+steps=$(grep -Eo "Turn your head (LEFT|RIGHT)|Look straight at the camera again" "$W/log" |
+    sed -e 's/Turn your head LEFT/left/' -e 's/Turn your head RIGHT/right/' -e 's/Look straight.*/centre/' | paste -sd, -)
+turns=$(cat "$W/out/stdin")
+[ "$steps" = "$(echo "$turns" | sed 's/,/,centre,/g'),centre" ] || fail "turns not shown one by one in order ($steps for $turns)"
+intro=$(grep -n "follow the head-turn instructions" "$W/log" | cut -d: -f1)
+first_turn=$(grep -En "Turn your head (LEFT|RIGHT)" "$W/log" | head -n1 | cut -d: -f1)
+[ "$intro" -lt "$first_turn" ] || fail "a turn was named before the scan started"
+grep "follow the head-turn instructions" "$W/log" | grep -Eq "LEFT|RIGHT" && fail "the prompt before the scan names a turn"
 [ "$(cat "$W/out/who")" = peekin ] || fail "worker must run as the service account"
 grep -q "OCL=disabled BLAS=1" "$W/out/env" || fail "worker environment not applied"
 # The attempt is in the user's history, with the matching model, readable by
@@ -99,12 +121,13 @@ grep -q "The camera could not be opened" "$W/log" || fail "camera failure not ex
 # too: short prompt and --challenge none.
 sed -i 's/^movement_challenge = true/movement_challenge = false/' "$W/etc/config.ini"
 run 0 || fail "movement kept on must authenticate on a match"
-grep -Eq -- "--challenge (left|right),(left|right),(left|right) -- $USER_UNDER_TEST" "$W/out/args" || fail "head movement must stay on without an infrared camera"
+grep -q -- "--challenge movement -- $USER_UNDER_TEST" "$W/out/args" || fail "head movement must stay on without an infrared camera"
 sed -i 's/^require_movement_without_ir = true/require_movement_without_ir = false/' "$W/etc/config.ini"
 run 0 || fail "passive mode must authenticate on a match"
 grep -q "Face check: look at the camera." "$W/log" || fail "passive prompt missing"
-grep -q "turn your head" "$W/log" && fail "passive mode must not ask for head turns"
+grep -Eq "head-turn|Turn your head" "$W/log" && fail "passive mode must not ask for head turns"
 grep -q -- "--challenge none -- $USER_UNDER_TEST" "$W/out/args" || fail "passive mode not passed to worker"
+[ -s "$W/out/stdin" ] && fail "passive mode must send no sequence"
 
 # 4. Preflight: nothing is announced and the worker never starts when it could not work.
 chmod 0700 "$W/etc/models"
@@ -179,7 +202,7 @@ run 0 || fail "face login must work again after a password login"
 printf 'garbage\n' > "$W/state/$USER_UNDER_TEST"
 run 0 && fail "damaged counter must not allow face login"
 [ -e "$W/out/args" ] && fail "worker started with a damaged counter"
-grep -q "turn your head" "$W/log" && fail "prompt shown although the counter is damaged"
+grep -Eq "head-turn|Turn your head" "$W/log" && fail "prompt shown although the counter is damaged"
 grep -q "Face authentication is unavailable" "$W/log" || fail "damaged counter not explained"
 "$HARNESS" "$W/pam2" sudo "$USER_UNDER_TEST" > "$W/log" 2>&1 || fail "password stand-in must succeed"
 [ -e "$W/state/$USER_UNDER_TEST" ] && fail "password login must clear a damaged counter"
@@ -222,9 +245,21 @@ run 0 || fail "authentication with brighten_screen off"
 sed -i 's/^brighten_screen = false/brighten_screen = true/' "$W/etc/config.ini"
 rm "$W/low-light"
 
+# 11b. A worker that skips a head-turn stage breaks the protocol: the scan
+#     stops at once, the later turn is never shown, the password is used and
+#     no failed attempt is counted.
+touch "$W/bad-stages"
+started=$(date +%s)
+run 0 && fail "a worker skipping a stage must not authenticate"
+[ $(( $(date +%s) - started )) -lt 4 ] || fail "the scan was not stopped at the skipped stage"
+[ "$(grep -Ec "Turn your head (LEFT|RIGHT)" "$W/log")" = 1 ] || fail "a turn past the skipped stage was shown"
+grep -q "Face authentication is unavailable" "$W/log" || fail "stopped scan not explained"
+[ -s "$W/state/$USER_UNDER_TEST" ] && fail "a stopped scan must not count as a failed attempt"
+rm "$W/bad-stages"
+
 # 12. A malformed security setting fails closed without prompting.
 sed -i 's/^movement_challenge = true/movement_challenge = perhaps/' "$W/etc/config.ini"
 run 0 && fail "malformed movement_challenge must fail closed"
 [ -e "$W/out/args" ] && fail "worker started with a malformed security setting"
 
-echo "PAM_MODULE_E2E_OK: challenge, passive, failure messages, preflight, model store, lockout, no-face limit, damaged counter, services, screen light, history, fail-closed"
+echo "PAM_MODULE_E2E_OK: challenge, per-step prompts, passive, failure messages, preflight, model store, lockout, no-face limit, damaged counter, services, screen light, history, fail-closed"

@@ -89,7 +89,8 @@ LFW rather than look-alikes.
   figures. Close relatives will match more often than these rates.
 - **Photos, screens, masks** (presentation attacks): these rates are about
   other people's real faces. The head-movement check stops photos and still
-  images, not a video of the user cut to the announced turns or a mask; see
+  images, not a video of the user switched to each turn as it is shown, or a
+  mask; see
   the README's security section.
 - **Webcams and infrared**: LFW is colour press photography. No webcam or
   infrared image was measured here, for genuine users or for strangers.

@@ -1,10 +1,10 @@
 //! Runs `peekin-compare` with a hard deadline and no threads: PAM may unload the module as soon as it returns.
 
 use crate::status::ChildEnd;
-use peekin_core::compare::ChallengeMode;
+use peekin_core::compare::{ChallengeMode, CHALLENGE_STAGE_PREFIX};
 use peekin_core::lowlight::LOW_LIGHT_SIGNAL;
 use peekin_core::process::{worker_cpu_limit, WORKER_ADDRESS_SPACE, WORKER_ENV};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
@@ -15,7 +15,9 @@ use std::time::{Duration, Instant};
 const POLL: Duration = Duration::from_millis(20);
 const KILL_GRACE: Duration = Duration::from_secs(2);
 const STDERR_LIMIT: usize = 8 * 1024;
-const STDOUT_LIMIT: usize = 256;
+/// `low-light`, six `challenge-stage N` lines and `matched-model ID` fit
+/// several times over.
+const STDOUT_LIMIT: usize = 1024;
 /// Reads per pipe per poll: at most 16 × 4 KiB = 64 KiB, about one pipe
 /// buffer. A worker flooding its output can then never keep the loop from
 /// reaching its deadline check; what is not read yet stays in the pipe (the
@@ -40,6 +42,35 @@ pub enum RunEnd {
     },
     SpawnFailed(io::Error),
     WaitFailed(io::Error),
+    /// The event callback stopped the run (for example a head-turn prompt
+    /// could not be shown); the worker's process group was killed.
+    Cancelled,
+}
+
+/// What the worker reports while it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkerEvent {
+    /// A dark scene from a colour camera (reported once).
+    LowLight,
+    /// The head-turn challenge entered this stage (`ChallengeStage::number`).
+    ChallengeStage(u8),
+    /// A line the protocol does not know, or a stage number that is not one.
+    Malformed,
+}
+
+/// One stdout line as an event; `None` for lines that are no event.
+fn event(line: &[u8]) -> Option<WorkerEvent> {
+    if line == LOW_LIGHT_SIGNAL.as_bytes() {
+        return Some(WorkerEvent::LowLight);
+    }
+    let rest = line.strip_prefix(CHALLENGE_STAGE_PREFIX.as_bytes())?;
+    Some(
+        std::str::from_utf8(rest)
+            .ok()
+            .filter(|n| !n.is_empty() && n.len() <= 3 && n.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|n| n.parse().ok())
+            .map_or(WorkerEvent::Malformed, WorkerEvent::ChallengeStage),
+    )
 }
 
 #[derive(Debug)]
@@ -124,37 +155,56 @@ impl<R: Read + AsRawFd> Drain<R> {
     }
 }
 
-/// Worker output: diagnostics on stderr, low-light signal on stdout (reported once).
+/// Worker output: diagnostics on stderr, events on stdout, each complete line
+/// passed to `on_event` once (the low-light signal only the first time). The
+/// callback returning `false` stops the run.
 struct Output<'a> {
     stderr: Drain<std::process::ChildStderr>,
     stdout: Drain<std::process::ChildStdout>,
-    on_low_light: Option<&'a mut dyn FnMut()>,
+    /// Bytes of stdout already handed out as lines.
+    seen: usize,
+    low_light_seen: bool,
+    on_event: &'a mut dyn FnMut(WorkerEvent) -> bool,
+    cancelled: bool,
 }
 
 impl Output<'_> {
     fn drain(&mut self) {
         self.stderr.drain();
         self.stdout.drain();
-        let signalled = self
-            .stdout
-            .buf
-            .split(|&b| b == b'\n')
-            .any(|line| line == LOW_LIGHT_SIGNAL.as_bytes());
-        if signalled {
-            if let Some(notify) = self.on_low_light.take() {
-                notify();
+        while let Some(end) = self.stdout.buf[self.seen..]
+            .iter()
+            .position(|&b| b == b'\n')
+        {
+            let line = &self.stdout.buf[self.seen..self.seen + end];
+            self.seen += end + 1;
+            let Some(event) = event(line) else { continue };
+            if event == WorkerEvent::LowLight {
+                if self.low_light_seen {
+                    continue;
+                }
+                self.low_light_seen = true;
+            }
+            if !self.cancelled && !(self.on_event)(event) {
+                self.cancelled = true;
             }
         }
     }
 }
 
+/// `Ok(None)` at the deadline, or, when `cancellable`, as soon as the event
+/// callback cancels.
 fn wait_until(
     child: &mut Child,
     output: &mut Output<'_>,
     deadline: Instant,
+    cancellable: bool,
 ) -> io::Result<Option<ExitStatus>> {
     loop {
         output.drain();
+        if cancellable && output.cancelled {
+            return Ok(None);
+        }
         if let Some(status) = child.try_wait()? {
             output.drain();
             return Ok(Some(status));
@@ -163,6 +213,42 @@ fn wait_until(
             return Ok(None);
         }
         std::thread::sleep(POLL);
+    }
+}
+
+/// Write to a pipe without SIGPIPE, which would kill sudo or GDM (a PAM host
+/// keeps the default action) when the reader is gone; that is EPIPE instead.
+/// SIGPIPE for a pipe goes to the writing thread, so blocking it here is
+/// enough; one this write raised is taken off before the mask is restored.
+fn write_without_sigpipe(pipe: &mut impl Write, bytes: &[u8]) -> io::Result<()> {
+    // SAFETY: plain signal-set calls on local, initialised sets.
+    unsafe {
+        let mut sigpipe: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut sigpipe);
+        libc::sigaddset(&mut sigpipe, libc::SIGPIPE);
+        let mut old: libc::sigset_t = std::mem::zeroed();
+        if libc::pthread_sigmask(libc::SIG_BLOCK, &sigpipe, &mut old) != 0 {
+            return Err(io::Error::other("cannot block SIGPIPE"));
+        }
+        let mut pending: libc::sigset_t = std::mem::zeroed();
+        let already =
+            libc::sigpending(&mut pending) == 0 && libc::sigismember(&pending, libc::SIGPIPE) == 1;
+        let result = pipe.write_all(bytes);
+        if !already
+            && result
+                .as_ref()
+                .is_err_and(|e| e.kind() == io::ErrorKind::BrokenPipe)
+        {
+            let now = libc::timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            };
+            while libc::sigtimedwait(&sigpipe, std::ptr::null_mut(), &now) == -1
+                && io::Error::last_os_error().kind() == io::ErrorKind::Interrupted
+            {}
+        }
+        libc::pthread_sigmask(libc::SIG_SETMASK, &old, std::ptr::null_mut());
+        result
     }
 }
 
@@ -177,8 +263,9 @@ fn kill_group(child: &mut Child) {
     }
 }
 
-/// Runs the worker with a minimal fixed environment and no stdin, killing it
-/// and everything it started at `deadline`.
+/// Runs the worker with a minimal fixed environment, killing it and
+/// everything it started at `deadline` or when `on_event` returns `false`.
+/// The head-turn sequence goes through stdin, never the command line.
 pub fn run_compare(
     compare: &Path,
     config_dir: &Path,
@@ -186,7 +273,7 @@ pub fn run_compare(
     identity: WorkerIdentity<'_>,
     challenge: ChallengeMode,
     deadline: Duration,
-    on_low_light: &mut dyn FnMut(),
+    on_event: &mut dyn FnMut(WorkerEvent) -> bool,
 ) -> CompareRun {
     let mut command = Command::new(compare);
     command
@@ -200,7 +287,7 @@ pub fn run_compare(
         .arg(identity.user)
         .env_clear()
         .envs(WORKER_ENV.iter().copied())
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let parent_euid = unsafe { libc::geteuid() };
@@ -267,20 +354,34 @@ pub fn run_compare(
             }
         }
     };
+    // One short line, far below PIPE_BUF: the write never blocks. Closing
+    // stdin right after tells the worker there is nothing more. A worker that
+    // exited early (broken pipe) is reported by its exit status.
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = write_without_sigpipe(&mut stdin, challenge.stdin_line().as_bytes());
+    }
     let mut output = Output {
         stderr: Drain::new(child.stderr.take(), STDERR_LIMIT),
         stdout: Drain::new(child.stdout.take(), STDOUT_LIMIT),
-        on_low_light: Some(on_low_light),
+        seen: 0,
+        low_light_seen: false,
+        on_event,
+        cancelled: false,
     };
     let started = Instant::now();
 
-    let end = match wait_until(&mut child, &mut output, started + deadline) {
+    let end = match wait_until(&mut child, &mut output, started + deadline, true) {
         Ok(Some(status)) => RunEnd::Exited(child_end(status)),
         Ok(None) => {
             kill_group(&mut child);
-            match wait_until(&mut child, &mut output, Instant::now() + KILL_GRACE) {
-                Ok(Some(_)) => RunEnd::TimedOut { reaped: true },
-                _ => RunEnd::TimedOut { reaped: false },
+            let reaped = matches!(
+                wait_until(&mut child, &mut output, Instant::now() + KILL_GRACE, false),
+                Ok(Some(_))
+            );
+            if output.cancelled {
+                RunEnd::Cancelled
+            } else {
+                RunEnd::TimedOut { reaped }
             }
         }
         Err(e) => RunEnd::WaitFailed(e),
@@ -306,8 +407,15 @@ mod tests {
             for (name, body) in [
                 (
                     "args.sh",
-                    "echo \"$@\" >&2; echo \"PATH=$PATH HOME=${HOME:-unset} OCL=$OPENCV_OPENCL_RUNTIME ARENAS=$MALLOC_ARENA_MAX\" >&2; exit 11",
+                    "echo \"$@\" >&2; echo \"PATH=$PATH HOME=${HOME:-unset} OCL=$OPENCV_OPENCL_RUNTIME ARENAS=$MALLOC_ARENA_MAX\" >&2; echo \"STDIN=[$(cat)]\" >&2; exit 11",
                 ),
+                (
+                    "stages.sh",
+                    "cat > /dev/null; echo challenge-stage 2; echo matched-model 1; echo challenge-stage 3; \
+                     echo challenge-stage x; echo low-light; echo low-light; printf 'challenge-stage 4'; exit 0",
+                ),
+                ("stage-then-hang.sh", "echo challenge-stage 2; exec sleep 30"),
+                ("early-exit.sh", "exit 12"),
                 ("hang.sh", "exec sleep 30"),
                 (
                     "noisy.sh",
@@ -339,6 +447,19 @@ mod tests {
     }
 
     fn run_counting(p: &Path, deadline_ms: u64, low_light: &mut u32) -> CompareRun {
+        run_with(p, deadline_ms, &mut |event| {
+            if event == WorkerEvent::LowLight {
+                *low_light += 1;
+            }
+            true
+        })
+    }
+
+    fn run_with(
+        p: &Path,
+        deadline_ms: u64,
+        on_event: &mut dyn FnMut(WorkerEvent) -> bool,
+    ) -> CompareRun {
         let username = username();
         let id = WorkerIdentity {
             uid: unsafe { libc::getuid() },
@@ -351,9 +472,9 @@ mod tests {
             Path::new("/cfg"),
             Path::new("/data"),
             id,
-            ChallengeMode::parse("left,right,left").expect("test challenge"),
+            ChallengeMode::from_wire("movement", b"left,right,left\n").expect("test challenge"),
             Duration::from_millis(deadline_ms),
-            &mut || *low_light += 1,
+            on_event,
         )
     }
 
@@ -385,12 +506,15 @@ mod tests {
         );
         assert!(
             r.stderr.contains(&format!(
-                "--config-dir /cfg --data-dir /data --challenge left,right,left -- {}",
+                "--config-dir /cfg --data-dir /data --challenge movement -- {}\n",
                 username()
             )),
             "{}",
             r.stderr
         );
+        // The sequence is on stdin only, never on the command line.
+        assert!(r.stderr.contains("STDIN=[left,right,left]"), "{}", r.stderr);
+        assert_eq!(r.stderr.matches("left").count(), 2, "{}", r.stderr);
         assert!(
             r.stderr
                 .contains("PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=unset OCL=disabled ARENAS=2"),
@@ -435,6 +559,88 @@ mod tests {
             unsafe { libc::kill(pid, libc::SIGKILL) };
         }
         assert!(!survived, "the worker's child outlived the deadline");
+    }
+
+    #[test]
+    fn stage_lines_become_events_in_order() {
+        let mut events = Vec::new();
+        let r = run_with(&script("stages.sh"), 5_000, &mut |e| {
+            events.push(e);
+            true
+        });
+        assert!(
+            matches!(r.end, RunEnd::Exited(ChildEnd::Exited(0))),
+            "{r:?}"
+        );
+        // Unknown lines are ignored, a bad number is malformed, the low-light
+        // signal is reported once, and an unfinished last line is no event.
+        assert_eq!(
+            events,
+            [
+                WorkerEvent::ChallengeStage(2),
+                WorkerEvent::ChallengeStage(3),
+                WorkerEvent::Malformed,
+                WorkerEvent::LowLight,
+            ]
+        );
+        assert!(r.stdout.contains("matched-model 1"), "{}", r.stdout);
+    }
+
+    #[test]
+    fn a_callback_can_stop_the_worker_at_once() {
+        let started = Instant::now();
+        let r = run_with(&script("stage-then-hang.sh"), 20_000, &mut |_| false);
+        assert!(matches!(r.end, RunEnd::Cancelled), "{r:?}");
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_worker_gone_before_reading_its_stdin_is_just_an_exit() {
+        let r = run(&script("early-exit.sh"), 5_000);
+        assert!(
+            matches!(r.end, RunEnd::Exited(ChildEnd::Exited(12))),
+            "{r:?}"
+        );
+    }
+
+    /// PAM hosts keep SIGPIPE's default action (terminate), unlike Rust
+    /// programs; writing to a worker that is gone must not kill them.
+    #[test]
+    fn writing_to_a_gone_worker_never_raises_sigpipe() {
+        // SAFETY: the child only makes raw system calls before _exit.
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0);
+        if pid == 0 {
+            unsafe {
+                libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+                let mut fds = [0; 2];
+                if libc::pipe(fds.as_mut_ptr()) != 0 {
+                    libc::_exit(2);
+                }
+                libc::close(fds[0]);
+                let mut writer = std::mem::ManuallyDrop::new(
+                    <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(fds[1]),
+                );
+                let result = write_without_sigpipe(&mut *writer, b"left,right,left\n");
+                let broken = result.is_err_and(|e| e.kind() == io::ErrorKind::BrokenPipe);
+                // Nothing left pending that would fire once unblocked.
+                let mut pending: libc::sigset_t = std::mem::zeroed();
+                libc::sigpending(&mut pending);
+                let clean = libc::sigismember(&pending, libc::SIGPIPE) == 0;
+                libc::_exit(if broken && clean { 0 } else { 1 });
+            }
+        }
+        let mut status = 0;
+        assert_eq!(unsafe { libc::waitpid(pid, &mut status, 0) }, pid);
+        assert!(
+            libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
+            "status {status:#x} (killed by SIGPIPE: {})",
+            libc::WIFSIGNALED(status) && libc::WTERMSIG(status) == libc::SIGPIPE
+        );
     }
 
     #[test]

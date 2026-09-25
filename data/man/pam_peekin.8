@@ -27,6 +27,20 @@ present, the face model being readable, and whether face login is paused
 after too many failed attempts.
 Messages to the user (the head-turn instructions, failures) go through the
 PAM conversation, in the locale of the calling program.
+.PP
+With the head-movement check, the message before the scan only asks the user
+to look at the camera.
+The module draws a fresh sequence of three turns and gives it to the
+recognition worker on its standard input, never on its command line (which
+other local programs can read).
+The worker reports each stage of the challenge on its standard output as it
+is reached, and only then does the module show that step: the first turn
+once the face was recognised in a neutral pose, then the return to centre,
+the next turn and so on, taking the direction from its own copy of the
+sequence.
+A report out of order, or a step that cannot be shown through the PAM
+conversation, stops the scan: the worker's process group is killed, no
+failed attempt is counted, and the password follows.
 Diagnostics go to the system log.
 .PP
 After
@@ -36,9 +50,8 @@ authenticates with the password; the module's
 .B setcred
 function clears the counter then.
 Separately, after 10 scans in a row that saw no face at all although a
-head-turn challenge was asked for, face login pauses the same way.
-Such a scan is what someone gets by hiding a recording whose turns do not
-match, to try again for free; the limit is slower than
+head-turn challenge was asked for, face login pauses the same way, so that
+attempts cannot be restarted without limit; the limit is slower than
 .B max_failed_attempts
 so that a user who steps away from the camera for a moment is not paused.
 A rejected face does not end this streak; a face or password login does,

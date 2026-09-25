@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:18+0000\n"
+"POT-Creation-Date: 2026-09-25 14:38+0000\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -26,15 +26,8 @@ msgstr "πιθανώς υπέρυθρη (μη εγκεκριμένη)"
 msgid "colour"
 msgstr "έγχρωμη"
 
-msgid "LEFT"
-msgstr "ΑΡΙΣΤΕΡΑ"
-
-msgid "RIGHT"
-msgstr "ΔΕΞΙΑ"
-
-#, rust-format
-msgid "Face check: look at the camera, then turn your head {steps}, facing the camera again after each turn."
-msgstr "Έλεγχος προσώπου: κοιτάξτε την κάμερα και μετά γυρίστε το κεφάλι {steps}, κοιτάζοντας ξανά την κάμερα μετά από κάθε στροφή."
+msgid "Face check: look at the camera, then follow the head-turn instructions."
+msgstr "Έλεγχος προσώπου: κοιτάξτε την κάμερα και μετά ακολουθήστε τις οδηγίες για τις στροφές του κεφαλιού."
 
 msgid "Face check: look at the camera."
 msgstr "Έλεγχος προσώπου: κοιτάξτε την κάμερα."

@@ -1,10 +1,15 @@
-//! `peekin-compare [--config-dir DIR] [--data-dir DIR] USER`: spawned by pam_peekin.so to recognise USER.
+//! `peekin-compare [--config-dir DIR] [--data-dir DIR] --challenge movement|none -- USER`:
+//! spawned by pam_peekin.so to recognise USER. With the movement challenge the
+//! head-turn sequence is the one line on stdin (never on the command line, which
+//! other processes can read); stdout carries `low-light`, `challenge-stage N` as
+//! each stage is reached, and `matched-model ID`.
 //! Exit codes: 0 match, 10 no face model, 11 timeout, 12 abort, 13 too dark, 14 camera unavailable,
 //! 16 movement challenge failed, 17 no face seen. Diagnostics go to stderr (the system log).
 
 use peekin_core::cameras;
 use peekin_core::compare::{
     verify_with_mode, ChallengeMode, CompareExit, VerifyOutcome, VerifyParams,
+    CHALLENGE_STAGE_PREFIX,
 };
 use peekin_core::lockout;
 use peekin_core::lowlight::{LowLightNotice, LOW_LIGHT_SIGNAL, MATCHED_MODEL_PREFIX};
@@ -14,20 +19,25 @@ use peekin_core::snapshots;
 use peekin_core::source::{Face, FaceSource, FrameStats, SourceError};
 use peekin_core::{PeekinConfig, PeekinPaths};
 use peekin_vision::{OpenCvFaceSource, OpenError};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-const USAGE: &str = "usage: peekin-compare [--config-dir DIR] [--data-dir DIR] --challenge left,right,left|none -- USER";
+const USAGE: &str = "usage: peekin-compare [--config-dir DIR] [--data-dir DIR] --challenge movement|none -- USER \
+                     (with movement, the sequence such as left,right,left is the one line on stdin)";
+/// The longest valid stdin is 18 bytes; more is refused, not cut off.
+const MAX_STDIN: u64 = 64;
 
 fn exit(code: CompareExit) -> ExitCode {
     ExitCode::from(code as u8)
 }
 
+/// Returns the `--challenge` argument as given; [`ChallengeMode::from_wire`]
+/// checks it together with stdin.
 fn parse_args_from(
     mut args: impl ExactSizeIterator<Item = String>,
-) -> Option<(PathBuf, PathBuf, ChallengeMode, String)> {
+) -> Option<(PathBuf, PathBuf, String, String)> {
     let mut config_dir = PathBuf::from("/etc/peekin");
     let mut data_dir = PathBuf::from("/usr/share/peekin");
     let mut user = None;
@@ -42,7 +52,7 @@ fn parse_args_from(
                     return None;
                 }
                 challenge_seen = true;
-                challenge = Some(ChallengeMode::parse(&args.next()?)?);
+                challenge = Some(args.next()?);
             }
             "--" => user = Some(args.next()?),
             _ if arg.starts_with('-') => return None,
@@ -61,9 +71,14 @@ fn main() -> ExitCode {
         return exit(CompareExit::Abort);
     }
     let started = Instant::now();
-    let Some((config_dir, data_dir, challenge, user)) = parse_args_from(std::env::args().skip(1))
+    let Some((config_dir, data_dir, challenge_arg, user)) =
+        parse_args_from(std::env::args().skip(1))
     else {
         eprintln!("{USAGE}");
+        return exit(CompareExit::Abort);
+    };
+    let Some(challenge) = read_challenge(&challenge_arg, std::io::stdin().lock()) else {
+        eprintln!("invalid challenge from PAM on the command line or stdin; {USAGE}");
         return exit(CompareExit::Abort);
     };
     if let Err(e) = validate_username(&user) {
@@ -163,7 +178,13 @@ fn main() -> ExitCode {
         let mut out = std::io::stdout();
         let _ = writeln!(out, "{LOW_LIGHT_SIGNAL}").and_then(|()| out.flush());
     });
-    let outcome = match verify_with_mode(&mut watched, &known, &params, challenge) {
+    // Tells PAM each stage as it is reached, so it shows one turn at a time.
+    let mut announce = |stage: peekin_core::compare::ChallengeStage| {
+        let mut out = std::io::stdout();
+        let _ =
+            writeln!(out, "{CHALLENGE_STAGE_PREFIX}{}", stage.number()).and_then(|()| out.flush());
+    };
+    let outcome = match verify_with_mode(&mut watched, &known, &params, challenge, &mut announce) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("{e}");
@@ -239,6 +260,18 @@ fn main() -> ExitCode {
     exit(outcome.exit())
 }
 
+/// The challenge from `--challenge` and stdin (read to its end, at most
+/// [`MAX_STDIN`] bytes); `None` for anything [`ChallengeMode::from_wire`]
+/// refuses or when stdin cannot be read.
+fn read_challenge(arg: &str, stdin: impl Read) -> Option<ChallengeMode> {
+    let mut line = Vec::new();
+    stdin.take(MAX_STDIN + 1).read_to_end(&mut line).ok()?;
+    if line.len() as u64 > MAX_STDIN {
+        return None;
+    }
+    ChallengeMode::from_wire(arg, &line)
+}
+
 /// Keeps (when `keep`) the last analysed frame with a face: the photo of a failed attempt.
 struct FaceFrames<'a> {
     source: &'a mut OpenCvFaceSource,
@@ -279,7 +312,7 @@ fn save_snapshot(config: &PeekinConfig, user: &str, image: &opencv::core::Mat) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn parsed(args: &[&str]) -> Option<(PathBuf, PathBuf, ChallengeMode, String)> {
+    fn parsed(args: &[&str]) -> Option<(PathBuf, PathBuf, String, String)> {
         parse_args_from(
             args.iter()
                 .map(|s| s.to_string())
@@ -287,46 +320,48 @@ mod tests {
                 .into_iter(),
         )
     }
+
     #[test]
-    fn cannot_compare_without_a_valid_unique_challenge() {
+    fn cannot_compare_without_a_unique_challenge_argument() {
         assert!(parsed(&["--", "alice"]).is_none());
-        assert!(parsed(&["--challenge", "bogus", "--", "alice"]).is_none());
-        assert!(parsed(&["--challenge", "left-right", "--", "alice"]).is_none());
-        assert!(parsed(&["--challenge", "left,right", "--", "alice"]).is_none());
         assert!(parsed(&[
             "--challenge",
-            "bogus",
+            "none",
             "--challenge",
-            "left,right,left",
+            "movement",
             "--",
             "alice"
         ])
         .is_none());
-        assert!(parsed(&[
-            "--challenge",
-            "left,right,left",
-            "--challenge",
-            "right,left,right",
-            "--",
-            "alice"
-        ])
-        .is_none());
-        let (.., challenge, user) =
-            parsed(&["--challenge", "right,left,right", "--", "alice"]).unwrap();
-        assert_eq!(user, "alice");
-        let ChallengeMode::Movement(order) = challenge else {
-            panic!("{challenge:?}")
+        let (.., challenge, user) = parsed(&["--challenge", "movement", "--", "alice"]).unwrap();
+        assert_eq!((challenge.as_str(), user.as_str()), ("movement", "alice"));
+    }
+
+    #[test]
+    fn the_sequence_comes_only_from_stdin() {
+        use peekin_core::compare::Turn;
+        let ChallengeMode::Movement(order) =
+            read_challenge("movement", &b"right,left,right\n"[..]).unwrap()
+        else {
+            panic!("movement expected")
         };
+        assert_eq!(order.turns(), [Turn::Right, Turn::Left, Turn::Right]);
         assert_eq!(
-            order.turns(),
-            [
-                peekin_core::compare::Turn::Right,
-                peekin_core::compare::Turn::Left,
-                peekin_core::compare::Turn::Right
-            ]
+            read_challenge("none", &b""[..]),
+            Some(ChallengeMode::Passive)
         );
-        let (.., challenge, _) = parsed(&["--challenge", "none", "--", "alice"]).unwrap();
-        assert_eq!(challenge, ChallengeMode::Passive);
-        assert!(parsed(&["--challenge", "", "--", "alice"]).is_none());
+        let long = format!("left,right,left\n{}", " ".repeat(64));
+        for (arg, stdin) in [
+            // The old wire format, with the sequence on the command line.
+            ("left,right,left", &b""[..]),
+            ("movement", b""),
+            ("movement", b"bogus\n"),
+            ("movement", b"left,right\n"),
+            ("movement", long.as_bytes()),
+            ("none", b"left,right,left\n"),
+            ("", b""),
+        ] {
+            assert_eq!(read_challenge(arg, stdin), None, "{arg:?} {stdin:?}");
+        }
     }
 }

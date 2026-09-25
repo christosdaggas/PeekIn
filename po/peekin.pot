@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 14:18+0000\n"
+"POT-Creation-Date: 2026-09-25 14:38+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,14 +27,7 @@ msgstr ""
 msgid "colour"
 msgstr ""
 
-msgid "LEFT"
-msgstr ""
-
-msgid "RIGHT"
-msgstr ""
-
-#, rust-format
-msgid "Face check: look at the camera, then turn your head {steps}, facing the camera again after each turn."
+msgid "Face check: look at the camera, then follow the head-turn instructions."
 msgstr ""
 
 msgid "Face check: look at the camera."

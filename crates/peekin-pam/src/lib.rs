@@ -162,6 +162,52 @@ pub fn check_lockout(state_dir: &Path, username: &str, now: u64, max_failures: u
     }
 }
 
+/// Turns the worker's `challenge-stage N` reports into the instruction for
+/// each step, strictly in order: the next turn is shown only after the worker
+/// saw the previous step performed. Directions come from PAM's own copy of
+/// the sequence, never from the worker.
+#[derive(Debug)]
+pub struct StagePrompts {
+    order: Option<peekin_core::compare::ChallengeOrder>,
+    /// Number of the last stage shown; the neutral stage (1) is the prompt
+    /// before the scan.
+    last: u8,
+}
+
+impl StagePrompts {
+    pub fn new(mode: peekin_core::compare::ChallengeMode) -> Self {
+        use peekin_core::compare::ChallengeMode;
+        Self {
+            order: match mode {
+                ChallengeMode::Movement(order) => Some(order),
+                ChallengeMode::Passive => None,
+            },
+            last: 1,
+        }
+    }
+
+    /// The instruction for stage `number`, or why the report breaks the
+    /// protocol (the scan must then stop).
+    pub fn next(&mut self, number: u8) -> Result<String, String> {
+        use peekin_core::compare::ChallengeStage;
+        let Some(order) = self.order else {
+            return Err(format!(
+                "the worker reported head-turn stage {number} without the challenge"
+            ));
+        };
+        let stage = ChallengeStage::announced(number)
+            .filter(|_| Some(number) == self.last.checked_add(1))
+            .ok_or_else(|| {
+                format!(
+                    "the worker reported head-turn stage {number} after stage {}",
+                    self.last
+                )
+            })?;
+        self.last = number;
+        Ok(stage.instruction(order))
+    }
+}
+
 /// What a finished scan does to the failed-attempt counter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CounterUpdate {
@@ -678,6 +724,42 @@ mod tests {
             ),
             CounterUpdate::Unchanged
         );
+    }
+
+    #[test]
+    fn head_turns_are_shown_one_by_one_in_order_only() {
+        use peekin_core::compare::{ChallengeMode, ChallengeOrder, Turn};
+        let order = ChallengeOrder::from_turns([Turn::Right, Turn::Left, Turn::Right]);
+        let mut prompts = StagePrompts::new(ChallengeMode::Movement(order));
+        let shown: Vec<String> = (2..=7).map(|n| prompts.next(n).unwrap()).collect();
+        assert_eq!(
+            shown,
+            [
+                "Turn your head RIGHT",
+                "Look straight at the camera again",
+                "Turn your head LEFT",
+                "Look straight at the camera again",
+                "Turn your head RIGHT",
+                "Look straight at the camera again",
+            ]
+        );
+        // Nothing past the last stage, and nothing twice.
+        assert!(prompts.next(8).is_err());
+        assert!(prompts.next(7).is_err());
+        // Skipping ahead, going back or the neutral stage is refused, so a
+        // later turn is never shown early.
+        for bad in [[3, 0], [4, 0], [1, 0], [0, 0], [2, 2], [2, 4], [2, 1]] {
+            let mut prompts = StagePrompts::new(ChallengeMode::Movement(order));
+            let first = prompts.next(bad[0]);
+            let result = if bad[0] == 2 {
+                prompts.next(bad[1])
+            } else {
+                first
+            };
+            assert!(result.is_err(), "{bad:?}");
+        }
+        // No stages at all without the challenge.
+        assert!(StagePrompts::new(ChallengeMode::Passive).next(2).is_err());
     }
 
     #[test]

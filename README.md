@@ -84,10 +84,10 @@ anything that is missing.
 
 PeekIn is a convenience, not a replacement for your password. The head-turn
 check stops photos, a still picture on a phone and an ordinary video of you.
-It does not stop a video of you turning your head, cut to follow the turns
-asked for or simply replayed when the same turns come up again: there are
-only 8 possible sequences, and the whole sequence is shown before the scan
-starts. A 3D mask or a live video feed can get through too, and a stranger
+Each turn is shown only after your face was recognised and the previous step
+was done, but it does not stop someone switching between clips of you
+turning left and right as each turn appears, or a video that happens to show
+the right turns (there are only 8 possible sequences). A 3D mask or a live video feed can get through too, and a stranger
 who looks enough like you can simply do the head turns. An approved infrared
 camera, the Secure level and the limit on failed attempts help;
 [Security](#security) below explains what each one does. Keep a strong
@@ -282,8 +282,8 @@ replaces config.ini only when every value in it is valid):
   login pauses for 15 minutes, or until the user logs in with the password,
   which resets the counter. Camera problems do not count. "No face seen"
   does not count either, but when the head turns were asked for, 10 such
-  scans in a row pause face login the same way: that is what someone gets by
-  hiding a recording whose turns do not match. The limit is slower so that
+  scans in a row pause face login the same way, so that attempts cannot be
+  restarted without limit. The limit is slower so that
   stepping away from the camera for a moment never pauses face login; a
   rejected face does not end this streak, a face or password login does, and
   it also ends 15 minutes after the last such scan. `0` turns both limits off.
@@ -465,21 +465,22 @@ conversation or missing landmarks falls back to password.
 
 What the head turns do and do not stop:
 
-- Each turn is LEFT or RIGHT, so there are 8 possible sequences, and the PAM
-  module names the whole sequence in one message before the scan starts
-  (PAM cannot prompt step by step during a scan).
+- Each turn is LEFT or RIGHT, so there are 8 possible sequences. The PAM
+  module shows one instruction at a time: before the scan only "look at the
+  camera", the first turn once the face was recognised in a neutral pose,
+  and each next step once the worker saw the previous one performed. The
+  sequence reaches the worker on its standard input, never on its command
+  line, which other local programs could read.
 - They stop a photograph, a phone showing a still image and a video that
-  does not show the announced turns in order.
-- They do not stop a recording of the user turning left and right that is
-  cut into the announced order once it is shown; all 8 versions can be
-  prepared in advance. An unedited recording of one complete sequence
-  matches 1 announced sequence in 8, and because the sequence is shown
-  before any face is needed, an attacker can hide the recording and start
-  again until theirs comes up. Scans without a face do not count as failed
-  attempts, but 10 of them in a row after the head turns were asked for
-  pause face login for 15 minutes too (see `max_failed_attempts`), so
-  waiting for the right sequence (1 in 8 on average) is limited to 10 tries
-  per pause.
+  does not show the instructed turns in order.
+- They do not stop someone switching between prepared clips of the user
+  turning left and right as each instruction appears, and an unedited
+  recording of one complete sequence still matches 1 sequence in 8. Nothing
+  about the turns is shown before a face is recognised, so hiding such a
+  recording once a turn does not match ends as a failed attempt, which
+  counts towards `max_failed_attempts`. Scans in which no face is seen at
+  all after the head turns were asked for have their own limit (10 in a
+  row, then a 15-minute pause), so no attempt can be restarted for free.
 - A live stranger can do the turns too, so they do not lower the stranger
   rates in [docs/THRESHOLDS.md](docs/THRESHOLDS.md): about 1 in 240 for a
   5-sample model at the default threshold.
@@ -499,8 +500,7 @@ What helps:
 - `[core] max_failed_attempts` left on (default 5 in a row, then a 15-minute
   pause, and 10 scans in a row without a face after the head turns were
   asked for). It limits how often a stranger or a recording can be tried in
-  front of the camera, including a recording that is hidden until its turns
-  come up.
+  front of the camera, including scans restarted without showing a face.
 - Treating face login as a convenience: it is a second way in next to the
   password, so an account is only as safe as the weaker of the two. Switch it
   off in `[services]` wherever that is not good enough.

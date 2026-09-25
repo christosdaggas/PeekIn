@@ -3,7 +3,7 @@
 //! Not certified liveness detection (ISO/IEC 30107): screen replays, deepfakes
 //! and 3D masks can still pass, so the password stays the real secret.
 
-use crate::i18n::{tr, tr_args};
+use crate::i18n::tr;
 use crate::matcher::{best_match, is_match};
 use crate::source::{FaceSource, SourceError};
 use std::io;
@@ -234,13 +234,6 @@ impl Turn {
         }
     }
 
-    fn word(self) -> String {
-        match self {
-            Self::Left => tr("LEFT"),
-            Self::Right => tr("RIGHT"),
-        }
-    }
-
     fn arg(self) -> &'static str {
         match self {
             Self::Left => "left",
@@ -302,7 +295,8 @@ impl ChallengeOrder {
         self.turns
     }
 
-    /// Wire form for `--challenge`, e.g. `"left,right,left"`.
+    /// Wire form, e.g. `"left,right,left"`: the one line PAM writes to the
+    /// worker's stdin (never its command line, which others can read).
     pub fn arg(self) -> String {
         self.turns
             .iter()
@@ -324,26 +318,14 @@ impl ChallengeOrder {
         }
         (count == CHALLENGE_TURNS).then_some(Self { turns })
     }
-
-    /// Prompt shown before the scan. PAM cannot prompt mid-scan, so it names
-    /// every turn.
-    pub fn prompt(self) -> String {
-        let steps = self
-            .turns
-            .iter()
-            .map(|turn| turn.word())
-            .collect::<Vec<_>>()
-            .join(", ");
-        tr_args(
-            "Face check: look at the camera, then turn your head {steps}, \
-             facing the camera again after each turn.",
-            &[("steps", &steps)],
-        )
-    }
 }
 
 /// Prompt for a scan without the movement challenge.
 pub const PASSIVE_PROMPT: &str = "Face check: look at the camera.";
+
+/// Prefix of the worker's stdout line announcing the challenge stage it has
+/// just entered, followed by [`ChallengeStage::number`].
+pub const CHALLENGE_STAGE_PREFIX: &str = "challenge-stage ";
 
 /// What PAM asks of the user on top of the identity match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -363,25 +345,44 @@ impl ChallengeMode {
         }
     }
 
-    /// `--challenge` wire form: `left,right,left` or `none`.
-    pub fn arg(self) -> String {
+    /// `--challenge` argument: `movement` or `none`. The sequence itself goes
+    /// through stdin ([`Self::stdin_line`]).
+    pub fn arg(self) -> &'static str {
         match self {
-            Self::Movement(order) => order.arg(),
-            Self::Passive => "none".into(),
+            Self::Movement(_) => "movement",
+            Self::Passive => "none",
         }
     }
 
-    pub fn parse(value: &str) -> Option<Self> {
-        if value == "none" {
-            Some(Self::Passive)
-        } else {
-            ChallengeOrder::parse(value).map(Self::Movement)
+    /// What PAM writes to the worker's stdin: the sequence and a newline, or
+    /// nothing without the challenge.
+    pub fn stdin_line(self) -> String {
+        match self {
+            Self::Movement(order) => format!("{}\n", order.arg()),
+            Self::Passive => String::new(),
         }
     }
 
+    /// The worker's side of [`Self::arg`] and [`Self::stdin_line`]: `None`
+    /// for anything else, including a sequence without the challenge.
+    pub fn from_wire(arg: &str, stdin: &[u8]) -> Option<Self> {
+        match (arg, stdin) {
+            ("none", []) => Some(Self::Passive),
+            ("movement", line) => {
+                let line = std::str::from_utf8(line).ok()?.strip_suffix('\n')?;
+                ChallengeOrder::parse(line).map(Self::Movement)
+            }
+            _ => None,
+        }
+    }
+
+    /// Shown before the scan. With the challenge it names no turn: each one is
+    /// shown only once the previous step was performed.
     pub fn prompt(self) -> String {
         match self {
-            Self::Movement(order) => order.prompt(),
+            Self::Movement(_) => {
+                tr("Face check: look at the camera, then follow the head-turn instructions.")
+            }
             Self::Passive => tr("Face check: look at the camera."),
         }
     }
@@ -417,6 +418,22 @@ impl ChallengeStage {
             Self::Turn(i) => 2 + 2 * i,
             Self::Center(i) => 3 + 2 * i,
             Self::FinalCenter | Self::Complete | Self::Failed => ChallengeOrder::STAGES,
+        }
+    }
+
+    /// The stage a worker announces with [`CHALLENGE_STAGE_PREFIX`]: one that
+    /// asks something new of the user, never the first or a final state.
+    pub fn announced(number: u8) -> Option<Self> {
+        let last_turn = CHALLENGE_TURNS as u8 - 1;
+        match number {
+            n if n == ChallengeOrder::STAGES => Some(Self::FinalCenter),
+            n if (2..ChallengeOrder::STAGES).contains(&n) && n % 2 == 0 => {
+                Some(Self::Turn(n / 2 - 1))
+            }
+            n if (3..ChallengeOrder::STAGES).contains(&n) && (n - 3) / 2 < last_turn => {
+                Some(Self::Center((n - 3) / 2))
+            }
+            _ => None,
         }
     }
 
@@ -679,11 +696,14 @@ pub fn verify<S: FaceSource>(
 
 /// Identity match followed by the movement challenge, with no fallback to
 /// plain matching.
+/// `on_stage` is called with each stage the tracker enters that asks
+/// something new of the user (see [`ChallengeStage::announced`]), in order.
 pub fn verify_with_challenge<S: FaceSource>(
     source: &mut S,
     known: &[(usize, Vec<f32>)],
     params: &VerifyParams,
     order: ChallengeOrder,
+    on_stage: &mut dyn FnMut(ChallengeStage),
 ) -> Result<VerifyOutcome, SourceError> {
     let initial = verify(source, known, params)?;
     let VerifyOutcome::Matched {
@@ -730,7 +750,11 @@ pub fn verify_with_challenge<S: FaceSource>(
         } else {
             None
         };
+        let before = tracker.stage();
         let stage = tracker.observe(stats.at, sample, params);
+        if stage != before && ChallengeStage::announced(stage.number()) == Some(stage) {
+            on_stage(stage);
+        }
         if stage == ChallengeStage::Failed {
             return Ok(VerifyOutcome::TimedOut {
                 all_dark: false,
@@ -757,9 +781,12 @@ pub fn verify_with_mode<S: FaceSource>(
     known: &[(usize, Vec<f32>)],
     params: &VerifyParams,
     mode: ChallengeMode,
+    on_stage: &mut dyn FnMut(ChallengeStage),
 ) -> Result<VerifyOutcome, SourceError> {
     match mode {
-        ChallengeMode::Movement(order) => verify_with_challenge(source, known, params, order),
+        ChallengeMode::Movement(order) => {
+            verify_with_challenge(source, known, params, order, on_stage)
+        }
         ChallengeMode::Passive => verify(source, known, params),
     }
 }
@@ -828,6 +855,7 @@ mod tests {
                 &known,
                 &params,
                 challenge,
+                &mut |_| {},
             )
             .unwrap();
             if turns == LRL.turns() {
@@ -858,8 +886,14 @@ mod tests {
     fn static_photo_never_completes_the_challenge() {
         let params = challenge_params();
         let known = [(0, vec![1.0, 0.0])];
-        let outcome =
-            verify_with_challenge(&mut challenge_frames(&[0.0; 20]), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut challenge_frames(&[0.0; 20]),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -877,8 +911,14 @@ mod tests {
         let known = [(0, vec![1.0, 0.0])];
         let mut yaws = successful_yaws(LRL);
         yaws[2] = -0.3;
-        let outcome =
-            verify_with_challenge(&mut challenge_frames(&yaws), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut challenge_frames(&yaws),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -898,8 +938,14 @@ mod tests {
         let known = [(0, vec![1.0, 0.0])];
         let mut yaws = vec![0.0, 0.0, 0.3, 0.3];
         yaws.extend([0.3; 8]);
-        let outcome =
-            verify_with_challenge(&mut challenge_frames(&yaws), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut challenge_frames(&yaws),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -928,8 +974,14 @@ mod tests {
             )
             .chain(std::iter::once((5_000, BRIGHT, vec![])))
             .collect();
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -943,6 +995,7 @@ mod tests {
             &known,
             &params,
             LRL,
+            &mut |_| {},
         )
         .unwrap();
         assert!(matches!(outcome, VerifyOutcome::Matched { .. }));
@@ -966,8 +1019,14 @@ mod tests {
             frames.push((400 + i as u64 * 100, BRIGHT, vec![seen]));
         }
         frames.push((5_000, BRIGHT, vec![]));
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -993,8 +1052,14 @@ mod tests {
             .chain((0..12).map(|i| (400 + i * 100, BRIGHT, vec![no_yaw.clone()])))
             .chain(std::iter::once((5_000, BRIGHT, vec![])))
             .collect();
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -1015,8 +1080,14 @@ mod tests {
             }))
             .chain(std::iter::once((5_000, BRIGHT, vec![])))
             .collect();
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(
             outcome,
             VerifyOutcome::TimedOut {
@@ -1038,8 +1109,14 @@ mod tests {
             .chain((0..30).map(|i| (400 + i * 100, DARK, vec![])))
             .chain(std::iter::once((5_000, DARK, vec![])))
             .collect();
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(outcome, VerifyOutcome::TimedOut { .. }));
         assert_ne!(outcome.exit(), CompareExit::Success);
 
@@ -1055,8 +1132,14 @@ mod tests {
                 frames.push((450 + i as u64 * 100, DARK, vec![]));
             }
         }
-        let outcome =
-            verify_with_challenge(&mut Scripted::new(frames), &known, &params, LRL).unwrap();
+        let outcome = verify_with_challenge(
+            &mut Scripted::new(frames),
+            &known,
+            &params,
+            LRL,
+            &mut |_| {},
+        )
+        .unwrap();
         assert!(matches!(outcome, VerifyOutcome::Matched { .. }));
     }
 
@@ -1131,22 +1214,106 @@ mod tests {
             ChallengeStage::Turn(2).instruction(LRL),
             "Turn your head LEFT"
         );
-        let prompt = LRL.prompt();
-        assert!(prompt.contains("LEFT"), "{prompt}");
-        let left_at = prompt.find("LEFT").unwrap();
-        let right_at = prompt.find("RIGHT").unwrap();
-        let left_again = prompt.rfind("LEFT").unwrap();
-        assert!(left_at < right_at && right_at < left_again, "{prompt}");
+        // The prompt before the scan names no turn.
+        let prompt = ChallengeMode::Movement(LRL).prompt();
+        assert!(
+            !prompt.contains("LEFT") && !prompt.contains("RIGHT"),
+            "{prompt}"
+        );
+    }
+
+    /// Each stage is reported once, in order, only when it is reached: the
+    /// next turn is never known to the user before the previous step.
+    #[test]
+    fn stages_are_reported_one_at_a_time_as_they_are_reached() {
+        let params = challenge_params();
+        let known = [(0, vec![1.0, 0.0])];
+        let mut seen = Vec::new();
+        let outcome = verify_with_challenge(
+            &mut challenge_frames(&successful_yaws(LRL)),
+            &known,
+            &params,
+            LRL,
+            &mut |stage| seen.push(stage),
+        )
+        .unwrap();
+        assert!(
+            matches!(outcome, VerifyOutcome::Matched { .. }),
+            "{outcome:?}"
+        );
+        use ChallengeStage::*;
+        assert_eq!(
+            seen,
+            [Turn(0), Center(0), Turn(1), Center(1), Turn(2), FinalCenter]
+        );
+        assert!(seen
+            .iter()
+            .all(|s| ChallengeStage::announced(s.number()) == Some(*s)));
+        // A wrong first turn: only the first turn was ever announced.
+        let mut yaws = successful_yaws(LRL);
+        yaws[2] = -0.3;
+        let mut seen = Vec::new();
+        verify_with_challenge(
+            &mut challenge_frames(&yaws),
+            &known,
+            &params,
+            LRL,
+            &mut |stage| seen.push(stage),
+        )
+        .unwrap();
+        assert_eq!(seen, [Turn(0)]);
+        // A photo: the face matches, but no turn is announced past the first.
+        let mut seen = Vec::new();
+        verify_with_challenge(
+            &mut challenge_frames(&[0.0; 20]),
+            &known,
+            &params,
+            LRL,
+            &mut |stage| seen.push(stage),
+        )
+        .unwrap();
+        assert_eq!(seen, [Turn(0)]);
+        for (number, stage) in [
+            (1, None),
+            (0, None),
+            (8, None),
+            (2, Some(Turn(0))),
+            (7, Some(FinalCenter)),
+        ] {
+            assert_eq!(ChallengeStage::announced(number), stage, "{number}");
+        }
     }
 
     #[test]
     fn challenge_mode_wire_format_and_config_agreement() {
-        assert_eq!(ChallengeMode::parse("none"), Some(ChallengeMode::Passive));
-        assert_eq!(ChallengeMode::Passive.arg(), "none");
+        let passive = ChallengeMode::Passive;
+        assert_eq!((passive.arg(), passive.stdin_line().as_str()), ("none", ""));
+        assert_eq!(ChallengeMode::from_wire("none", b""), Some(passive));
         let movement = ChallengeMode::Movement(LRL);
-        assert_eq!(ChallengeMode::parse(&movement.arg()), Some(movement));
-        for bad in ["", "None", "left", "none,left", "left,right,left,none"] {
-            assert_eq!(ChallengeMode::parse(bad), None, "{bad:?}");
+        // The sequence is never on the command line.
+        assert_eq!(movement.arg(), "movement");
+        assert_eq!(movement.stdin_line(), "left,right,left\n");
+        assert_eq!(
+            ChallengeMode::from_wire(movement.arg(), movement.stdin_line().as_bytes()),
+            Some(movement)
+        );
+        for (arg, stdin) in [
+            ("none", &b"left,right,left\n"[..]),
+            ("movement", b""),
+            ("movement", b"left,right,left"),
+            ("movement", b"left,right,left\n\n"),
+            ("movement", b"left,right,left\nleft,left,left\n"),
+            ("movement", b"left,right\n"),
+            ("movement", b"\xff\n"),
+            ("left,right,left", b""),
+            ("None", b""),
+            ("", b""),
+        ] {
+            assert_eq!(
+                ChallengeMode::from_wire(arg, stdin),
+                None,
+                "{arg:?} {stdin:?}"
+            );
         }
         assert!(movement.satisfies(true) && movement.satisfies(false));
         assert!(ChallengeMode::Passive.satisfies(false));
@@ -1172,6 +1339,7 @@ mod tests {
             &known,
             &params,
             ChallengeMode::Passive,
+            &mut |_| panic!("no stages without the challenge"),
         )
         .unwrap();
         assert!(
@@ -1183,6 +1351,7 @@ mod tests {
             &known,
             &params,
             ChallengeMode::Movement(LRL),
+            &mut |_| {},
         )
         .unwrap();
         assert!(

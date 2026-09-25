@@ -653,8 +653,12 @@ pub fn test_worker_main(
                 (_, TemporalDecision::Accepted { model, similarity }) => match mode {
                     ChallengeMode::Movement(challenge) => {
                         movement = Some(ChallengeTracker::new(challenge, model));
-                        write_packet(&mut out, Event::Challenge(challenge.prompt()))
-                            .map_err(|e| e.to_string())?;
+                        // As at login: one step at a time, starting with the neutral pose.
+                        write_packet(
+                            &mut out,
+                            Event::Challenge(ChallengeStage::Neutral.instruction(challenge)),
+                        )
+                        .map_err(|e| e.to_string())?;
                         TestStatus {
                             state: TestState::Challenge,
                             similarity: Some(similarity),

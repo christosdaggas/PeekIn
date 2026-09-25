@@ -1,10 +1,10 @@
 //! PAM entry points and the minimal libpam FFI. The face scan runs first; on failure PAM moves on to the password.
 
-use crate::run::{run_compare, RunEnd, WorkerIdentity};
+use crate::run::{run_compare, RunEnd, WorkerEvent, WorkerIdentity};
 use crate::status::{status_decision, ChildEnd, PamCode};
 use crate::{
     check_enabled, check_lockout, counter_update, user_has_session, CounterUpdate, Gate, Lockout,
-    Session, LID_STATE_DIR, LOGIND_USERS_DIR,
+    Session, StagePrompts, LID_STATE_DIR, LOGIND_USERS_DIR,
 };
 use peekin_core::activity;
 use peekin_core::backlight;
@@ -304,7 +304,8 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         }
     };
     match mode {
-        // One prompt names the whole sequence: PAM cannot deliver per-step prompts mid-scan.
+        // The prompt before the scan names no turn; each turn is shown once
+        // the worker saw the previous step performed.
         ChallengeMode::Movement(_) => {
             if !pam.tell(false, &mode.prompt()) {
                 pam.log(
@@ -325,14 +326,37 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         Duration::from_secs(config.attempt_secs(mode.is_movement()) as u64) + COMPARE_GRACE;
     // Raise the screen brightness for a colour camera in a dark scene until the scan ends.
     let mut boost = None;
-    let mut on_low_light = || {
-        if !config.brighten_screen() {
-            return;
+    let mut stages = StagePrompts::new(mode);
+    // Why the scan was stopped early, when it was.
+    let mut stopped = None;
+    let mut on_event = |event: WorkerEvent| match event {
+        WorkerEvent::LowLight => {
+            if config.brighten_screen() {
+                match backlight::raise(&args.backlight_dir) {
+                    Ok(raised) => boost = raised,
+                    // E.g. SELinux keeps the console and polkit domains away from sysfs.
+                    Err(error) => {
+                        pam.log(LOG_INFO, &format!("Cannot brighten the screen: {error}"))
+                    }
+                }
+            }
+            true
         }
-        match backlight::raise(&args.backlight_dir) {
-            Ok(raised) => boost = raised,
-            // E.g. SELinux keeps the console and polkit domains away from sysfs.
-            Err(error) => pam.log(LOG_INFO, &format!("Cannot brighten the screen: {error}")),
+        WorkerEvent::ChallengeStage(number) => match stages.next(number) {
+            Ok(instruction) if pam.tell(false, &instruction) => true,
+            // The user could not know the next step: stop without a failed attempt.
+            Ok(_) => {
+                stopped = Some("a head-turn instruction could not be shown".to_string());
+                false
+            }
+            Err(reason) => {
+                stopped = Some(reason);
+                false
+            }
+        },
+        WorkerEvent::Malformed => {
+            stopped = Some("the worker sent a malformed head-turn stage".to_string());
+            false
         }
     };
     let run = run_compare(
@@ -347,7 +371,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         },
         mode,
         deadline,
-        &mut on_low_light,
+        &mut on_event,
     );
     if let Some(mut boost) = boost {
         if let Err(error) = boost.restore() {
@@ -401,6 +425,28 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
             );
             pam.tell(true, &tr("Face recognition timed out; use your password"));
             PamCode::AuthErr as c_int
+        }
+        RunEnd::Cancelled => {
+            pam.log(
+                LOG_ERR,
+                &format!(
+                    "Face login stopped: {}; no failed attempt counted",
+                    stopped.as_deref().unwrap_or("stopped by the module")
+                ),
+            );
+            record_activity(
+                pam,
+                &args,
+                &user,
+                &session,
+                activity::Outcome::Unavailable,
+                None,
+            );
+            pam.tell(
+                true,
+                &tr("Face authentication is unavailable (see the system log); use your password"),
+            );
+            PamCode::AuthinfoUnavail as c_int
         }
         RunEnd::SpawnFailed(e) => {
             pam.log(
