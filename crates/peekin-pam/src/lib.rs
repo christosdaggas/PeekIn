@@ -28,9 +28,21 @@ pub struct Session {
     pub user_has_session: bool,
 }
 
+/// `PAM_RHOST` values naming this machine: the loopback addresses (also as an
+/// IPv4-mapped IPv6 address) and the usual names for them. Exact matches
+/// only (names ignoring case); anything else counts as remote.
+const LOCAL_HOSTS: &[&str] = &[
+    "localhost",
+    "localhost.localdomain",
+    "ip6-localhost",
+    "127.0.0.1",
+    "::1",
+    "::ffff:127.0.0.1",
+];
+
 impl Session {
     fn is_remote(&self) -> bool {
-        let local = |h: &str| h.is_empty() || matches!(h, "localhost" | "127.0.0.1" | "::1");
+        let local = |h: &str| h.is_empty() || LOCAL_HOSTS.iter().any(|l| h.eq_ignore_ascii_case(l));
         self.service.as_deref() == Some("sshd") || self.rhost.as_deref().is_some_and(|h| !local(h))
     }
 }
@@ -510,6 +522,41 @@ mod tests {
             Gate::Skip("PAM service is not enabled for face authentication")
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn loopback_names_and_addresses_are_local() {
+        let remote = |rhost: &str| {
+            Session {
+                service: Some("sudo".into()),
+                rhost: Some(rhost.into()),
+                user_has_session: false,
+            }
+            .is_remote()
+        };
+        for local in [
+            "",
+            "localhost",
+            "127.0.0.1",
+            "::1",
+            "::ffff:127.0.0.1",
+            "localhost.localdomain",
+            "ip6-localhost",
+            "LocalHost",
+            "::FFFF:127.0.0.1",
+        ] {
+            assert!(!remote(local), "{local:?}");
+        }
+        for far in [
+            "203.0.113.9",
+            "::ffff:203.0.113.9",
+            "localhost.example.com",
+            "ip6-localhost.example.com",
+            "my-localhost",
+            "::ffff:127.0.0.1.example.com",
+        ] {
+            assert!(remote(far), "{far:?}");
+        }
     }
 
     #[test]

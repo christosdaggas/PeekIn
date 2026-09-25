@@ -67,7 +67,11 @@ Do not show \(lqFace recognised: \&...\(rq after a match.
 .TP
 .BR abort_if_ssh " = true"
 .B security.
-Never scan in an SSH session.
+Never scan in an SSH session: the sshd service, the SSH environment
+variables, or a remote host
+.RB ( PAM_RHOST )
+other than this machine (localhost, localhost.localdomain, ip6-localhost,
+127.0.0.1, ::1 or ::ffff:127.0.0.1).
 .TP
 .BR abort_if_lid_closed " = true"
 .B security.
