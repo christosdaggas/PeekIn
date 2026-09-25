@@ -20,15 +20,36 @@ pub struct Snapshot {
     pub path: PathBuf,
 }
 
-fn file_name(time: u64, user: &str) -> String {
-    format!("{time:012}-{user}.jpg")
+/// Photos taken in the same second after the first one.
+const MAX_SEQ: u16 = 999;
+
+/// `<time>-<user>.jpg` for the first photo of a second, then
+/// `<time>.001-<user>.jpg` up to `.999`: fixed width, so name order is
+/// time order.
+fn file_name(time: u64, seq: u16, user: &str) -> String {
+    match seq {
+        0 => format!("{time:012}-{user}.jpg"),
+        seq => format!("{time:012}.{seq:03}-{user}.jpg"),
+    }
 }
 
 fn parse(path: &Path) -> Option<Snapshot> {
     let name = path.file_name()?.to_str()?;
-    let (time, user) = name.strip_suffix(".jpg")?.split_once('-')?;
+    let (stamp, user) = name.strip_suffix(".jpg")?.split_once('-')?;
+    let (time, seq) = match stamp.split_once('.') {
+        None => (stamp, None),
+        Some((time, seq)) => (time, Some(seq)),
+    };
     if time.len() != 12 || !time.bytes().all(|b| b.is_ascii_digit()) {
         return None;
+    }
+    if let Some(seq) = seq {
+        let valid = seq.len() == 3
+            && seq.bytes().all(|b| b.is_ascii_digit())
+            && seq.parse::<u16>().is_ok_and(|n| (1..=MAX_SEQ).contains(&n));
+        if !valid {
+            return None;
+        }
     }
     validate_username(user).ok()?;
     Some(Snapshot {
@@ -63,13 +84,28 @@ pub fn list(dir: &Path, user: &str) -> io::Result<Vec<Snapshot>> {
 /// Store `jpeg`, then delete `user`'s oldest photos beyond `keep`.
 pub fn save(dir: &Path, user: &str, time: u64, jpeg: &[u8], keep: u32) -> io::Result<PathBuf> {
     validate_username(user).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let path = dir.join(file_name(time, user));
-    // create_new also refuses to follow a planted symlink.
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&path)?;
+    // create_new never overwrites and refuses to follow a planted symlink; a
+    // name that is taken moves on to the next one of that second.
+    let (path, mut file) = (0..=MAX_SEQ)
+        .find_map(|seq| {
+            let path = dir.join(file_name(time, seq, user));
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(&path)
+            {
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => None,
+                opened => Some(opened.map(|file| (path, file))),
+            }
+        })
+        .unwrap_or_else(|| {
+            Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "too many photos in one second",
+            ))
+        })?;
     file.write_all(jpeg)?;
     file.sync_all()?;
     let mine = list(dir, user)?;
@@ -141,8 +177,55 @@ mod tests {
         assert!(list_all(&d).unwrap().is_empty());
         assert!(save(&d, "../etc", 1, b"x", 5).is_err());
         assert!(list(&d, "a/b").is_err());
-        save(&d, "alice", 7, b"x", 5).unwrap();
-        assert!(save(&d, "alice", 7, b"x", 5).is_err(), "never overwrites");
+        let first = save(&d, "alice", 7, b"x", 5).unwrap();
+        // A link planted where a later photo of that second would go is
+        // neither followed nor overwritten.
+        let target = d.join("target");
+        fs::write(&target, "untouched").unwrap();
+        std::os::unix::fs::symlink(&target, d.join("000000000007.001-alice.jpg")).unwrap();
+        let second = save(&d, "alice", 7, b"y", 5).unwrap();
+        assert_eq!(second, d.join("000000000007.002-alice.jpg"));
+        assert_eq!(fs::read(&first).unwrap(), b"x", "never overwrites");
+        assert_eq!(fs::read_to_string(&target).unwrap(), "untouched");
+        for bad in [
+            "000000000007.1-alice.jpg",
+            "000000000007.000-alice.jpg",
+            "000000000007.0001-alice.jpg",
+            "000000000007.-alice.jpg",
+            "000000000007.abc-alice.jpg",
+        ] {
+            fs::write(d.join(bad), "x").unwrap();
+        }
+        assert_eq!(list(&d, "alice").unwrap().len(), 2, "odd names are ignored");
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn several_failures_in_one_second_are_all_kept_in_order() {
+        let d = dir("same-second");
+        let paths: Vec<_> = (0..4)
+            .map(|i| save(&d, "alice", 1_790_000_000, &[i], 3).unwrap())
+            .collect();
+        assert_eq!(paths[1].file_name().unwrap(), "001790000000.001-alice.jpg");
+        let kept = list(&d, "alice").unwrap();
+        // The newest three, oldest first.
+        assert_eq!(
+            kept.iter()
+                .map(|s| fs::read(&s.path).unwrap())
+                .collect::<Vec<_>>(),
+            [[1], [2], [3]]
+        );
+        assert!(kept.iter().all(|s| s.time == 1_790_000_000));
+        // A later second still sorts after every photo of an earlier one.
+        save(&d, "alice", 1_790_000_001, &[4], 3).unwrap();
+        assert_eq!(
+            list(&d, "alice")
+                .unwrap()
+                .iter()
+                .map(|s| fs::read(&s.path).unwrap())
+                .collect::<Vec<_>>(),
+            [[2], [3], [4]]
+        );
         let _ = fs::remove_dir_all(d);
     }
 }
