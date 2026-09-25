@@ -220,16 +220,19 @@ ensure_service_account() {
 selinux_install() {
     [ "$SELINUX" = 1 ] && [ -f "$SELINUX_PP" ] && command -v semodule >/dev/null 2>&1 || return 0
     semodule -i "$SELINUX_PP" || { log "could not load the SELinux module; the lock screen may not reach the camera"; return 0; }
-    # Label the failed-attempt counters written from the login screen.
-    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin >/dev/null 2>&1
+    # Label the failed-attempt counters written from the login screen, and the
+    # face model store in memory: tmpfiles creates it in %post, before this
+    # module is loaded, and the login screen may only read it with its own type.
+    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin /run/peekin >/dev/null 2>&1
     return 0
 }
 
 selinux_remove() {
     [ "$SELINUX" = 1 ] && command -v semodule >/dev/null 2>&1 || return 0
     semodule -l 2>/dev/null | grep -qx peekin && semodule -r peekin >/dev/null 2>&1
-    # Counters left behind would otherwise keep the removed type (unlabeled_t).
-    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin >/dev/null 2>&1
+    # Counters and decrypted models left behind would otherwise keep the
+    # removed type (unlabeled_t).
+    command -v restorecon >/dev/null 2>&1 && restorecon -R /var/lib/peekin /var/lib/peekin-activity /var/log/peekin /run/peekin >/dev/null 2>&1
     return 0
 }
 
@@ -258,6 +261,10 @@ case "${1:-}" in
         rc=0
         migrate_from_linux_hello || rc=1
         migrate_models || rc=1
+        # The SELinux module before the face models are decrypted into
+        # /run/peekin/models: a file created there earlier keeps the generic
+        # /run type, which the lock screen may not read ("no face model").
+        selinux_install
         # Encrypt plaintext face models on disk and decrypt all into memory,
         # without waiting for the next boot (peekin-models.service).
         if [ -x "${PEEKIN_CLI:-/usr/bin/peekin}" ]; then
@@ -265,7 +272,6 @@ case "${1:-}" in
                 { log "face models could not be decrypted; see: sudo peekin doctor"; rc=1; }
         fi
         ensure_service_account || rc=1
-        selinux_install
         if pam_stage sudo sudo && pam_stage gdm-password gdm; then
             pam_commit_pair || exit 1
         else

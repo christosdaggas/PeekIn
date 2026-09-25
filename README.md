@@ -190,7 +190,9 @@ models are included. After installation the package (see
 
 - repair the face model store permissions and add the service account to
   the `video` group (this runs first and even when PAM integration is refused),
-- load the SELinux module `peekin` (lets GDM map the camera buffers),
+- load the SELinux module `peekin` (lets GDM map the camera buffers and read
+  the decrypted face models) and relabel the face model store in memory,
+  before the models are decrypted into it,
 - add `auth [success=done default=ignore] pam_peekin.so` immediately before
   `pam_unix.so`. Direct standalone sudo/GDM stacks use a validated local edit.
   For Fedora's standard `include system-auth`/`substack password-auth` services,
@@ -471,8 +473,9 @@ heuristics, not empirically calibrated quality or accessibility guarantees.
 
 `sudo peekin doctor` checks the configuration, the ONNX models, the
 service account, access to your face model, the camera (including whether the
-service account may open it), PAM integration and the SELinux module, and
-prints the command that fixes each problem. `sudo
+service account may open it), PAM integration, the SELinux module and the
+SELinux labels of the face model store, and prints the command that fixes
+each problem. `sudo
 /usr/libexec/peekin/system-setup install` is idempotent and repairs
 permissions, group membership, SELinux and PAM integration.
 

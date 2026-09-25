@@ -566,6 +566,44 @@ fn selinux_type(path: &Path) -> Option<String> {
     context.split(':').nth(2).map(str::to_string)
 }
 
+const MODEL_STORE_SELINUX_TYPE: &str = "peekin_run_t";
+
+/// With the wrong type the login and lock screen (xdm_t) cannot even stat the
+/// face model, and PAM falls through to the password ("no face model for user").
+fn check_model_store_label(report: &mut Report, path: &Path, actual: Option<&str>) {
+    let Some(other) = actual.filter(|t| *t != MODEL_STORE_SELINUX_TYPE) else {
+        return;
+    };
+    report.add(
+        Level::Fail,
+        "selinux",
+        format!(
+            "{} has SELinux type {other}, not {MODEL_STORE_SELINUX_TYPE}: the login and lock \
+             screen cannot read the face models and fall back to the password; repair with: \
+             {REPAIR}",
+            path.display()
+        ),
+    );
+}
+
+/// Installed systems read the decrypted face models from memory; a store filled
+/// before the policy module was loaded carries the generic /run type.
+fn check_model_store_labels(report: &mut Report, paths: &PeekinPaths, user: &str) {
+    if paths.sealed_models_dir().is_none() {
+        return; // a development tree keeps plaintext models under its config dir
+    }
+    let mut targets = vec![paths.user_models_dir().to_path_buf()];
+    if let Ok(file) = paths.user_model_path(user) {
+        if file.exists() {
+            targets.push(file);
+        }
+    }
+    for path in targets {
+        let actual = selinux_type(&path);
+        check_model_store_label(report, &path, actual.as_deref());
+    }
+}
+
 /// With the wrong type PAM cannot record failures from the login screen, console or polkit.
 fn check_lockout_label(report: &mut Report, config: &PeekinConfig, actual: Option<&str>) {
     let Some(other) = actual.filter(|t| *t != LOCKOUT_SELINUX_TYPE) else {
@@ -710,6 +748,7 @@ pub fn run(paths: &PeekinPaths, user: &str) -> Report {
         if selinux_enforcing() {
             let actual = selinux_type(Path::new(peekin_core::lockout::STATE_DIR));
             check_lockout_label(&mut report, config, actual.as_deref());
+            check_model_store_labels(&mut report, paths, user);
         }
     }
     check_pam(&mut report, Path::new("/etc/pam.d"));
@@ -860,6 +899,67 @@ mod tests {
         let mut report = Report::default();
         check_lockout_label(&mut report, &off, Some("var_lib_t"));
         assert!(report.0.is_empty(), "{:?}", report.0);
+    }
+
+    #[test]
+    fn model_store_needs_its_selinux_type() {
+        let mut report = Report::default();
+        let file = Path::new("/run/peekin/models/alice.dat");
+        check_model_store_label(&mut report, file, Some("peekin_run_t"));
+        check_model_store_label(&mut report, file, None);
+        assert!(report.0.is_empty(), "{:?}", report.0);
+        // Created before the policy module was loaded: the login screen (xdm_t)
+        // may not even stat it, so PAM reports "no face model for user".
+        check_model_store_label(&mut report, file, Some("var_run_t"));
+        assert_eq!(report.worst(), Level::Fail);
+        let message = &report.0[0].message;
+        assert!(
+            message.contains("var_run_t")
+                && message.contains("peekin_run_t")
+                && message.contains("alice.dat")
+                && message.contains(REPAIR),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn model_store_labels_are_checked_on_installed_systems_only() {
+        // Only meaningful on an SELinux host; elsewhere there is no label.
+        if !Path::new("/sys/fs/selinux/enforce").exists() {
+            return;
+        }
+        let dir = temp("store-label");
+        let (run, etc) = (dir.join("run"), dir.join("etc"));
+        std::fs::create_dir_all(&run).unwrap();
+        std::fs::create_dir_all(&etc).unwrap();
+        std::fs::write(run.join("alice.dat"), "[]").unwrap();
+        let mut paths = PeekinPaths::from_dirs(etc.clone(), dir.join("data"));
+        paths.user_models_dir = run.clone();
+        // A development tree keeps plaintext models; no label is required.
+        let mut report = Report::default();
+        check_model_store_labels(&mut report, &paths, "alice");
+        assert!(report.0.is_empty(), "{:?}", report.0);
+        // An installed system reads the store from memory, which must be
+        // peekin_run_t; a temporary directory never is. The directory and the
+        // user's model are both reported.
+        paths.sealed_models_dir = Some(etc);
+        check_model_store_labels(&mut report, &paths, "alice");
+        let messages: Vec<_> = report.0.iter().map(|f| f.message.as_str()).collect();
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert!(
+            report.0.iter().all(|f| f.level == Level::Fail),
+            "{messages:?}"
+        );
+        assert!(
+            messages[0].starts_with(&run.display().to_string()),
+            "{messages:?}"
+        );
+        assert!(messages[1].contains("alice.dat"), "{messages:?}");
+        // Nothing to say about a model that does not exist.
+        let mut report = Report::default();
+        check_model_store_labels(&mut report, &paths, "nobody");
+        assert_eq!(report.0.len(), 1, "{:?}", report.0);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

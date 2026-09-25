@@ -1,6 +1,6 @@
 Name:           peekin
 Version:        1.0.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Face authentication for Linux
 Packager:       Christos A. Daggas <info@chrisdaggas.com>
 Vendor:         Christos A. Daggas
@@ -209,5 +209,10 @@ fi
 %{_mandir}/man8/pam_peekin.8*
 
 %changelog
+* Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-2
+- Load the SELinux module before decrypting the face models and relabel
+  /run/peekin, so the lock screen can read models decrypted at install time
+- peekin doctor reports a face model store the login screen cannot read
+
 * Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-1
 - First release of PeekIn.

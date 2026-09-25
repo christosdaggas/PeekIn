@@ -216,6 +216,46 @@ echo 'edited after the upgrade' > "$M/new/etc/config.ini"
 migrate
 grep -q 'edited after the upgrade' "$M/new/etc/config.ini"
 
+# The SELinux module is loaded, and the face model store in memory relabelled,
+# before the face models are decrypted into it. The store is created by
+# tmpfiles in %post, before the module exists, so anything written there
+# earlier keeps the generic /run type, which the lock screen may not read
+# ("no face model for user"). Removal relabels it as well.
+S="$ROOT/selinux"
+mkdir -p "$S/bin"
+cat > "$S/bin/semodule" <<EOF
+#!/bin/sh
+echo "semodule \$*" >> "$S/calls"
+[ "\$1" = -l ] && echo peekin
+exit 0
+EOF
+cat > "$S/bin/restorecon" <<EOF
+#!/bin/sh
+echo "restorecon \$*" >> "$S/calls"
+EOF
+cat > "$S/bin/peekin" <<EOF
+#!/bin/sh
+echo "peekin \$*" >> "$S/calls"
+EOF
+chmod +x "$S/bin/semodule" "$S/bin/restorecon" "$S/bin/peekin"
+: > "$S/peekin.pp"
+cat > "$ROOT/pam/sudo" <<'EOF'
+auth required pam_env.so
+auth sufficient pam_unix.so
+auth required pam_deny.so
+EOF
+valid_gdm
+PATH="$S/bin:$PATH" PEEKIN_CLI="$S/bin/peekin" SELINUX=1 SELINUX_PP="$S/peekin.pp" \
+    PAM_DIR="$ROOT/pam" CONFIG_FILE="$ROOT/missing" ./packaging/system-setup install
+grep -q '^semodule -i ' "$S/calls"
+grep -q '^peekin unseal-models$' "$S/calls"
+[ "$(grep -n '^semodule -i ' "$S/calls" | cut -d: -f1)" -lt "$(grep -n '^peekin unseal-models$' "$S/calls" | cut -d: -f1)" ]
+grep -q '^restorecon .*/run/peekin' "$S/calls"
+: > "$S/calls"
+PATH="$S/bin:$PATH" SELINUX=1 PAM_DIR="$ROOT/pam" CONFIG_FILE="$ROOT/missing" ./packaging/system-setup remove
+grep -q '^semodule -r peekin$' "$S/calls"
+grep -q '^restorecon .*/run/peekin' "$S/calls"
+
 # Uninstall must refuse unknown custom rules instead of removing their module.
 cat > "$ROOT/pam/sudo" <<'EOF'
 auth required pam_peekin.so custom_option
