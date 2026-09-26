@@ -71,12 +71,14 @@ else
 fi
 
 [ "${SRPM_ONLY:-0}" = 1 ] && { echo ">>> Done: $TOP/SRPMS"; exit 0; }
-# Only this build's main binary package, so dist/rpm holds exactly one
-# installable RPM (no debuginfo/debugsource, no older releases).
+# Export this release's main and debug packages for CI checks and artifacts.
+# The install command below selects only the main package, not debug packages.
 RELEASE="$(sed -n 's/^Release:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SPEC")"
 mkdir -p "$DIST"
 rm -f "$DIST"/$NAME-*.rpm
-find "$TOP/RPMS" -name "$NAME-$VERSION-$RELEASE.*.rpm" -exec cp -p {} "$DIST"/ \;
+find "$TOP/RPMS" \( -name "$NAME-$VERSION-$RELEASE.*.rpm" \
+    -o -name "$NAME-debuginfo-$VERSION-$RELEASE.*.rpm" \
+    -o -name "$NAME-debugsource-$VERSION-$RELEASE.*.rpm" \) -exec cp -p {} "$DIST"/ \;
 
 echo
 echo ">>> Done:"
