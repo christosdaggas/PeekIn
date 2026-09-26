@@ -181,6 +181,44 @@ pub fn authselect_services(sudo: &str, gdm: &str) -> bool {
         })
 }
 
+/// Debian's service-local face rule precedes @include common-auth. The GDM
+/// nologin and root checks must precede that rule as well.
+pub fn debian_services(sudo: &str, gdm: &str) -> bool {
+    fn auth_lines(body: &str) -> Vec<Vec<&str>> {
+        body.lines()
+            .filter_map(|raw| {
+                let line = raw.split_once(" #").map_or(raw, |(line, _)| line).trim();
+                let fields: Vec<_> = line.split_whitespace().collect();
+                (fields.first() == Some(&"auth")
+                    || fields.first() == Some(&"@include") && fields.get(1) == Some(&"common-auth"))
+                .then_some(fields)
+            })
+            .collect()
+    }
+    let rule = ["auth", "[success=done", "default=ignore]", "pam_peekin.so"];
+    let include = ["@include", "common-auth"];
+    let sudo = auth_lines(sudo);
+    let gdm = auth_lines(gdm);
+    sudo == [rule.to_vec(), include.to_vec()]
+        && gdm.starts_with(&[
+            vec!["auth", "requisite", "pam_nologin.so"],
+            vec![
+                "auth",
+                "required",
+                "pam_succeed_if.so",
+                "user",
+                "!=",
+                "root",
+                "quiet_success",
+            ],
+            rule.to_vec(),
+            include.to_vec(),
+        ])
+        && gdm[4..]
+            .iter()
+            .all(|line| line == &["auth", "optional", "pam_gnome_keyring.so"])
+}
+
 pub fn parse_model_metadata(
     output: &str,
     expected_user: &str,
@@ -543,6 +581,23 @@ mod tests {
         ));
         assert!(!pam_rule_present("auth sufficient pam_peekin.so debug\n"));
         assert!(!pam_rule_present("auth sufficient pam_peekin.so\nauth requisite pam_deny.so\nauth sufficient pam_unix.so\nauth required pam_deny.so\n"));
+    }
+
+    #[test]
+    fn debian_readiness_sees_only_a_rule_after_the_gdm_guards() {
+        let rule = "auth [success=done default=ignore] pam_peekin.so\n";
+        let sudo = format!("# sudo\n{rule}@include common-auth\n@include common-account\n");
+        let gdm = format!("auth requisite pam_nologin.so\nauth required pam_succeed_if.so user != root quiet_success\n{rule}@include common-auth\nauth optional pam_gnome_keyring.so\n@include common-session\n");
+        assert!(debian_services(&sudo, &gdm));
+        assert!(!debian_services(
+            &sudo,
+            &gdm.replace("auth requisite pam_nologin.so\n", "")
+        ));
+        assert!(!debian_services(
+            &sudo,
+            &gdm.replace("user != root", "user = root")
+        ));
+        assert!(!debian_services(&sudo.replace(rule, ""), &gdm));
     }
 
     #[test]

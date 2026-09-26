@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+[ "$1" = configure ] || exit 0
+
+systemd-sysusers /usr/lib/sysusers.d/peekin.conf
+getent passwd peekin >/dev/null
+getent group peekin >/dev/null
+if getent group video >/dev/null && ! id -nG peekin | tr ' ' '\n' | grep -qx video; then
+    usermod -aG video peekin
+fi
+[ ! -L /etc/peekin/models ] && [ ! -L /var/lib/peekin/failures ] || {
+    echo 'peekin: refusing symlinked model or counter directory' >&2
+    exit 1
+}
+install -d -m 0750 -o root -g peekin /etc/peekin/models
+install -d -m 0700 -o root -g root /var/lib/peekin /var/lib/peekin/failures
+install -d -m 0711 -o root -g root /var/lib/peekin-activity
+install -d -m 0700 -o peekin -g peekin /var/log/peekin
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/peekin.conf
+# Existing face files may have been installed with root-only permissions.
+for model in /etc/peekin/models/*.dat; do
+    [ -f "$model" ] && [ ! -L "$model" ] || continue
+    chown root:peekin "$model"
+    chmod 0640 "$model"
+done
+
+systemctl daemon-reload || :
+systemctl enable peekin-models.service || :
+systemctl --global enable peekin-session.service || :
+# Decrypt now as well as on future boots; no camera or enrolled user is needed.
+/usr/bin/peekin unseal-models || echo 'peekin: model decryption failed; run sudo peekin doctor' >&2
+if [ -d /run/systemd/system ]; then
+    systemctl start peekin-models.service || :
+fi
+
+if ! /usr/libexec/peekin/debian-pam-setup install; then
+    echo 'peekin: PAM unchanged; run sudo peekin doctor and review the sudo/GDM stacks' >&2
+fi
+exit 0

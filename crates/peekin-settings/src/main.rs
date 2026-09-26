@@ -512,6 +512,7 @@ impl Ui {
         let pam_ready = match (sudo.as_deref(), gdm.as_deref()) {
             (Ok(sudo), Ok(gdm)) => {
                 (ui_state::pam_rule_present(sudo) && ui_state::pam_rule_present(gdm))
+                    || ui_state::debian_services(sudo, gdm)
                     || (ui_state::authselect_services(sudo, gdm)
                         && std::fs::read_to_string("/etc/authselect/authselect.conf")
                             .is_ok_and(|raw| raw.lines().next() == Some("custom/peekin"))

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ]; then
+    # Never leave a live PAM reference to an about-to-be-removed module.
+    /usr/libexec/peekin/debian-pam-setup remove
+    systemctl --global disable peekin-session.service || :
+    systemctl disable --now peekin-models.service || :
+fi
+exit 0

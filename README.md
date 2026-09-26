@@ -75,6 +75,24 @@ sudo dnf install dist/rpm/peekin-[0-9]*.rpm
 sudo peekin doctor
 ```
 
+On Debian 13 (amd64), build and install the Debian package **on Debian**:
+
+```sh
+sudo apt install build-essential pkg-config dpkg-dev gettext libclang-dev \
+    libopencv-dev libpam0g-dev libgtk-4-dev libadwaita-1-dev
+packaging/build-deb.sh        # -> dist/deb/peekin_1.0.0-1_amd64.deb
+sudo apt install ./dist/deb/peekin_1.0.0-1_amd64.deb
+sudo peekin doctor
+```
+
+The Debian package builds against Debian libraries and adds the face rule only
+to validated `/etc/pam.d/sudo` and `/etc/pam.d/gdm-password` stacks, before
+their `@include common-auth` lines. It never edits `common-auth`. Unsupported
+PAM layouts are left alone (password login still works); `peekin doctor` shows
+whether integration succeeded. A GNOME/GDM session and an accessible camera
+are needed for login and lock-screen recognition. Removing the package removes
+its PAM rules; settings and enrolled faces are retained.
+
 Then open **PeekIn** from your applications and add your face. That's it.
 
 `sudo peekin doctor` checks the whole installation and tells you how to fix

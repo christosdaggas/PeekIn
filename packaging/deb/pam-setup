@@ -1,0 +1,125 @@
+#!/bin/sh
+# Debian's sudo and GDM include common-auth. Add a face rule to those two
+# services only; never edit pam-auth-update's shared common-auth stack.
+set -eu
+
+PAM_DIR=${PAM_DIR:-/etc/pam.d}
+RULE='auth [success=done default=ignore] pam_peekin.so'
+
+validate() {
+    [ -f "$PAM_DIR/sudo" ] && [ -f "$PAM_DIR/gdm-password" ] || return 1
+    # Refuse unfamiliar authentication controls: a PAM success must not skip
+    # a required gate (in particular GDM's root and nologin checks).
+    awk -v kind="$1" '
+        function fail() { bad=1; exit 1 }
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        {
+            if ($1 == "@include") {
+                if ($2 == "common-auth" && NF == 2) {
+                    if (++common != 1) fail()
+                    if (kind == "gdm-password" && (nologin != 1 || rootcheck != 1)) fail()
+                } else if ($2 !~ /^common-(account|session|session-noninteractive|password)$/ || NF != 2) fail()
+                next
+            }
+            if ($1 != "auth" && $1 != "-auth") next
+            if ($1 == "-auth" || common > 1) fail()
+            if ($2 == "[success=done" && $3 == "default=ignore]" && $4 == "pam_peekin.so" && NF == 4) {
+                if (common || ++ours != 1) fail()
+            } else if (kind == "gdm-password" && !common && $2 == "requisite" && $3 == "pam_nologin.so" && NF == 3) {
+                if (++nologin != 1) fail()
+            } else if (kind == "gdm-password" && !common && $2 == "required" && $3 == "pam_succeed_if.so" &&
+                       $4 == "user" && $5 == "!=" && $6 == "root" && $7 == "quiet_success" && NF == 7) {
+                if (++rootcheck != 1 || nologin != 1) fail()
+            } else if (kind == "gdm-password" && common == 1 && $2 == "optional" && $3 == "pam_gnome_keyring.so" && NF == 3) {
+                next
+            } else fail()
+        }
+        END { if (bad || common != 1 || (kind == "gdm-password" && (nologin != 1 || rootcheck != 1))) exit 1 }
+    ' "$PAM_DIR/$1" || return 1
+    # Do not mistake an unknown/comment-adjacent use for our single rule.
+    ! awk '
+        /^[[:space:]]*#/ { next }
+        /pam_peekin\.so/ {
+            if ($1 != "auth" || $2 != "[success=done" || $3 != "default=ignore]" || $4 != "pam_peekin.so" || NF != 4) bad=1
+        }
+        END { exit !bad }
+    ' "$PAM_DIR/$1"
+}
+
+check_removal() {
+    [ ! -e "$PAM_DIR/$1" ] && return 0
+    [ -f "$PAM_DIR/$1" ] && [ ! -L "$PAM_DIR/$1" ] || return 1
+    ! awk '
+        /^[[:space:]]*#/ { next }
+        /pam_peekin\.so/ {
+            if ($1 != "auth" || $2 != "[success=done" || $3 != "default=ignore]" || $4 != "pam_peekin.so" || NF != 4) bad=1
+        }
+        END { exit !bad }
+    ' "$PAM_DIR/$1"
+}
+
+case ${1:-} in
+    install)
+        if ! validate sudo || ! validate gdm-password; then
+            echo 'peekin: unsupported Debian sudo/GDM PAM layout; face login not enabled (password unaffected)' >&2
+            exit 1
+        fi
+        ;;
+    remove)
+        if [ -f "$PAM_DIR/common-auth" ] &&
+            awk '/^[[:space:]]*#/ { next } /pam_peekin\.so/ { found=1 } END { exit !found }' "$PAM_DIR/common-auth"; then
+            echo 'peekin: common-auth still references pam_peekin.so; remove it before uninstalling' >&2
+            exit 1
+        fi
+        if ! check_removal sudo || ! check_removal gdm-password; then
+            echo 'peekin: unknown PAM reference to pam_peekin.so; remove it before uninstalling' >&2
+            exit 1
+        fi
+        # GDM may have been removed before PeekIn. The missing service cannot
+        # reference our module, so clean up whichever stack still exists.
+        if [ ! -e "$PAM_DIR/sudo" ] || [ ! -e "$PAM_DIR/gdm-password" ]; then
+            for name in sudo gdm-password; do
+                [ -f "$PAM_DIR/$name" ] || continue
+                tmp=$(mktemp "$PAM_DIR/.$name.peekin.XXXXXX")
+                trap 'rm -f "$tmp"' EXIT HUP INT TERM
+                awk '!( $1 == "auth" && $2 == "[success=done" && $3 == "default=ignore]" && $4 == "pam_peekin.so" && NF == 4 )' "$PAM_DIR/$name" > "$tmp"
+                chown --reference="$PAM_DIR/$name" "$tmp"
+                chmod --reference="$PAM_DIR/$name" "$tmp"
+                mv -f "$tmp" "$PAM_DIR/$name"
+            done
+            exit 0
+        fi
+        ;;
+    *) echo "usage: $0 install|remove" >&2; exit 2 ;;
+esac
+
+sudo_tmp=$(mktemp "$PAM_DIR/.sudo.peekin.XXXXXX")
+gdm_tmp=$(mktemp "$PAM_DIR/.gdm-password.peekin.XXXXXX")
+sudo_old=$(mktemp "$PAM_DIR/.sudo.peekin-old.XXXXXX")
+gdm_old=$(mktemp "$PAM_DIR/.gdm-password.peekin-old.XXXXXX")
+trap 'rm -f "$sudo_tmp" "$gdm_tmp" "$sudo_old" "$gdm_old"' EXIT HUP INT TERM
+
+stage() {
+    src="$PAM_DIR/$1" dest=$2
+    awk -v action="$3" -v rule="$RULE" '
+        /^[[:space:]]*#/ { print; next }
+        {
+            if ($1 == "auth" && $2 == "[success=done" && $3 == "default=ignore]" && $4 == "pam_peekin.so" && NF == 4) next
+            if (action == "install" && $1 == "@include" && $2 == "common-auth" && NF == 2) print rule
+            print
+        }
+    ' "$src" > "$dest"
+    chown --reference="$src" "$dest"
+    chmod --reference="$src" "$dest"
+}
+
+stage sudo "$sudo_tmp" "$1"
+stage gdm-password "$gdm_tmp" "$1"
+cp -p "$PAM_DIR/sudo" "$sudo_old"
+cp -p "$PAM_DIR/gdm-password" "$gdm_old"
+mv -f "$sudo_tmp" "$PAM_DIR/sudo"
+if ! mv -f "$gdm_tmp" "$PAM_DIR/gdm-password"; then
+    mv -f "$sudo_old" "$PAM_DIR/sudo"
+    exit 1
+fi
+echo "peekin: Debian sudo/GDM PAM integration: $1" >&2
