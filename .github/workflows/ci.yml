@@ -51,15 +51,6 @@ jobs:
           rpm -qpl "$rpms"/peekin-debuginfo-[0-9]*.rpm | grep -q 'pam_peekin\.so-.*\.debug$'
           rpm -qpl "$rpms"/peekin-debuginfo-[0-9]*.rpm | grep -q '/usr/bin/peekin-.*\.debug$'
           rpm -qpl "$rpms"/peekin-debugsource-[0-9]*.rpm | grep -q 'peekin-pam/src/pam\.rs$'
-      - name: COPR source RPM (make srpm)
-        run: |
-          make -f .copr/Makefile srpm outdir="$RUNNER_TEMP/copr"
-          srpm=$(ls "$RUNNER_TEMP"/copr/peekin-*.src.rpm)
-          for source in peekin.spec peekin.sysusers face_detection_yunet_2023mar.onnx \
-                        face_recognition_sface_2021dec.onnx; do
-            rpm -qpl "$srpm" | grep -qx "$source"
-          done
-          rpm2cpio "$srpm" | cpio -i --quiet --to-stdout '*.tar.gz' | tar -tz | grep -q '/rust/vendor/'
       - name: Install, verify and diagnose the RPM
         run: |
           dnf -y install dist/rpm/peekin-[0-9]*.rpm

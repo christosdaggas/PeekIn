@@ -1,8 +1,8 @@
-## What and why
+## Changes and reason
 
-## How it was tested
+## Testing
 
-- [ ] `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test` pass
-- [ ] New or changed behaviour has a test
-- [ ] Documentation, `data/config.ini`, man pages and translations updated where needed
-- [ ] The password still works in every failure path touched by this change
+- [ ] Checks in CONTRIBUTING.md pass
+- [ ] Changed behavior has tests
+- [ ] Relevant docs, settings, man pages and translations updated
+- [ ] Password fallback still works

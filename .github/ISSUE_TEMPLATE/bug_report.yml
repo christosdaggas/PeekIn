@@ -1,12 +1,11 @@
 name: Bug report
-description: Face authentication, the app or the package does not work as expected
+description: Report a problem with PeekIn
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        **Security problems** (getting past face authentication, privilege issues)
-        must not be reported here; see SECURITY.md.
+        Report security issues privately: [Security policy](https://github.com/christosdaggas/PeekIn/blob/main/SECURITY.md).
   - type: textarea
     id: what
     attributes:
@@ -33,7 +32,7 @@ body:
         - Text console
         - Settings app
         - peekin command
-        - Installing / upgrading the RPM
+        - Package installation or upgrade (RPM / DEB)
   - type: input
     id: version
     attributes:
@@ -44,15 +43,15 @@ body:
   - type: input
     id: system
     attributes:
-      label: Fedora version and desktop
-      placeholder: Fedora 44, GNOME 50
+      label: Distribution version and desktop
+      placeholder: Fedora 44 or Debian 13, GNOME
     validations:
       required: true
   - type: input
     id: camera
     attributes:
       label: Camera
-      description: Model, and whether it is colour or infrared (`peekin cameras`)
+      description: Model and type (colour or infrared); run `peekin cameras`.
   - type: textarea
     id: doctor
     attributes:

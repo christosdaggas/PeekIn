@@ -1,53 +1,33 @@
-# Security policy
-
-PeekIn is part of the login path, so security reports get priority.
-
-## Reporting a vulnerability
-
-Please report privately, not in a public issue:
-
-- through GitHub's "Report a vulnerability" button on the repository's
-  Security tab, or
-- by e-mail to info@chrisdaggas.com with "PeekIn security" in the subject.
-
-Include the version (`peekin version`), the Fedora version, the camera,
-and the steps to reproduce. You will get an answer within a week. Please give
-us time to release a fix before publishing details.
-
-## What counts
-
-- Getting past face authentication without the enrolled face, or getting a
-  face accepted for the wrong account.
-- The password no longer working, or face authentication being used where it
-  is switched off.
-- Privilege problems: the PAM module, the polkit helper or the recognition
-  worker doing more than they should, or reading or writing files they should
-  not.
-- Leaks of face models or other private data.
-
-## Known limits (not vulnerabilities)
-
-These are documented in the README and docs/THRESHOLDS.md:
-
-- The head-movement check is not certified presentation-attack detection: an
-  interactive video replay or a mask may pass it. Without it, a photo of the
-  user may pass with a colour camera.
-- A video of the user turning their head passes the head-movement check if
-  someone switches between clips of left and right turns as each instruction
-  appears (PAM shows one turn at a time, only after the face was recognised
-  and the previous step done), or if it happens to show the turns asked for:
-  there are only 8 orders.
-- Face recognition accepts some strangers: about 1 in 240 matches a 5-sample
-  face model at the default threshold (measured on LFW; see
-  docs/THRESHOLDS.md), more often for relatives and look-alikes.
-- Someone with root access can read or replace face models.
-- The encryption of face models at rest (TPM and host key) does not protect
-  against someone who has the whole machine and boots it from other media;
-  see the README's security section.
-- Without a TPM the key is the host key on the same disk, so a full copy of
-  the disk can decrypt the face models (a backup that leaves out
-  `/var/lib/systemd/credential.secret` cannot).
-
-## Supported versions
+# Security
 
 Only the latest release receives security fixes.
+
+## Report a vulnerability
+
+Report privately through [GitHub](https://github.com/christosdaggas/PeekIn/security/advisories/new)
+or email <info@chrisdaggas.com> with the subject **PeekIn security**.
+
+Include your PeekIn version (`peekin version`), distribution, camera and steps
+to reproduce. Expect a reply within a week. Please allow time for a fix before
+publishing details.
+
+Report authentication bypasses, wrong-account matches, broken password fallback,
+face login working where disabled, unauthorized file access or leaked face data.
+
+## Known limitations
+
+- Head-turn checks are not certified liveness detection. Interactive video
+  replays and masks may pass; without the check, photos may pass on colour cameras.
+- Three left/right turns give only eight sequences; a recording can match one.
+- Look-alikes may match. On the LFW photo dataset, the default threshold accepted
+  about 1 in 240 stranger attempts against a five-sample model. This is not a
+  measured webcam login rate.
+- Root can read or replace face models.
+- Without a TPM, the encryption key is on the same disk, so a full disk copy
+  can decrypt the models. A backup excluding `/var/lib/systemd/credential.secret`
+  cannot decrypt host-key-encrypted models on its own.
+- Model encryption alone does not protect a whole machine booted from other
+  media. Use full-disk encryption for disk protection.
+
+See the [README](README.md#security-and-privacy) and
+[threshold measurements](docs/THRESHOLDS.md) for details.

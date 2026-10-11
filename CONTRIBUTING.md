@@ -1,83 +1,66 @@
-# Contributing to PeekIn
+# Contributing
 
-Thank you for helping. PeekIn sits in the login path of people's
-computers, so every change is judged first by one question: can it lock anyone
-out, or let the wrong person in? The password must always keep working, and
-anything unexpected must fall back to it.
+Keep changes focused. Face login must always fall back to the password when
+something fails.
 
-## Reporting problems
+## Report a problem
 
-- **Security issues** (a way to get past face authentication, a privilege
-  problem, a crash in the PAM module): do not open a public issue. See
-  [SECURITY.md](SECURITY.md).
-- **Bugs**: open an issue with the bug template. Include the output of
-  `sudo peekin doctor`, your camera model, the Fedora version and, for
-  login problems, `journalctl -b | grep -E 'pam_peekin|peekin'`.
-- **Ideas**: open an issue with the feature template and describe the problem
-  first, the solution second.
+- **Bugs:** use the bug report form. Include your PeekIn version, distribution,
+  desktop, camera and `sudo peekin doctor` output.
+- **Ideas:** explain the problem and the improvement you want.
+- **Security issues:** report privately; see [SECURITY.md](SECURITY.md).
 
-## Building and testing
+For login problems, include relevant output from
+`journalctl -b | grep -E 'pam_peekin|peekin'`. Remove private information.
 
-Fedora is the supported platform (see the README for the packages).
+## Build and test
+
+See the [README](README.md#build-from-source) for Fedora and Debian build commands.
+Before submitting a change, run:
 
 ```sh
-sudo dnf builddep packaging/peekin.spec
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked         # includes the PAM/authselect and libpam tests
+cargo test --workspace --locked
 sh packaging/test-system-setup.sh
-cargo test -p peekin-settings --locked gtk_smoke -- --ignored --test-threads=1   # GTK smoke test
-packaging/build-rpm.sh                  # the RPMs
+cargo test -p peekin-settings --locked gtk_smoke -- --ignored --test-threads=1
 ```
 
-The PAM module's end-to-end test creates accounts and must run as root in a
-throwaway container or VM, never on your own machine:
+For Debian packaging changes, also run:
+
+```sh
+sh packaging/deb/test-pam-setup.sh
+sh packaging/deb/test-models-service.sh
+```
+
+Run the PAM end-to-end test **only in a disposable VM or container**: it creates
+accounts and requires root.
 
 ```sh
 cargo build -p peekin-pam --lib --examples --locked
 sudo PEEKIN_E2E=1 sh packaging/test-pam-module.sh
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of this on Fedora 44, plus the RPM
-install, the SELinux policy checks, the translation and man page checks. A
-pull request should pass it.
+## Change checklist
 
-To try the app without installing anything, use development mode with private
-directories (see `peekin-settings(1)`).
-
-## Guidelines
-
-- **Fail closed.** Invalid or unreadable security settings disable face
-  authentication; they never fall back to a weaker default. Add the key to the
-  security list in `crates/peekin-core/src/config.rs` when that applies.
-- **Least privilege.** The recognition worker runs as the `peekin`
-  account; only the PAM module and the polkit helper run as root. New root
-  code needs a clear reason.
-- **Tests with the change.** Every behaviour change comes with a test that
-  fails without it. Changes to the PAM path extend
-  `packaging/test-pam-module.sh`.
-- **Say what is measured.** Security claims in docs name their evidence;
-  unmeasured values are called estimates (see docs/THRESHOLDS.md).
-- **Settings** are documented in `data/config.ini` and in
-  `data/man/peekin-config.5`; a unit test checks the man page lists every
-  key.
-- **User-visible text** goes through `tr()`, `tr_args()` or `trn()`
-  (`peekin_core::i18n`). Logs stay in English.
-- Keep changes focused; unrelated clean-ups belong in their own pull request.
+- Add tests for changed behavior, including password fallback for PAM changes.
+- Invalid security settings must disable face login, not weaken it.
+- Keep privileged work limited to the PAM module and polkit helper.
+- Update `data/config.ini` and `data/man/peekin-config.5` for setting changes.
+- Support security claims with evidence; see [threshold measurements](docs/THRESHOLDS.md).
+- Make sure CI passes before merging.
 
 ## Translations
 
-Translations use gettext; the template is `po/peekin.pot`.
+Use `tr()`, `tr_args()` or `trn()` for user-facing text; keep logs in English.
+Run `sh po/update.sh` after text changes and translate new entries.
+To add a language:
 
-- Update after changing text: `sh po/update.sh`, then translate the new
-  entries (CI fails while any message is untranslated).
-- New language: `msginit -i po/peekin.pot -l <lang> -o po/<lang>.po`, or
-  copy `po/el.po` as a starting point. Keep every `{placeholder}` unchanged;
-  `msgfmt --check` verifies them.
-- Also translate the `<description>` and `<message>` elements in
-  `data/com.chrisdaggas.peekin.policy` and the desktop entry.
+```sh
+msginit -i po/peekin.pot -l <lang> -o po/<lang>.po
+```
 
-## Licence
+Keep `{placeholders}` unchanged and check with `msgfmt --check`.
+Also translate the polkit policy and desktop entry in `data/`.
 
-By contributing you agree that your contribution is licensed under the MIT
-licence of this project (see LICENSE).
+Contributions use the project's [MIT license](LICENSE).

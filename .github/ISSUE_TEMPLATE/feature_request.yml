@@ -16,4 +16,4 @@ body:
     id: security
     attributes:
       label: Security impact
-      description: Could this make face authentication easier to fool, or lock anyone out? How would that be avoided?
+      description: Could this weaken authentication or break password fallback?
