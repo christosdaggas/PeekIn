@@ -1,0 +1,20 @@
+[Unit]
+Description=PeekIn: decrypt the face models into memory
+Documentation=man:peekin(1)
+# Order after TPM discovery when systemd-tpm2-generator activates the target.
+# Do not pull it in ourselves: Debian's tpm2.target unconditionally wants
+# dev-tpmrm0.device, causing a 90-second boot wait on machines without a TPM.
+# systemd-creds also supports host-key encryption when no TPM is available.
+After=tpm2.target local-fs.target systemd-tmpfiles-setup.service
+Before=display-manager.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/peekin unseal-models
+# Decrypted copies remain in memory only while this unit is active.
+RuntimeDirectory=peekin/models
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

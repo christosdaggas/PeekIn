@@ -5,6 +5,7 @@ set -euo pipefail
 umask 022
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -n 1)"
+REVISION=2
 ARCH="$(dpkg --print-architecture)"
 MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 OUT="$ROOT/dist/deb"
@@ -13,6 +14,8 @@ fail() { echo "error: $*" >&2; exit 1; }
 for cmd in cargo rustc pkg-config dpkg-deb dpkg-shlibdeps msgfmt; do
     command -v "$cmd" >/dev/null || fail "missing $cmd (install cargo rustc pkg-config dpkg-dev gettext)"
 done
+command -v clang >/dev/null ||
+    fail 'missing clang executable (install clang as well as libclang-dev)'
 pkg-config --exists opencv4 gtk4 libadwaita-1 ||
     fail 'missing native headers (install libopencv-dev libgtk-4-dev libadwaita-1-dev)'
 test -f "/usr/lib/$MULTIARCH/libpam.so" || fail 'missing libpam0g-dev'
@@ -22,8 +25,8 @@ dpkg-query -W -f='${Status}' libclang-dev 2>/dev/null | grep -q 'install ok inst
 # Stage on a real Unix filesystem: VirtualBox shared folders do not preserve
 # ownership/modes, which dpkg-deb needs for PAM, maintainer scripts and data.
 STAGE="$(mktemp -d /tmp/opencode/peekin-deb.XXXXXX)"
-DEST="$OUT/peekin_${VERSION}-1_${ARCH}.deb"
-PARTIAL="$OUT/.peekin_${VERSION}-1_${ARCH}.deb.partial"
+DEST="$OUT/peekin_${VERSION}-${REVISION}_${ARCH}.deb"
+PARTIAL="$OUT/.peekin_${VERSION}-${REVISION}_${ARCH}.deb.partial"
 trap 'rm -rf "$STAGE"; rm -f "$PARTIAL"' EXIT
 PKG="$STAGE/pkg"
 # Cargo build scripts create and include generated files; VirtualBox shared
@@ -52,7 +55,7 @@ install -Dm755 "$ROOT/packaging/deb/pam-setup" "$PKG/usr/libexec/peekin/debian-p
 install -Dm644 "$ROOT/data/config.ini" "$PKG/etc/peekin/config.ini"
 install -Dm644 "$ROOT/data/peekin.sysusers" "$PKG/usr/lib/sysusers.d/peekin.conf"
 install -Dm644 "$ROOT/data/peekin.tmpfiles" "$PKG/usr/lib/tmpfiles.d/peekin.conf"
-install -Dm644 "$ROOT/data/systemd/peekin-models.service" "$PKG/usr/lib/systemd/system/peekin-models.service"
+install -Dm644 "$ROOT/packaging/deb/peekin-models.service" "$PKG/usr/lib/systemd/system/peekin-models.service"
 install -Dm644 "$ROOT/data/systemd/peekin-session.service" "$PKG/usr/lib/systemd/user/peekin-session.service"
 for model in "$MODELS"/*.onnx; do
     install -Dm644 "$model" "$PKG/usr/share/peekin/models/$(basename "$model")"
@@ -85,10 +88,12 @@ SHLIBS="$(cd "$STAGE" && dpkg-shlibdeps -O -e"$PKG/usr/bin/peekin" -e"$PKG/usr/b
     -e"$PKG/usr/libexec/peekin/peekin-session" \
     -e"$PKG/usr/libexec/peekin/peekin-helper" \
     -e"$PKG/usr/lib/$MULTIARCH/security/pam_peekin.so")"
-DEPENDS="${SHLIBS#shlibs:Depends=}, systemd, polkitd, passwd"
+# External commands and dlopened TPM libraries are invisible to shlibdeps.
+# Debian ships pkexec and gdbus separately from their corresponding libraries.
+DEPENDS="${SHLIBS#shlibs:Depends=}, systemd (>= 257), polkitd, pkexec, passwd, awk, libpam-modules, libpam-runtime, libglib2.0-bin, libtss2-esys-3.0.2-0t64, libtss2-mu-4.0.1-0t64, libtss2-rc0t64, libtss2-tcti-device0t64"
 SIZE="$(du -sk "$PKG" | cut -f1)"
 {
-    printf 'Package: peekin\nVersion: %s-1\nArchitecture: %s\n' "$VERSION" "$ARCH"
+    printf 'Package: peekin\nVersion: %s-%s\nArchitecture: %s\n' "$VERSION" "$REVISION" "$ARCH"
     printf 'Maintainer: Christos A. Daggas <info@chrisdaggas.com>\n'
     printf 'Installed-Size: %s\nDepends: %s\n' "$SIZE" "$DEPENDS"
     printf 'Section: admin\nPriority: optional\n'
