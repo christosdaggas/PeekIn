@@ -91,8 +91,15 @@ impl FaceModel {
             .to_string()
     }
 
+    /// One above the highest ID in `models`, whatever their order. The
+    /// history may still name a removed model; [`crate::activity::next_model_id`]
+    /// skips those IDs too.
     pub fn next_id(models: &[FaceModel]) -> i64 {
-        models.last().map(|m| m.id + 1).unwrap_or(0)
+        models
+            .iter()
+            .map(|m| m.id)
+            .max()
+            .map_or(0, |id| id.saturating_add(1))
     }
 
     pub fn is_current_format(&self) -> bool {
@@ -878,6 +885,10 @@ mod tests {
         assert_eq!(FaceModel::sanitise_label(&"x".repeat(30)).len(), 24);
         assert_eq!(FaceModel::next_id(&sample()), 2);
         assert_eq!(FaceModel::next_id(&[]), 0);
+        let mut unsorted = sample();
+        unsorted.reverse();
+        unsorted[0].id = 7;
+        assert_eq!(FaceModel::next_id(&unsorted), 8, "highest ID, not the last");
         assert_eq!(FaceModel::sanitise_label(" a\n\u{1b},b "), "ab");
     }
 

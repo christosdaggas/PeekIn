@@ -257,20 +257,55 @@ pub fn begin_scan(dir: &Path, user: &str) -> io::Result<ScanStart> {
     ))
 }
 
+fn count_failure(record: &mut Record, now: u64) {
+    record.failures = record.failures.saturating_add(1);
+    record.last = now;
+}
+
+fn count_no_face(record: &mut Record, now: u64) {
+    record.no_face = record.no_face.saturating_add(1);
+    record.no_face_last = now;
+}
+
 impl ScanGuard {
     pub fn record_failure(&mut self, now: u64) -> io::Result<Record> {
-        update_file(&mut self.file, now, |record| {
-            record.failures = record.failures.saturating_add(1);
-            record.last = now;
-        })
+        self.record(now, count_failure)
     }
 
     /// See [`record_no_face`].
     pub fn record_no_face(&mut self, now: u64) -> io::Result<Record> {
-        update_file(&mut self.file, now, |record| {
-            record.no_face = record.no_face.saturating_add(1);
-            record.no_face_last = now;
-        })
+        self.record(now, count_no_face)
+    }
+
+    /// Counts into the locked file. A password login during the scan removes
+    /// that file ([`reset`]); the count then goes into the counter now at the
+    /// path, so the scan is not lost in a deleted file. If another scan holds
+    /// that new counter, this count is dropped rather than waited for.
+    fn record(&mut self, now: u64, count: fn(&mut Record, u64)) -> io::Result<Record> {
+        let record = update_file(&mut self.file, now, |record| count(record, now))?;
+        if self.still_linked()? {
+            return Ok(record);
+        }
+        let (Some(dir), Some(user)) = (self.path.parent(), self.path.file_name()) else {
+            return Ok(record);
+        };
+        let user = user.to_string_lossy();
+        match open_locked_as(dir, &user, true, libc::LOCK_EX | libc::LOCK_NB) {
+            Ok(Some(mut file)) => update_file(&mut file, now, |record| count(record, now)),
+            Ok(None) => Ok(record),
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(record),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Whether the path still names the file this guard holds.
+    fn still_linked(&self) -> io::Result<bool> {
+        let held = self.file.metadata()?;
+        match fs::symlink_metadata(&self.path) {
+            Ok(now) => Ok(now.ino() == held.ino() && now.dev() == held.dev()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 
     /// A successful face login: removed while still locked.
@@ -283,20 +318,14 @@ impl ScanGuard {
 }
 
 pub fn record_failure(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
-    update(dir, user, now, |record| {
-        record.failures = record.failures.saturating_add(1);
-        record.last = now;
-    })
+    update(dir, user, now, |record| count_failure(record, now))
 }
 
 /// A scan that saw no face after a head-turn challenge was asked for. It
 /// leaves the failed-attempt count alone, and a rejected face does not end
 /// this streak; only [`reset`] (a face or password login) or time does.
 pub fn record_no_face(dir: &Path, user: &str, now: u64) -> io::Result<Record> {
-    update(dir, user, now, |record| {
-        record.no_face = record.no_face.saturating_add(1);
-        record.no_face_last = now;
-    })
+    update(dir, user, now, |record| count_no_face(record, now))
 }
 
 fn update(dir: &Path, user: &str, now: u64, count: impl FnOnce(&mut Record)) -> io::Result<Record> {
@@ -480,6 +509,44 @@ mod tests {
             begin_scan(&d, "alice").unwrap(),
             ScanStart::Ready(..)
         ));
+        let _ = fs::remove_dir_all(d);
+    }
+
+    /// A password login (`reset`) while a scan runs must not swallow the
+    /// failure that scan records afterwards.
+    #[test]
+    fn a_failure_recorded_after_a_reset_lands_in_the_new_counter() {
+        let d = dir("relink");
+        record_failure(&d, "alice", 5).unwrap();
+        let ScanStart::Ready(mut guard, record) = begin_scan(&d, "alice").unwrap() else {
+            panic!("busy")
+        };
+        assert_eq!(record.failures, 1);
+        reset(&d, "alice").unwrap();
+        assert!(!d.join("alice").exists());
+        // The old count went with the old file; this failure starts the new
+        // counter, and the guard reports that counter.
+        let counted = guard.record_failure(10).unwrap();
+        assert_eq!(
+            counted,
+            Record {
+                failures: 1,
+                last: 10,
+                ..Record::default()
+            }
+        );
+        assert_eq!(
+            load(&d, "alice").unwrap(),
+            counted,
+            "in the counter at the path"
+        );
+        // While nothing replaced the file, the held one is the one at the path.
+        let ScanStart::Ready(mut guard, _) = begin_scan(&d, "bob").unwrap() else {
+            panic!("busy")
+        };
+        guard.record_no_face(11).unwrap();
+        drop(guard);
+        assert_eq!(load(&d, "bob").unwrap().no_face, 1);
         let _ = fs::remove_dir_all(d);
     }
 

@@ -116,8 +116,10 @@ other than this machine (localhost, localhost.localdomain, ip6-localhost,
 .B security.
 Never scan while the laptop lid is closed, as reported by the ACPI lid
 state in
-.IR /proc/acpi/button/lid .
-A laptop that does not provide it cannot be checked, and face login then
+.I /proc/acpi/button/lid
+or by the lid switch of an input device under
+.IR /dev/input .
+A laptop that provides neither cannot be checked, and face login then
 scans with the lid closed;
 .B peekin doctor
 warns about this.

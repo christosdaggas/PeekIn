@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 20:31+0300\n"
+"POT-Creation-Date: 2026-10-11 21:06+0300\n"
 "PO-Revision-Date: 2026-09-25 11:11+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -109,6 +109,9 @@ msgstr "Η λειτουργία ακυρώθηκε"
 msgid "Operation timed out. Reload to check whether the change was saved."
 msgstr "Ο χρόνος της λειτουργίας έληξε. Κάντε επαναφόρτωση για να δείτε αν αποθηκεύτηκε η αλλαγή."
 
+msgid "Authorization timed out; nothing was changed."
+msgstr "Η εξουσιοδότηση έληξε· δεν άλλαξε τίποτα."
+
 msgid "Command worker stopped unexpectedly"
 msgstr "Η διεργασία εκτέλεσης εντολών σταμάτησε απροσδόκητα"
 
@@ -130,6 +133,16 @@ msgstr "Απόρριψη"
 msgid "Save"
 msgstr "Αποθήκευση"
 
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Παράθυρα κωδικού εφαρμογών και pkexec (πειραματικό)"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Σύνδεση σε τοπικό τερματικό κειμένου, π.χ. Ctrl+Alt+F3 (πειραματικό)"
+
+#, rust-format
+msgid "{text}. Not available here: /etc/pam.d/{service} does not use PeekIn (it does with the Fedora authselect profile; see sudo peekin doctor)"
+msgstr "{text}. Μη διαθέσιμο εδώ: το /etc/pam.d/{service} δεν χρησιμοποιεί το PeekIn (το κάνει με το προφίλ authselect του Fedora· δείτε sudo peekin doctor)"
+
 #, rust-format
 msgid "Cannot read settings: {e}"
 msgstr "Αδύνατη η ανάγνωση των ρυθμίσεων: {e}"
@@ -148,6 +161,9 @@ msgstr "μη έγκυρες ρυθμίσεις ασφαλείας"
 
 msgid "automatic selection found no camera"
 msgstr "η αυτόματη επιλογή δεν βρήκε κάμερα"
+
+msgid "no approved infrared camera; approve one below or turn off Infrared camera only"
+msgstr "καμία εγκεκριμένη υπέρυθρη κάμερα· εγκρίνετε μία παρακάτω ή απενεργοποιήστε το «Μόνο υπέρυθρη κάμερα»"
 
 msgid "configured device missing"
 msgstr "η ρυθμισμένη συσκευή λείπει"
@@ -749,14 +765,8 @@ msgstr "Ξεκλείδωμα συνεδρίας που ήδη εκτελείτα
 msgid "Administrator dialogs"
 msgstr "Παράθυρα διαχειριστή"
 
-msgid "Password dialogs of apps and pkexec (experimental)"
-msgstr "Παράθυρα κωδικού εφαρμογών και pkexec (πειραματικό)"
-
 msgid "Text console login"
 msgstr "Σύνδεση σε κονσόλα κειμένου"
-
-msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
-msgstr "Σύνδεση σε τοπικό τερματικό κειμένου, π.χ. Ctrl+Alt+F3 (πειραματικό)"
 
 msgid "System-wide settings; per-user face models."
 msgstr "Ρυθμίσεις για όλο το σύστημα· μοντέλα προσώπου ανά χρήστη."

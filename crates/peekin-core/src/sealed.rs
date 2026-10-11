@@ -302,6 +302,8 @@ pub struct Unsealed {
     /// Sealed again because `[core] tpm2_pcrs` changed: `None` when not
     /// needed. A failure keeps the previous binding and the decrypted copy.
     pub resealed: Option<Result<(), String>>,
+    /// Something an administrator should look at; face login still works.
+    pub warning: Option<String>,
 }
 
 fn users_with(dir: &Path, suffix: &str) -> io::Result<Vec<String>> {
@@ -346,6 +348,24 @@ pub fn unseal_all(
     let mut out = Vec::new();
     for user in users_with(sealed_dir, ".dat")? {
         let plain = plain_path(sealed_dir, &user);
+        // A plaintext model next to an encrypted one (a restored backup, a
+        // leftover of a migration) must not replace the encrypted copy, which
+        // is the one in use; the administrator decides.
+        if sealed_path(sealed_dir, &user).exists() {
+            out.push(Unsealed {
+                user: user.clone(),
+                migrated: false,
+                result: Ok(()),
+                resealed: None,
+                warning: Some(format!(
+                    "{} was left alone: the encrypted copy {} exists and stays in use; \
+                     remove the plaintext file, or remove the encrypted copy to switch to it",
+                    plain.display(),
+                    sealed_path(sealed_dir, &user).display()
+                )),
+            });
+            continue;
+        }
         let result = match policy {
             Ok(policy) => fs::read(&plain)
                 .and_then(|bytes| seal_bytes(tool, sealed_dir, policy, &user, &bytes))
@@ -361,6 +381,7 @@ pub fn unseal_all(
                 migrated: false,
                 result: Err(format!("cannot seal the plaintext model on disk: {e}")),
                 resealed: None,
+                warning: None,
             });
             continue;
         }
@@ -369,6 +390,7 @@ pub fn unseal_all(
             migrated: true,
             result: Ok(()),
             resealed: None,
+            warning: None,
         });
     }
     let stamp = sealed_dir.join(POLICY_STAMP);
@@ -410,6 +432,7 @@ pub fn unseal_all(
                 migrated: false,
                 result,
                 resealed,
+                warning: None,
             }),
         }
     }
@@ -440,7 +463,9 @@ mod tests {
     /// Fake systemd-creds. Written once: writing an executable while another test
     /// forks makes running it fail with ETXTBSY. A `FAIL-ENCRYPT` file in the
     /// sealed directory makes `encrypt` fail. The first line of a credential
-    /// names it and lists the extra `encrypt` arguments (the TPM binding).
+    /// names it and lists the extra `encrypt` arguments (the TPM binding). The
+    /// mode the output was created with goes to `tool.mode` next to the sealed
+    /// directory of that test, so concurrent tests never read each other's.
     fn fake_tool() -> PathBuf {
         static TOOL: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
         TOOL.get_or_init(|| {
@@ -454,7 +479,7 @@ mod tests {
                  encrypt) name=$2; shift 2; extra=''\n\
                  while [ $# -gt 2 ]; do extra=\"$extra $1\"; shift; done\n\
                  [ -e \"${2%/*}/FAIL-ENCRYPT\" ] && { echo 'encryption refused' >&2; exit 1; }\n\
-                 { echo \"SEALED $name$extra\"; cat; } > \"$2\"; stat -c %a \"$2\" > \"$0.mode\" ;;\n\
+                 { echo \"SEALED $name$extra\"; cat; } > \"$2\"; stat -c %a \"$2\" > \"${2%/*}/../tool.mode\" ;;\n\
                  decrypt) read -r tag name rest < \"$3\"; [ \"$tag $name\" = \"SEALED $2\" ] || exit 1; tail -n +2 \"$3\" ;;\n\
                  esac\n",
             )
@@ -528,6 +553,57 @@ mod tests {
         assert!(
             broken.iter().any(|u| u.user == "bob" && u.result.is_err()),
             "{broken:?}"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    /// A plaintext model next to an encrypted one is reported and left as it
+    /// is; the encrypted copy keeps being the one decrypted and used.
+    #[test]
+    fn a_plaintext_model_never_replaces_an_existing_encrypted_copy() {
+        let (root, sealed, run, tool) = setup("conflict");
+        let (uid, gid) = me();
+        replace_models_with(
+            &tool,
+            &run,
+            Some((&sealed, &SealPolicy::default())),
+            "alice",
+            Some(&[model(0), model(1)]),
+            uid,
+            gid,
+        )
+        .unwrap();
+        let cred = read(sealed.join("alice.dat.cred"));
+        fs::write(sealed.join("alice.dat"), MODELS).unwrap();
+        fs::remove_dir_all(&run).unwrap();
+        let report =
+            unseal_all(&tool, &sealed, &run, Ok(&SealPolicy::default()), uid, gid).unwrap();
+        assert_eq!(report.len(), 1, "{report:?}");
+        assert!(
+            report[0].result.is_ok() && !report[0].migrated,
+            "{report:?}"
+        );
+        assert!(
+            report[0]
+                .warning
+                .as_deref()
+                .is_some_and(|w| w.contains("alice.dat")),
+            "{report:?}"
+        );
+        assert_eq!(
+            read(sealed.join("alice.dat.cred")),
+            cred,
+            "encrypted copy kept"
+        );
+        assert_eq!(
+            read(sealed.join("alice.dat")),
+            MODELS,
+            "plaintext left alone"
+        );
+        assert_eq!(
+            models::load_user_models(&run, "alice").unwrap(),
+            [model(0), model(1)],
+            "the encrypted copy is the one in use"
         );
         let _ = fs::remove_dir_all(root);
     }
@@ -886,7 +962,7 @@ mod tests {
             gid,
         )
         .unwrap();
-        assert_eq!(read(tool.with_extension("mode")).trim(), "600");
+        assert_eq!(read(root.join("tool.mode")).trim(), "600");
         let _ = fs::remove_dir_all(root);
     }
 

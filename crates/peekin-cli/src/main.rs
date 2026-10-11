@@ -16,7 +16,7 @@ use peekin_core::matcher::best_match;
 use peekin_core::models::{self, usable_embeddings, EMBEDDING_FORMAT};
 use peekin_core::paths::validate_username;
 use peekin_core::source::FaceSource;
-use peekin_core::{set_option, FaceModel, ModelError, PeekinConfig, PeekinPaths};
+use peekin_core::{activity, set_option, FaceModel, ModelError, PeekinConfig, PeekinPaths};
 use peekin_vision::{OpenCvFaceSource, OpenError};
 use std::ffi::CStr;
 use std::io::{self, Write};
@@ -185,6 +185,9 @@ fn cmd_unseal_models(paths: &PeekinPaths) -> Result<()> {
         .map_or_else(|_| String::new(), SealPolicy::describe);
     let mut failed = false;
     for entry in &report {
+        if let Some(warning) = &entry.warning {
+            eprintln!("Warning: {}: {warning}", entry.user);
+        }
         match &entry.result {
             Ok(()) if entry.migrated => println!(
                 "{}: plaintext face model encrypted with {described} and removed from the disk",
@@ -210,6 +213,11 @@ fn cmd_unseal_models(paths: &PeekinPaths) -> Result<()> {
         bail!("some face models could not be decrypted; face login stays off for those accounts");
     }
     Ok(())
+}
+
+/// An ID no current model and no history entry of `user` has.
+fn next_model_id(user: &str, existing: &[FaceModel]) -> i64 {
+    activity::next_model_id(std::path::Path::new(activity::ACTIVITY_DIR), user, existing)
 }
 
 fn model_owner(paths: &PeekinPaths) -> Result<(libc::uid_t, libc::gid_t)> {
@@ -329,7 +337,7 @@ fn cmd_add(
     if !plain {
         println!("New face model for {user}");
     }
-    let next_id = FaceModel::next_id(&existing);
+    let next_id = next_model_id(user, &existing);
     let source = match label {
         Some(l) => LabelSource::Arg(l),
         None if assume_yes => LabelSource::Default,
@@ -363,7 +371,7 @@ fn cmd_add(
         Err(ModelError::NotInitialised | ModelError::NoModelForUser(_)) => Vec::new(),
         Err(error) => return Err(error.into()),
     };
-    let committed_id = FaceModel::next_id(&existing);
+    let committed_id = next_model_id(user, &existing);
     existing.push(FaceModel {
         id: committed_id,
         label,
@@ -739,7 +747,7 @@ fn cmd_import_model(paths: &PeekinPaths, user: &str, label: Option<String>) -> R
         Err(ModelError::NotInitialised | ModelError::NoModelForUser(_)) => Vec::new(),
         Err(e) => return Err(e.into()),
     };
-    let next_id = FaceModel::next_id(&existing);
+    let next_id = next_model_id(user, &existing);
     let label = pick_label(
         label.map_or(LabelSource::Default, LabelSource::Arg),
         next_id,

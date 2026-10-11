@@ -451,8 +451,9 @@ impl PeekinConfig {
             format!("[core] tpm2_pcrs = {value:?} is not a list of PCR numbers 0-23 joined by +")
         })
     }
+    /// Only `off` is supported; a file without the key means `off` too.
     pub fn workaround(&self) -> String {
-        self.get("core", "workaround").unwrap_or("input".into())
+        self.get("core", "workaround").unwrap_or("off".into())
     }
 
     /// Minimum cosine similarity; values outside the shared range are ignored.

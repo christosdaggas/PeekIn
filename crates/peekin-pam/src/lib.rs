@@ -7,11 +7,10 @@ pub mod status;
 pub use status::{AuthDecision, ChildEnd, PamCode};
 
 use peekin_core::config::FaceService;
+use peekin_core::lid;
 use peekin_core::lockout::{self, PauseCause};
 use peekin_core::{PeekinConfig, PeekinPaths};
 use std::path::Path;
-
-pub const LID_STATE_DIR: &str = "/proc/acpi/button/lid";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Gate {
@@ -24,7 +23,8 @@ pub enum Gate {
 pub struct Session {
     pub service: Option<String>,
     pub rhost: Option<String>,
-    /// A logind session exists, so a GDM request is a lock-screen unlock.
+    /// The user has a logind session on a seat (a local login), so a GDM
+    /// request is a lock-screen unlock, not a login.
     pub user_has_session: bool,
 }
 
@@ -60,14 +60,37 @@ pub fn face_service(session: &Session) -> Option<FaceService> {
 }
 
 pub const LOGIND_USERS_DIR: &str = "/run/systemd/users";
+pub const LOGIND_SESSIONS_DIR: &str = "/run/systemd/sessions";
 
-pub fn user_has_session(users_dir: &Path, uid: libc::uid_t) -> bool {
-    std::fs::read_to_string(users_dir.join(uid.to_string())).is_ok_and(|body| {
-        body.lines().any(|line| {
-            line.strip_prefix("SESSIONS=")
-                .is_some_and(|ids| !ids.trim().is_empty())
-        })
-    })
+/// Whether `uid` has a logind session of class `user` on a seat: a local
+/// graphical or console login. SSH and other remote sessions have no seat,
+/// so a user logged in remotely still gets the login-screen switch at GDM.
+pub fn user_has_session(users_dir: &Path, sessions_dir: &Path, uid: libc::uid_t) -> bool {
+    let Ok(body) = std::fs::read_to_string(users_dir.join(uid.to_string())) else {
+        return false;
+    };
+    body.lines()
+        .filter_map(|line| line.strip_prefix("SESSIONS="))
+        .flat_map(str::split_whitespace)
+        .filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
+        .any(|id| session_on_seat(&sessions_dir.join(id)))
+}
+
+/// A logind session file: `CLASS=user` (also `user-early`, `user-incomplete`)
+/// with a non-empty `SEAT=`.
+fn session_on_seat(path: &Path) -> bool {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let (mut user_class, mut seat) = (false, false);
+    for line in body.lines() {
+        if let Some(class) = line.strip_prefix("CLASS=") {
+            user_class = class == "user" || class.starts_with("user-");
+        } else if let Some(name) = line.strip_prefix("SEAT=") {
+            seat = !name.trim().is_empty();
+        }
+    }
+    user_class && seat
 }
 
 fn env_set(name: &str) -> bool {
@@ -80,22 +103,12 @@ fn ssh_env() -> bool {
         .any(env_set)
 }
 
-fn lid_closed(base: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(base) else {
-        return false;
-    };
-    entries.flatten().any(|entry| {
-        std::fs::read_to_string(entry.path().join("state"))
-            .is_ok_and(|body| body.contains("closed"))
-    })
-}
-
 /// Order: disabled, ssh, lid, model file. `username` must already be validated.
 pub fn check_enabled(
     config: &PeekinConfig,
     paths: &PeekinPaths,
     username: &str,
-    lid_base: &Path,
+    lid: &lid::Paths,
     session: &Session,
 ) -> Gate {
     // Only these services, each behind its own [services] switch, may turn a match into success.
@@ -112,7 +125,7 @@ pub fn check_enabled(
     if config.abort_if_ssh() && (session.is_remote() || ssh_env()) {
         return Gate::Skip("SSH session detected");
     }
-    if config.abort_if_lid_closed() && lid_closed(lid_base) {
+    if config.abort_if_lid_closed() && lid::closed(lid) {
         return Gate::Skip("closed lid detected");
     }
     match paths.user_model_path(username) {
@@ -384,6 +397,11 @@ mod tests {
         PeekinConfig::parse(body, "<test>".into()).unwrap()
     }
 
+    /// Lid sources that do not exist: the lid counts as open.
+    fn no_lid() -> lid::Paths {
+        lid::Paths::under(Path::new("/nonexistent"))
+    }
+
     fn local() -> Session {
         Session {
             service: Some("sudo".into()),
@@ -408,7 +426,7 @@ mod tests {
                     &PeekinConfig::empty(),
                     &paths,
                     "alice",
-                    Path::new("/nonexistent"),
+                    &no_lid(),
                     &Session {
                         service: service.map(str::to_owned),
                         rhost: None,
@@ -419,13 +437,7 @@ mod tests {
             ));
         }
         assert_eq!(
-            check_enabled(
-                &PeekinConfig::empty(),
-                &paths,
-                "alice",
-                Path::new("/nonexistent"),
-                &local()
-            ),
+            check_enabled(&PeekinConfig::empty(), &paths, "alice", &no_lid(), &local()),
             Gate::Proceed
         );
         let _ = std::fs::remove_dir_all(dir);
@@ -440,7 +452,7 @@ mod tests {
                 config,
                 &paths,
                 "alice",
-                Path::new("/nonexistent"),
+                &no_lid(),
                 &Session {
                     service: Some(service.into()),
                     rhost: None,
@@ -474,16 +486,48 @@ mod tests {
     fn logind_sessions_distinguish_unlock_from_login() {
         let (dir, _) = setup("logind");
         let users = dir.join("users");
+        let sessions = dir.join("sessions");
         fs::create_dir_all(&users).unwrap();
+        fs::create_dir_all(&sessions).unwrap();
+        // alice: a GNOME session on seat0 and an SSH session.
         fs::write(
             users.join("1000"),
             "NAME=alice\nSTATE=active\nSESSIONS=2 5\n",
         )
         .unwrap();
+        fs::write(
+            sessions.join("2"),
+            "UID=1000\nUSER=alice\nSEAT=seat0\nTYPE=wayland\nCLASS=user\n",
+        )
+        .unwrap();
+        fs::write(
+            sessions.join("5"),
+            "UID=1000\nUSER=alice\nTYPE=tty\nCLASS=user\nREMOTE=1\n",
+        )
+        .unwrap();
+        // bob lingers without a session; carol is only logged in over SSH;
+        // dave's only seat session is the greeter itself.
         fs::write(users.join("1001"), "NAME=bob\nSTATE=lingering\nSESSIONS=\n").unwrap();
-        assert!(user_has_session(&users, 1000));
-        assert!(!user_has_session(&users, 1001));
-        assert!(!user_has_session(&users, 1002));
+        fs::write(users.join("1003"), "NAME=carol\nSTATE=active\nSESSIONS=7\n").unwrap();
+        fs::write(
+            sessions.join("7"),
+            "UID=1003\nUSER=carol\nTYPE=tty\nCLASS=user\nREMOTE=1\nREMOTE_HOST=10.0.0.9\n",
+        )
+        .unwrap();
+        fs::write(users.join("1004"), "NAME=dave\nSTATE=active\nSESSIONS=c1\n").unwrap();
+        fs::write(
+            sessions.join("c1"),
+            "UID=1004\nUSER=dave\nSEAT=seat0\nTYPE=wayland\nCLASS=greeter\n",
+        )
+        .unwrap();
+        assert!(user_has_session(&users, &sessions, 1000), "seat session");
+        assert!(!user_has_session(&users, &sessions, 1001), "no session");
+        assert!(!user_has_session(&users, &sessions, 1002), "unknown user");
+        assert!(!user_has_session(&users, &sessions, 1003), "SSH only");
+        assert!(!user_has_session(&users, &sessions, 1004), "greeter only");
+        // A session file that is missing counts as no session.
+        fs::write(users.join("1005"), "NAME=eve\nSESSIONS=9 ../x\n").unwrap();
+        assert!(!user_has_session(&users, &sessions, 1005));
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -494,7 +538,7 @@ mod tests {
             &cfg("[core]\ndisabled = true\n"),
             &p,
             "alice",
-            Path::new("/nonexistent"),
+            &no_lid(),
             &local(),
         );
         assert_eq!(gate, Gate::Skip("PeekIn is disabled"));
@@ -504,14 +548,13 @@ mod tests {
     #[test]
     fn missing_model_skips_and_present_model_proceeds() {
         let (dir, p) = setup("model");
-        let none = Path::new("/nonexistent");
         assert_eq!(
-            check_enabled(&PeekinConfig::empty(), &p, "alice", none, &local()),
+            check_enabled(&PeekinConfig::empty(), &p, "alice", &no_lid(), &local()),
             Gate::Skip("no face model for user")
         );
         fs::write(p.user_model_path("alice").unwrap(), "[]").unwrap();
         assert_eq!(
-            check_enabled(&PeekinConfig::empty(), &p, "alice", none, &local()),
+            check_enabled(&PeekinConfig::empty(), &p, "alice", &no_lid(), &local()),
             Gate::Proceed
         );
         let _ = fs::remove_dir_all(&dir);
@@ -521,12 +564,23 @@ mod tests {
     fn lid_closed_skips() {
         let (dir, p) = setup("lid");
         fs::write(p.user_model_path("alice").unwrap(), "[]").unwrap();
-        let lid = dir.join("lid");
-        fs::create_dir_all(lid.join("LID0")).unwrap();
-        fs::write(lid.join("LID0/state"), "state:      closed\n").unwrap();
+        let lid = lid::Paths::under(&dir);
+        fs::create_dir_all(lid.acpi.join("LID0")).unwrap();
+        fs::write(lid.acpi.join("LID0/state"), "state:      closed\n").unwrap();
         assert_eq!(
             check_enabled(&PeekinConfig::empty(), &p, "alice", &lid, &local()),
             Gate::Skip("closed lid detected")
+        );
+        // Off, the guard scans with the lid closed.
+        assert_eq!(
+            check_enabled(
+                &cfg("[core]\nabort_if_lid_closed = false\n"),
+                &p,
+                "alice",
+                &lid,
+                &local()
+            ),
+            Gate::Proceed
         );
         let _ = fs::remove_dir_all(&dir);
     }
@@ -535,7 +589,6 @@ mod tests {
     fn remote_sessions_detected_from_pam_items() {
         let (dir, p) = setup("remote");
         fs::write(p.user_model_path("alice").unwrap(), "[]").unwrap();
-        let none = Path::new("/nonexistent");
         let cases = [
             (
                 Session {
@@ -571,7 +624,7 @@ mod tests {
             ),
         ];
         for (session, remote) in cases {
-            let gate = check_enabled(&PeekinConfig::empty(), &p, "alice", none, &session);
+            let gate = check_enabled(&PeekinConfig::empty(), &p, "alice", &no_lid(), &session);
             let expected = if session.service.as_deref() == Some("sshd") {
                 Gate::Skip("PAM service is not enabled for face authentication")
             } else if remote {
@@ -588,7 +641,7 @@ mod tests {
         };
         let off = cfg("[core]\nabort_if_ssh = false\n");
         assert_eq!(
-            check_enabled(&off, &p, "alice", none, &remote),
+            check_enabled(&off, &p, "alice", &no_lid(), &remote),
             Gate::Skip("PAM service is not enabled for face authentication")
         );
         let _ = fs::remove_dir_all(&dir);

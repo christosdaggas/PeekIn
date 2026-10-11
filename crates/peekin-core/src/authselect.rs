@@ -365,6 +365,35 @@ pub fn insert_rule(template: &str) -> Result<String, Error> {
     Ok(rows.concat())
 }
 
+/// Whether a PAM file has an active (uncommented) line naming pam_peekin.so.
+pub fn file_uses_module(path: &Path) -> bool {
+    fs::read_to_string(path).is_ok_and(|body| {
+        body.lines().any(|line| {
+            let line = line.trim_start();
+            !line.starts_with('#') && line.contains("pam_peekin.so")
+        })
+    })
+}
+
+/// Whether `/etc/pam.d/<service>` reaches pam_peekin.so for authentication:
+/// directly, or through an included or substacked `system-auth` or
+/// `password-auth` that has the rule.
+pub fn service_uses_module(pam_dir: &Path, service: &str) -> bool {
+    let Ok(body) = fs::read_to_string(pam_dir.join(service)) else {
+        return false;
+    };
+    body.lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with('#') && line.starts_with("auth"))
+        .any(|line| {
+            line.contains("pam_peekin.so")
+                || ["system-auth", "password-auth"].iter().any(|stack| {
+                    line.split_whitespace().nth(2) == Some(stack)
+                        && file_uses_module(&pam_dir.join(stack))
+                })
+        })
+}
+
 fn is_name(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
@@ -622,6 +651,34 @@ mod tests {
         ] {
             assert!(validate_stack(text, false).is_err(), "{text}");
         }
+    }
+
+    #[test]
+    fn services_reach_the_module_directly_or_through_a_shared_stack() {
+        let dir = std::env::temp_dir().join(format!("peekin-pamd-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("system-auth"),
+            format!("auth required pam_env.so\n{RULE}"),
+        )
+        .unwrap();
+        fs::write(dir.join("password-auth"), "auth required pam_env.so\n").unwrap();
+        fs::write(dir.join("polkit-1"), "auth include system-auth\n").unwrap();
+        fs::write(dir.join("login"), "auth substack password-auth\n").unwrap();
+        fs::write(dir.join("sudo"), format!("{RULE}@include common-auth\n")).unwrap();
+        fs::write(
+            dir.join("su"),
+            "# auth sufficient pam_peekin.so\nauth include system-auth\n",
+        )
+        .unwrap();
+        assert!(service_uses_module(&dir, "polkit-1"));
+        assert!(!service_uses_module(&dir, "login"));
+        assert!(service_uses_module(&dir, "sudo"));
+        assert!(service_uses_module(&dir, "su"), "through system-auth");
+        assert!(!service_uses_module(&dir, "missing"));
+        assert!(!file_uses_module(&dir.join("password-auth")));
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

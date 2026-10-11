@@ -23,7 +23,8 @@ pub enum OpenError {
     MissingModels(String),
     #[error("PeekIn could not find a camera: {0}")]
     NoDevice(String),
-    #[error("{0} is not an approved infrared camera, and ir_only = true allows only those")]
+    /// The configured node is not approved, or (automatic selection) none is.
+    #[error("{0}")]
     NotInfrared(String),
     #[error("cannot open camera {0}: {1}")]
     Camera(String, String),
@@ -93,12 +94,17 @@ pub struct StageTimings {
 impl OpenCvFaceSource {
     pub fn open(config: &PeekinConfig, paths: &PeekinPaths) -> Result<Self, OpenError> {
         configure_opencv();
-        let device_path = cameras::resolve(&config.device_path())
-            .map_err(|e| OpenError::NoDevice(e.to_string()))?;
+        let device_path =
+            cameras::resolve_for(&config.device_path(), config.ir_only()).map_err(|e| match e {
+                cameras::ResolveError::NoInfrared => OpenError::NotInfrared(e.to_string()),
+                other => OpenError::NoDevice(other.to_string()),
+            })?;
         let device = device_path.display().to_string();
         if config.ir_only() && cameras::kind_of(&device_path) != Some(CameraKind::VerifiedInfrared)
         {
-            return Err(OpenError::NotInfrared(device));
+            return Err(OpenError::NotInfrared(format!(
+                "{device} is not an approved infrared camera, and ir_only = true allows only those"
+            )));
         }
         let models_started = Instant::now();
         let detector_model = paths.face_detector_model_path();

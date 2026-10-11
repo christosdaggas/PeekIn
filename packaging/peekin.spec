@@ -1,6 +1,6 @@
 Name:           peekin
 Version:        1.0.0
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        Face authentication for Linux
 Packager:       Christos A. Daggas <info@chrisdaggas.com>
 Vendor:         Christos A. Daggas
@@ -209,6 +209,28 @@ fi
 %{_mandir}/man8/pam_peekin.8*
 
 %changelog
+* Sun Oct 11 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-7
+- With ir_only, automatic camera selection takes only an approved infrared
+  camera instead of a colour camera the worker then refuses
+- New face models never reuse an ID the attempt history still names
+- A plaintext face model next to an encrypted one is reported and left alone
+  instead of replacing the encrypted copy at boot
+- Stopping peekin-models.service (also on removal) removes the decrypted
+  face models from memory
+- A face failure recorded after a concurrent password login is counted in
+  the new counter instead of a deleted file
+- GDM requests count as lock-screen unlocks only for a logind session on a
+  seat; a user logged in over SSH gets the login-screen switch
+- The settings app's deadline for privileged operations starts when polkit
+  has approved them, not while the password dialog is open
+- The lid guard also reads the lid switch of an input device (EVIOCGSW),
+  for laptops without the ACPI lid state; SELinux policy updated
+- The attempt history is rewritten atomically; cameras without a
+  /dev/v4l/by-path link are found through /dev/videoN
+- The settings app says when the polkit and console switches cannot work
+  on this PAM layout; a config.ini without workaround means off
+- Translations listed in the README
+
 * Fri Sep 25 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.0.0-6
 - Make the head-movement choices explicit: always, only without approved IR,
   or off; verify all system settings round-trip through the settings helper

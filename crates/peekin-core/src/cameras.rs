@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 pub const V4L_BY_PATH: &str = "/dev/v4l/by-path";
 /// Serial-number links; unlike `by-path` they survive a port change.
 pub const V4L_BY_ID: &str = "/dev/v4l/by-id";
+/// Where the `videoN` nodes live; scanned when `by-path` lists nothing
+/// (platform and virtual cameras do not always get a link there).
+pub const DEV_DIR: &str = "/dev";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraKind {
@@ -110,6 +113,19 @@ pub fn best(cameras: &[Camera]) -> Option<&Camera> {
         .or_else(|| first(CameraKind::InfraredCandidate))
 }
 
+/// The camera automatic selection uses: with `ir_only` nothing but an
+/// administrator-approved infrared node will do, so none is chosen rather
+/// than one the worker then refuses.
+pub fn preferred(cameras: &[Camera], ir_only: bool) -> Option<&Camera> {
+    if ir_only {
+        cameras
+            .iter()
+            .find(|c| c.kind == CameraKind::VerifiedInfrared)
+    } else {
+        best(cameras)
+    }
+}
+
 fn c_string(bytes: &[u8]) -> String {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..end]).trim().to_string()
@@ -166,6 +182,28 @@ pub fn list_in(by_path: &Path) -> Vec<Camera> {
     list_in_dirs(by_path, None)
 }
 
+/// `videoN` nodes of `dev`, in number order, for cameras without a `by-path`
+/// link.
+fn video_nodes(dev: &Path) -> Vec<PathBuf> {
+    let mut nodes: Vec<(u32, PathBuf)> = fs::read_dir(dev)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|entry| {
+                    let name = entry.file_name();
+                    let number = name.to_str()?.strip_prefix("video")?;
+                    if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit()) {
+                        return None;
+                    }
+                    Some((number.parse().ok()?, entry.path()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    nodes.sort();
+    nodes.into_iter().map(|(_, path)| path).collect()
+}
+
 fn by_id_links(by_id: &Path) -> std::collections::HashMap<PathBuf, PathBuf> {
     let mut entries: Vec<PathBuf> = fs::read_dir(by_id)
         .map(|d| d.flatten().map(|e| e.path()).collect())
@@ -182,10 +220,21 @@ fn by_id_links(by_id: &Path) -> std::collections::HashMap<PathBuf, PathBuf> {
 
 /// Like [`list_in`], but with the stable `by-id` link where one exists.
 pub fn list_in_dirs(by_path: &Path, by_id: Option<&Path>) -> Vec<Camera> {
+    list_in_dirs_or(by_path, by_id, None)
+}
+
+/// [`list_in_dirs`], falling back to the `videoN` nodes of `dev` when
+/// `by_path` has no entries at all.
+pub fn list_in_dirs_or(by_path: &Path, by_id: Option<&Path>, dev: Option<&Path>) -> Vec<Camera> {
     let stable = by_id.map(by_id_links).unwrap_or_default();
     let mut entries: Vec<PathBuf> = fs::read_dir(by_path)
         .map(|d| d.flatten().map(|e| e.path()).collect())
         .unwrap_or_default();
+    if entries.is_empty() {
+        if let Some(dev) = dev {
+            entries = video_nodes(dev);
+        }
+    }
     // USB devices appear twice (`usb-` and `usbv3-`); keep the first link per node.
     entries.sort();
     let mut seen = std::collections::HashSet::new();
@@ -215,35 +264,58 @@ pub fn list_in_dirs(by_path: &Path, by_id: Option<&Path>) -> Vec<Camera> {
 }
 
 pub fn list() -> Vec<Camera> {
-    list_in_dirs(Path::new(V4L_BY_PATH), Some(Path::new(V4L_BY_ID)))
+    list_in_dirs_or(
+        Path::new(V4L_BY_PATH),
+        Some(Path::new(V4L_BY_ID)),
+        Some(Path::new(DEV_DIR)),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ResolveError {
     #[error("no camera found (device_path = none selects one automatically)")]
     NoCamera,
+    #[error(
+        "no administrator-approved infrared camera found, and ir_only = true allows only those \
+         (approve one with: sudo peekin cameras --attest CAMERA, or turn ir_only off)"
+    )]
+    NoInfrared,
     #[error("configured camera {0} does not exist; choose another one in the PeekIn app")]
     Missing(String),
 }
 
-pub fn resolved_kind(configured: &str) -> Option<CameraKind> {
-    resolve(configured).ok().and_then(|path| kind_of(&path))
+pub fn resolved_kind(configured: &str, ir_only: bool) -> Option<CameraKind> {
+    resolve_for(configured, ir_only)
+        .ok()
+        .and_then(|path| kind_of(&path))
 }
 
 /// Node to open for `device_path`: [`best`] for `none`/`auto`, otherwise the
 /// configured path, which is never swapped for another camera.
 pub fn resolve(configured: &str) -> Result<PathBuf, ResolveError> {
-    resolve_with(configured, list)
+    resolve_with(configured, false, list)
+}
+
+/// [`resolve`] for the `ir_only` setting: automatic selection then only
+/// considers approved infrared cameras ([`preferred`]).
+pub fn resolve_for(configured: &str, ir_only: bool) -> Result<PathBuf, ResolveError> {
+    resolve_with(configured, ir_only, list)
 }
 
 fn resolve_with(
     configured: &str,
+    ir_only: bool,
     cameras: impl FnOnce() -> Vec<Camera>,
 ) -> Result<PathBuf, ResolveError> {
     if crate::config::is_automatic_device(configured) {
-        return best(&cameras())
-            .map(|c| c.path.clone())
-            .ok_or(ResolveError::NoCamera);
+        let found = cameras();
+        return preferred(&found, ir_only).map(|c| c.path.clone()).ok_or(
+            if ir_only && !found.is_empty() {
+                ResolveError::NoInfrared
+            } else {
+                ResolveError::NoCamera
+            },
+        );
     }
     let path = PathBuf::from(configured.trim());
     if path.exists() {
@@ -257,6 +329,7 @@ fn resolve_with(
 pub fn plausibly_present(configured: &str) -> bool {
     if crate::config::is_automatic_device(configured) {
         fs::read_dir(V4L_BY_PATH).is_ok_and(|mut d| d.next().is_some())
+            || !video_nodes(Path::new(DEV_DIR)).is_empty()
     } else {
         Path::new(configured.trim()).exists()
     }
@@ -390,23 +463,86 @@ mod tests {
             ]
         };
         assert_eq!(
-            resolve_with("none", found),
+            resolve_with("none", false, found),
             Ok(PathBuf::from("/dev/v4l/by-path/video0"))
         );
         assert_eq!(
-            resolve_with("auto", found),
+            resolve_with("auto", false, found),
             Ok(PathBuf::from("/dev/v4l/by-path/video0"))
         );
-        assert_eq!(resolve_with("none", Vec::new), Err(ResolveError::NoCamera));
+        assert_eq!(
+            resolve_with("none", false, Vec::new),
+            Err(ResolveError::NoCamera)
+        );
         // An explicit path is never replaced by another camera.
         assert_eq!(
-            resolve_with("/nonexistent/video9", found),
+            resolve_with("/nonexistent/video9", false, found),
             Err(ResolveError::Missing("/nonexistent/video9".into()))
         );
         assert_eq!(
-            resolve_with("/dev/null", found),
+            resolve_with("/dev/null", false, found),
             Ok(PathBuf::from("/dev/null"))
         );
+    }
+
+    /// With `ir_only`, automatic selection never settles on a camera the
+    /// worker would refuse: an approved infrared node or none.
+    #[test]
+    fn ir_only_automatic_selection_takes_only_approved_infrared() {
+        let colour_and_candidate = || {
+            vec![
+                cam("video0", CameraKind::Colour),
+                cam("video2", CameraKind::InfraredCandidate),
+            ]
+        };
+        assert_eq!(
+            resolve_with("none", true, colour_and_candidate),
+            Err(ResolveError::NoInfrared)
+        );
+        let with_approved = || {
+            vec![
+                cam("video0", CameraKind::Colour),
+                cam("video3", CameraKind::VerifiedInfrared),
+            ]
+        };
+        assert_eq!(
+            resolve_with("none", true, with_approved),
+            Ok(PathBuf::from("/dev/v4l/by-path/video3"))
+        );
+        assert_eq!(
+            resolve_with("none", true, Vec::new),
+            Err(ResolveError::NoCamera)
+        );
+        // A fixed path is still used as given; the worker checks its kind.
+        assert_eq!(
+            resolve_with("/dev/null", true, colour_and_candidate),
+            Ok(PathBuf::from("/dev/null"))
+        );
+        assert_eq!(
+            preferred(&colour_and_candidate(), false).unwrap().node,
+            "video0"
+        );
+    }
+
+    #[test]
+    fn video_nodes_are_used_only_without_by_path_links() {
+        let dir = std::env::temp_dir().join(format!("peekin-devnodes-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let (by_path, dev) = (dir.join("by-path"), dir.join("dev"));
+        fs::create_dir_all(&by_path).unwrap();
+        fs::create_dir_all(&dev).unwrap();
+        for name in ["video10", "video2", "video", "videoX", "media0"] {
+            fs::write(dev.join(name), "").unwrap();
+        }
+        assert_eq!(
+            video_nodes(&dev),
+            [dev.join("video2"), dev.join("video10")],
+            "numeric order, nodes only"
+        );
+        assert!(video_nodes(Path::new("/nonexistent/dev")).is_empty());
+        // Plain files are no cameras, but they are the nodes that get probed.
+        assert!(list_in_dirs_or(&by_path, None, Some(&dev)).is_empty());
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

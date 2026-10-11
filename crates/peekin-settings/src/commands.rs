@@ -9,6 +9,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const OUTPUT_LIMIT: usize = 8 * 1024 * 1024;
+/// How long the polkit dialog may take before the helper reports `READY`.
+/// The command's own deadline starts at that acknowledgement.
+pub const AUTHORIZATION_LIMIT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Termination {
@@ -42,9 +45,10 @@ impl CommandControl {
         }
     }
 
-    /// No write request is sent before the helper reports that polkit approved the call.
-    pub fn with_ready_handshake() -> Self {
-        let mut control = Self::new(true);
+    /// The privileged helper reports `READY` once polkit approved the call:
+    /// no write request is sent before that, and the deadline counts from it.
+    pub fn with_ready_handshake(write: bool) -> Self {
+        let mut control = Self::new(write);
         control.ready_protocol = true;
         control
     }
@@ -146,7 +150,13 @@ fn execute_blocking(
         }
     };
     let process_group = child.id() as libc::pid_t;
-    let deadline = Instant::now() + timeout;
+    // Before the handshake the clock covers the authorization dialog only.
+    let mut deadline = Instant::now()
+        + if control.ready_protocol {
+            AUTHORIZATION_LIMIT
+        } else {
+            timeout
+        };
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
     let command_result = (|| -> std::io::Result<CommandResult> {
@@ -169,7 +179,11 @@ fn execute_blocking(
             if Instant::now() >= deadline {
                 return Ok(result(
                     124,
-                    tr("Operation timed out. Reload to check whether the change was saved."),
+                    if ready {
+                        tr("Operation timed out. Reload to check whether the change was saved.")
+                    } else {
+                        tr("Authorization timed out; nothing was changed.")
+                    },
                     Termination::TimedOut,
                 ));
             }
@@ -200,6 +214,7 @@ fn execute_blocking(
                     }
                     out.drain(..6);
                     ready = true;
+                    deadline = Instant::now() + timeout;
                 } else if !b"READY\n".starts_with(&out) {
                     return Err(std::io::Error::other("invalid privileged helper handshake"));
                 }
@@ -347,7 +362,7 @@ mod tests {
 
     #[test]
     fn privileged_request_waits_for_ready_then_commits_exactly_once() {
-        let control = CommandControl::with_ready_handshake();
+        let control = CommandControl::with_ready_handshake(true);
         let result = execute_blocking(
             &[
                 "/bin/sh".into(),
@@ -366,7 +381,7 @@ mod tests {
 
     #[test]
     fn privileged_request_can_be_cancelled_before_authorization_handoff() {
-        let control = CommandControl::with_ready_handshake();
+        let control = CommandControl::with_ready_handshake(true);
         let worker_control = control.clone();
         let started = Instant::now();
         let worker = std::thread::spawn(move || {
@@ -399,9 +414,35 @@ mod tests {
             &[],
             b"request",
             Duration::from_secs(2),
-            &CommandControl::with_ready_handshake(),
+            &CommandControl::with_ready_handshake(true),
         );
         assert_ne!(result.exit_code, 0);
         assert!(result.output.contains("handshake"));
+    }
+
+    /// The deadline counts from `READY`: a slow authorization dialog does not
+    /// eat into the command's time, and a read can still be cancelled after it.
+    #[test]
+    fn the_deadline_starts_at_the_ready_acknowledgement() {
+        let started = Instant::now();
+        let result = execute_blocking(
+            &[
+                "/bin/sh".into(),
+                "-c".into(),
+                "sleep 0.3; printf 'READY\\n'; sleep 0.3; printf done".into(),
+            ],
+            &[],
+            b"",
+            Duration::from_millis(450),
+            &CommandControl::with_ready_handshake(false),
+        );
+        assert_eq!(
+            (result.exit_code, result.output.as_str()),
+            (0, "done"),
+            "{result:?}"
+        );
+        assert!(started.elapsed() >= Duration::from_millis(600));
+        let control = CommandControl::with_ready_handshake(false);
+        assert!(control.cancel(), "a read stays cancellable");
     }
 }

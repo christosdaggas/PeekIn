@@ -296,8 +296,9 @@ impl Ui {
         write: bool,
         mut on_line: impl FnMut(&str),
     ) -> commands::CommandResult {
-        let control = if write && self.backend.elevate {
-            commands::CommandControl::with_ready_handshake()
+        // Every privileged helper call reports READY once polkit approved it.
+        let control = if self.backend.elevate {
+            commands::CommandControl::with_ready_handshake(write)
         } else {
             commands::CommandControl::new(write)
         };
@@ -417,6 +418,33 @@ impl Ui {
         self.service_lock_screen.set_active(services.lock_screen);
         self.service_polkit.set_active(services.polkit);
         self.service_console.set_active(services.console);
+        // These two work only where the PAM service reaches the module (the
+        // Fedora authselect profile); say so instead of offering a dead switch.
+        let pam_dir = std::path::Path::new("/etc/pam.d");
+        for (row, service, text) in [
+            (
+                &self.service_polkit,
+                "polkit-1",
+                tr("Password dialogs of apps and pkexec (experimental)"),
+            ),
+            (
+                &self.service_console,
+                "login",
+                tr("Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"),
+            ),
+        ] {
+            let reached = !self.backend.elevate
+                || peekin_core::authselect::service_uses_module(pam_dir, service);
+            row.set_subtitle(&if reached {
+                text
+            } else {
+                tr_args(
+                    "{text}. Not available here: /etc/pam.d/{service} does not use PeekIn \
+                     (it does with the Fedora authselect profile; see sudo peekin doctor)",
+                    &[("text", &text), ("service", &service)],
+                )
+            });
+        }
     }
 
     fn load_settings(&self) -> bool {
@@ -487,10 +515,13 @@ impl Ui {
         let camera_state = if !config.security_errors().is_empty() {
             ReadinessValue::Blocked(tr("invalid security settings"))
         } else {
-            match cameras::resolve(&s.device_path) {
+            match cameras::resolve_for(&s.device_path, s.ir_only) {
                 Err(cameras::ResolveError::NoCamera) => {
                     ReadinessValue::Blocked(tr("automatic selection found no camera"))
                 }
+                Err(cameras::ResolveError::NoInfrared) => ReadinessValue::Blocked(tr(
+                    "no approved infrared camera; approve one below or turn off Infrared camera only",
+                )),
                 Err(cameras::ResolveError::Missing(_)) => {
                     ReadinessValue::Blocked(tr("configured device missing"))
                 }
@@ -1993,7 +2024,7 @@ impl Ui {
                 }
                 preview::Event::Finished(Ok(_)) => {
                     let challenge = self.loaded.borrow().as_ref().is_none_or(|s| {
-                        let camera = cameras::resolve(&s.device_path)
+                        let camera = cameras::resolve_for(&s.device_path, s.ir_only)
                             .ok()
                             .and_then(|path| cameras::kind_of(&path));
                         peekin_core::config::movement_required(
@@ -3342,7 +3373,7 @@ mod gtk_tests {
             .set_active(!ui.detection_notice.is_active());
         assert!(ui.is_dirty() && ui.apply.is_sensitive());
         assert!(ui.begin_operation(Operation::Saving));
-        let pending = commands::CommandControl::with_ready_handshake();
+        let pending = commands::CommandControl::with_ready_handshake(true);
         *ui.active_command.borrow_mut() = Some(pending.clone());
         ui.refresh_controls();
         assert!(ui.operation_spinner.is_visible());

@@ -423,7 +423,9 @@ fn camera_path(path: &str) -> bool {
     path != "none" && peekin_core::management::valid_device_path(path)
 }
 
-fn ready_for_write() -> Result<()> {
+/// Tells the settings app that polkit approved the call and the helper runs:
+/// its deadline starts here, and a write request is sent only after this.
+fn ready() -> Result<()> {
     println!("READY");
     std::io::stdout().flush()?;
     Ok(())
@@ -443,6 +445,7 @@ fn main() -> Result<()> {
     let paths = PeekinPaths::from_dirs("/etc/peekin".into(), "/usr/share/peekin".into());
     match operation.as_str() {
         "metadata" if rest.is_empty() => {
+            ready()?;
             let raw = std::fs::read_to_string(paths.config_file_path())?;
             let config = PeekinConfig::parse(&raw, paths.config_file_path().display().to_string())?;
             let mut personal_threshold = None;
@@ -466,12 +469,12 @@ fn main() -> Result<()> {
             );
         }
         "apply-settings" if rest.is_empty() => {
-            ready_for_write()?;
+            ready()?;
             let update: SettingsUpdate = serde_json::from_str(&input(64 * 1024)?)?;
             println!("{}", apply_settings(&paths.config_file_path(), &update)?);
         }
         "enroll" if rest.len() <= 1 => {
-            ready_for_write()?;
+            ready()?;
             let label = rest.first().cloned().unwrap_or_default();
             let data = models::parse_import(&input(256 * 1024)?).map_err(|e| anyhow!(e))?;
             let _lock = models::lock_user_models(paths.user_models_dir(), &user)?;
@@ -480,7 +483,7 @@ fn main() -> Result<()> {
                 Err(ModelError::NotInitialised | ModelError::NoModelForUser(_)) => Vec::new(),
                 Err(error) => return Err(error.into()),
             };
-            let id = FaceModel::next_id(&existing);
+            let id = activity::next_model_id(Path::new(activity::ACTIVITY_DIR), &user, &existing);
             existing.push(FaceModel {
                 id,
                 label: FaceModel::sanitise_label(&if label.is_empty() {
@@ -497,7 +500,7 @@ fn main() -> Result<()> {
             println!("added {id}");
         }
         "add-samples" if rest.len() == 1 && rest[0].bytes().all(|b| b.is_ascii_digit()) => {
-            ready_for_write()?;
+            ready()?;
             let data = models::parse_import(&input(256 * 1024)?).map_err(|e| anyhow!(e))?;
             let _lock = models::lock_user_models(paths.user_models_dir(), &user)?;
             let mut existing = models::load_user_models(paths.user_models_dir(), &user)?;
@@ -507,7 +510,7 @@ fn main() -> Result<()> {
             println!("model {} now has {count} samples", rest[0]);
         }
         "remove" if rest.len() == 1 && rest[0].bytes().all(|b| b.is_ascii_digit()) => {
-            ready_for_write()?;
+            ready()?;
             if input(16)? != "remove\n" {
                 bail!("remove confirmation token missing");
             }
@@ -526,6 +529,7 @@ fn main() -> Result<()> {
             println!("removed {}", rest[0]);
         }
         "snapshots" if rest.is_empty() => {
+            ready()?;
             // Only the caller's own photos, newest first, as base64 JPEG.
             let dir = Path::new(snapshots::SNAPSHOT_DIR);
             let items = match snapshots::list(dir, &user) {
@@ -547,7 +551,7 @@ fn main() -> Result<()> {
             );
         }
         "clear-snapshots" if rest.is_empty() => {
-            ready_for_write()?;
+            ready()?;
             if input(16)? != "clear\n" {
                 bail!("clear confirmation token missing");
             }
@@ -558,7 +562,7 @@ fn main() -> Result<()> {
             println!("removed {removed}");
         }
         "clear-activity" if rest.is_empty() => {
-            ready_for_write()?;
+            ready()?;
             if input(16)? != "clear\n" {
                 bail!("clear confirmation token missing");
             }
@@ -566,7 +570,7 @@ fn main() -> Result<()> {
             println!("cleared");
         }
         "reset-attempts" if rest.is_empty() => {
-            ready_for_write()?;
+            ready()?;
             if input(16)? != "reset\n" {
                 bail!("reset confirmation token missing");
             }
@@ -574,7 +578,7 @@ fn main() -> Result<()> {
             println!("reset");
         }
         "attest-ir" if rest.len() == 1 && camera_path(&rest[0]) => {
-            ready_for_write()?;
+            ready()?;
             let evidence = input(4096)?;
             // The identity is read here, as root, never taken from the caller.
             let candidate = ir_profile::inspect(Path::new(&rest[0]))?;
@@ -584,7 +588,7 @@ fn main() -> Result<()> {
             }
         }
         "revoke-ir" if rest.len() == 1 && camera_path(&rest[0]) => {
-            ready_for_write()?;
+            ready()?;
             if input(16)? != "revoke\n" {
                 bail!("revoke confirmation token missing");
             }

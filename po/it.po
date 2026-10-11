@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 20:31+0300\n"
+"POT-Creation-Date: 2026-10-11 21:06+0300\n"
 "PO-Revision-Date: 2026-09-25 18:30+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: Italian\n"
@@ -109,6 +109,9 @@ msgstr "Operazione annullata"
 msgid "Operation timed out. Reload to check whether the change was saved."
 msgstr "Operazione scaduta. Ricarica per verificare se la modifica è stata salvata."
 
+msgid "Authorization timed out; nothing was changed."
+msgstr "L'autorizzazione è scaduta; non è stato modificato nulla."
+
 msgid "Command worker stopped unexpectedly"
 msgstr "Il processo del comando si è interrotto in modo imprevisto"
 
@@ -130,6 +133,16 @@ msgstr "Scarta"
 msgid "Save"
 msgstr "Salva"
 
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Finestre di password delle app e di pkexec (sperimentale)"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Accesso da un terminale testuale locale, ad es. Ctrl+Alt+F3 (sperimentale)"
+
+#, rust-format
+msgid "{text}. Not available here: /etc/pam.d/{service} does not use PeekIn (it does with the Fedora authselect profile; see sudo peekin doctor)"
+msgstr "{text}. Non disponibile qui: /etc/pam.d/{service} non usa PeekIn (lo fa con il profilo authselect di Fedora; vedere sudo peekin doctor)"
+
 #, rust-format
 msgid "Cannot read settings: {e}"
 msgstr "Impossibile leggere le impostazioni: {e}"
@@ -148,6 +161,9 @@ msgstr "impostazioni di sicurezza non valide"
 
 msgid "automatic selection found no camera"
 msgstr "la selezione automatica non ha trovato alcuna fotocamera"
+
+msgid "no approved infrared camera; approve one below or turn off Infrared camera only"
+msgstr "nessuna fotocamera a infrarossi approvata; approvane una qui sotto o disattiva «Solo fotocamera a infrarossi»"
 
 msgid "configured device missing"
 msgstr "dispositivo configurato mancante"
@@ -749,14 +765,8 @@ msgstr "Sblocco di una sessione già in esecuzione"
 msgid "Administrator dialogs"
 msgstr "Finestre di amministratore"
 
-msgid "Password dialogs of apps and pkexec (experimental)"
-msgstr "Finestre di password delle app e di pkexec (sperimentale)"
-
 msgid "Text console login"
 msgstr "Accesso da console testuale"
-
-msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
-msgstr "Accesso da un terminale testuale locale, ad es. Ctrl+Alt+F3 (sperimentale)"
 
 msgid "System-wide settings; per-user face models."
 msgstr "Impostazioni di sistema; modelli facciali per utente."

@@ -46,7 +46,8 @@ as usual.
   login and another for the Away lock.
 - **A friendly app.** Add your face with a live preview, test recognition,
   see a history of every attempt and change every setting without editing a
-  file. It speaks English and Greek.
+  file. It speaks English, Greek, German, Spanish, French, Italian,
+  Portuguese and Russian.
 - **Built for Fedora.** One RPM sets up PAM, SELinux and the system services
   for you, and `dnf remove` undoes those changes.
 
@@ -331,12 +332,15 @@ replaces config.ini only when every value in it is valid):
 - `[video] device_path`: `none` (default) chooses the camera each time face
   authentication starts (administrator-attested infrared first, then the first
   colour camera, then an unverified grayscale/infrared node, whose emitter often
-  stays off on Linux; select such a sensor explicitly if it works). A fixed
-  `/dev/v4l/by-id/...` path survives moving a USB camera to another port;
-  `/dev/v4l/by-path/...` is tied to the port.
+  stays off on Linux; select such a sensor explicitly if it works). Cameras
+  are found through `/dev/v4l/by-path`; when nothing is linked there (some
+  built-in and virtual cameras), the `/dev/videoN` nodes are scanned instead.
+  A fixed `/dev/v4l/by-id/...` path survives moving a USB camera to another
+  port; `/dev/v4l/by-path/...` is tied to the port.
 - `[video] ir_only`: allow only an administrator-attested physical IR profile.
   Grayscale pixel formats are a heuristic and are not trusted by themselves.
-  Unknown and virtual cameras therefore fall back to password.
+  Unknown and virtual cameras therefore fall back to password; with
+  `device_path = none` only an attested camera is ever selected.
 - `[video] min_similarity`: cosine similarity in the shared UI/core range
   0.2 through 1.0 (default 0.363). Values such as 0.99 are preserved.
   [docs/THRESHOLDS.md](docs/THRESHOLDS.md) lists the share of strangers
@@ -546,12 +550,14 @@ make them unreadable, and every account has to add their face again; it
 applies to existing models at the next boot (`sudo peekin unseal-models`).
 See `peekin-config(5)`. `peekin-models.service` decrypts them at boot into
 `/run/peekin/models` (memory; SELinux type `peekin_run_t`), which PAM, the
-worker and the app read; accounts with dots in their name (`john.doe`,
-`user@ad.example.com`) are restored like any other. A change (add, improve,
+worker and the app read; stopping the service, as removing the package does,
+removes the decrypted copies again. Accounts with dots in their name
+(`john.doe`, `user@ad.example.com`) are restored like any other. A change (add, improve,
 remove) is applied to both copies or to neither: when the encryption fails,
 it is reported as not applied. Plaintext models found on disk (e.g. after an
 upgrade) are sealed and removed from it (`sudo peekin unseal-models` does this
-by hand).
+by hand); one found next to an existing encrypted copy is left alone and
+reported, since the encrypted copy is the one in use.
 
 With a TPM, a copied disk or a backup is useless without this machine's TPM.
 With the host key alone, a backup that leaves out

@@ -20,6 +20,7 @@ require {
     type local_login_t;
     type policykit_auth_t;
     type v4l_device_t;
+    type event_device_t;
     attribute file_type;
     attribute non_security_file_type;
     attribute non_auth_file_type;
@@ -27,7 +28,7 @@ require {
     class capability { setuid setgid };
     class process setpgid;
     class dir { getattr search open read write add_name remove_name };
-    class file { getattr open read write create lock unlink setattr };
+    class file { getattr open read write create lock unlink setattr rename };
 }
 
 type peekin_var_lib_t;
@@ -48,10 +49,15 @@ allow policykit_auth_t self:capability { setuid setgid };
 allow { xdm_t local_login_t policykit_auth_t } self:process setpgid;
 
 # Exactly what peekin_core::lockout and ::activity do: create and flock
-# a file, rewrite it in place (ftruncate is checked as write), unlink a
-# counter on success, and give a history file its user's read ACL (setattr).
+# a file, rewrite a counter in place (ftruncate is checked as write), unlink
+# a counter on success, and write a history file to a temporary file with
+# its user's read ACL (setattr) that is renamed into place.
 allow { xdm_t local_login_t policykit_auth_t } peekin_var_lib_t:dir { getattr search write add_name remove_name };
-allow { xdm_t local_login_t policykit_auth_t } peekin_var_lib_t:file { getattr open read write create lock unlink setattr };
+allow { xdm_t local_login_t policykit_auth_t } peekin_var_lib_t:file { getattr open read write create lock unlink setattr rename };
+
+# [core] abort_if_lid_closed: the lid switch state of an input device
+# (EVIOCGSW), read before the scan where the ACPI driver reports no lid.
+allow { xdm_t local_login_t policykit_auth_t } event_device_t:chr_file { getattr open read ioctl };
 
 # The decrypted face models in /run/peekin/models: PAM checks the worker can
 # read them, the worker reads them. Read only; they are written by root

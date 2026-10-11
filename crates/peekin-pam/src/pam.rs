@@ -4,13 +4,14 @@ use crate::run::{run_compare, RunEnd, WorkerEvent, WorkerIdentity};
 use crate::status::{status_decision, ChildEnd, PamCode};
 use crate::{
     check_enabled, check_lockout, counter_update, run_guarded, user_has_session, CounterUpdate,
-    Gate, Lockout, Session, StagePrompts, LID_STATE_DIR, LOGIND_USERS_DIR,
+    Gate, Lockout, Session, StagePrompts, LOGIND_SESSIONS_DIR, LOGIND_USERS_DIR,
 };
 use peekin_core::activity;
 use peekin_core::backlight;
 use peekin_core::cameras;
 use peekin_core::compare::ChallengeMode;
 use peekin_core::i18n::{tr, tr_args};
+use peekin_core::lid;
 use peekin_core::lockout::{self, PauseCause};
 use peekin_core::models;
 use peekin_core::paths::validate_username;
@@ -212,10 +213,15 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
     let session = Session {
         service: pam.item(PAM_SERVICE),
         rhost: pam.item(PAM_RHOST),
-        user_has_session: account_uid(&user)
-            .is_some_and(|uid| user_has_session(Path::new(LOGIND_USERS_DIR), uid)),
+        user_has_session: account_uid(&user).is_some_and(|uid| {
+            user_has_session(
+                Path::new(LOGIND_USERS_DIR),
+                Path::new(LOGIND_SESSIONS_DIR),
+                uid,
+            )
+        }),
     };
-    match check_enabled(&config, &paths, &user, Path::new(LID_STATE_DIR), &session) {
+    match check_enabled(&config, &paths, &user, &lid::Paths::system(), &session) {
         Gate::Proceed => {}
         Gate::Skip(reason) => {
             pam.log(LOG_INFO, &format!("Face login skipped: {reason}"));
@@ -223,7 +229,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         }
     }
     let workaround = config.workaround();
-    if workaround != "off" {
+    if !workaround.eq_ignore_ascii_case("off") {
         pam.log(
             LOG_NOTICE,
             &format!("workaround = {workaround} is not supported yet; scanning before the password prompt"),
@@ -303,7 +309,7 @@ fn authenticate(pam: &Pam, args: ModuleArgs) -> c_int {
         }
     };
     // The worker resolves the camera again and refuses a weaker mode, so a swapped camera fails closed.
-    let camera = cameras::resolved_kind(&config.device_path());
+    let camera = cameras::resolved_kind(&config.device_path(), config.ir_only());
     let mode = match ChallengeMode::for_config(config.movement_required(camera)) {
         Ok(mode) => mode,
         Err(error) => {

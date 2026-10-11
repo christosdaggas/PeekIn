@@ -11,6 +11,11 @@ Before=display-manager.service systemd-user-sessions.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/peekin unseal-models
+# The decrypted copies live only while this unit is active: stopping it
+# (also on package removal) removes them from memory. The directory is
+# re-created, root:peekin 0750, by the command above at the next start.
+RuntimeDirectory=peekin/models
+RuntimeDirectoryMode=0750
 
 [Install]
 WantedBy=multi-user.target

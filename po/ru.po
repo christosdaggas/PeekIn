@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: peekin\n"
 "Report-Msgid-Bugs-To: info@chrisdaggas.com\n"
-"POT-Creation-Date: 2026-09-25 20:31+0300\n"
+"POT-Creation-Date: 2026-10-11 21:06+0300\n"
 "PO-Revision-Date: 2026-09-25 18:30+0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: Russian\n"
@@ -109,6 +109,9 @@ msgstr "Операция отменена"
 msgid "Operation timed out. Reload to check whether the change was saved."
 msgstr "Время операции истекло. Обновите, чтобы проверить, сохранено ли изменение."
 
+msgid "Authorization timed out; nothing was changed."
+msgstr "Время авторизации истекло; ничего не изменено."
+
 msgid "Command worker stopped unexpectedly"
 msgstr "Рабочий процесс команды неожиданно завершился"
 
@@ -130,6 +133,16 @@ msgstr "Отменить"
 msgid "Save"
 msgstr "Сохранить"
 
+msgid "Password dialogs of apps and pkexec (experimental)"
+msgstr "Диалоги паролей приложений и pkexec (экспериментально)"
+
+msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
+msgstr "Вход в локальном текстовом терминале, например Ctrl+Alt+F3 (экспериментально)"
+
+#, rust-format
+msgid "{text}. Not available here: /etc/pam.d/{service} does not use PeekIn (it does with the Fedora authselect profile; see sudo peekin doctor)"
+msgstr "{text}. Здесь недоступно: /etc/pam.d/{service} не использует PeekIn (использует с профилем authselect в Fedora; см. sudo peekin doctor)"
+
 #, rust-format
 msgid "Cannot read settings: {e}"
 msgstr "Не удаётся прочитать настройки: {e}"
@@ -148,6 +161,9 @@ msgstr "недопустимые настройки безопасности"
 
 msgid "automatic selection found no camera"
 msgstr "автовыбор не нашёл камеру"
+
+msgid "no approved infrared camera; approve one below or turn off Infrared camera only"
+msgstr "нет одобренной инфракрасной камеры; одобрите одну ниже или отключите «Только инфракрасная камера»"
 
 msgid "configured device missing"
 msgstr "настроенное устройство отсутствует"
@@ -752,14 +768,8 @@ msgstr "Разблокировка уже запущенного сеанса"
 msgid "Administrator dialogs"
 msgstr "Диалоги администратора"
 
-msgid "Password dialogs of apps and pkexec (experimental)"
-msgstr "Диалоги паролей приложений и pkexec (экспериментально)"
-
 msgid "Text console login"
 msgstr "Вход в текстовой консоли"
-
-msgid "Logging in on a local text terminal, e.g. Ctrl+Alt+F3 (experimental)"
-msgstr "Вход в локальном текстовом терминале, например Ctrl+Alt+F3 (экспериментально)"
 
 msgid "System-wide settings; per-user face models."
 msgstr "Общесистемные настройки; модели лица для каждого пользователя."

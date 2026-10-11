@@ -136,9 +136,11 @@ jobs:
           # Failed-attempt counters: every PAM domain can create, rewrite and
           # remove them, and none gains write access to GDM's own state.
           for domain in xdm_t local_login_t policykit_auth_t; do
-            for perm in create write lock unlink setattr; do
+            for perm in create write lock unlink setattr rename; do
               sesearch -A -s "$domain" -t peekin_var_lib_t -c file -p "$perm" "$policy" | grep -q "$perm"
             done
+            # The lid switch of an input device (abort_if_lid_closed).
+            sesearch -A -s "$domain" -t event_device_t -c chr_file -p ioctl "$policy" | grep -q ioctl
             for perm in add_name remove_name search; do
               sesearch -A -s "$domain" -t peekin_var_lib_t -c dir -p "$perm" "$policy" | grep -q "$perm"
             done

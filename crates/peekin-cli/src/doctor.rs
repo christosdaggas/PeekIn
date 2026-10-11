@@ -304,9 +304,11 @@ fn check_face_models(
 
 fn check_camera(report: &mut Report, config: &PeekinConfig, account: Option<&ServiceAccount>) {
     let configured = config.device_path();
-    let device = match cameras::resolve(&configured) {
+    let device = match cameras::resolve_for(&configured, config.ir_only()) {
         Ok(device) => device,
-        Err(error @ (ResolveError::NoCamera | ResolveError::Missing(_))) => {
+        Err(
+            error @ (ResolveError::NoCamera | ResolveError::NoInfrared | ResolveError::Missing(_)),
+        ) => {
             report.add(Level::Fail, "camera", error.to_string());
             return;
         }
@@ -392,18 +394,10 @@ fn check_camera(report: &mut Report, config: &PeekinConfig, account: Option<&Ser
     }
 }
 
-fn pam_mentions_module(path: &Path) -> bool {
-    std::fs::read_to_string(path).is_ok_and(|body| {
-        body.lines().any(|line| {
-            let line = line.trim_start();
-            !line.starts_with('#') && line.contains("pam_peekin.so")
-        })
-    })
-}
-
 fn check_pam(report: &mut Report, pam_dir: &Path) {
-    let direct = ["sudo", "gdm-password"].map(|s| pam_mentions_module(&pam_dir.join(s)));
-    let shared = ["system-auth", "password-auth"].map(|s| pam_mentions_module(&pam_dir.join(s)));
+    use peekin_core::authselect::file_uses_module;
+    let direct = ["sudo", "gdm-password"].map(|s| file_uses_module(&pam_dir.join(s)));
+    let shared = ["system-auth", "password-auth"].map(|s| file_uses_module(&pam_dir.join(s)));
     match (direct, shared) {
         ([true, true], _) => report.add(Level::Ok, "pam", "enabled directly for sudo and GDM"),
         (_, [true, true]) => report.add(
@@ -419,23 +413,6 @@ fn check_pam(report: &mut Report, pam_dir: &Path) {
             ),
         ),
     }
-}
-
-/// Directly or through an included system-auth/password-auth stack.
-fn service_reaches_module(pam_dir: &Path, name: &str) -> bool {
-    let Ok(body) = std::fs::read_to_string(pam_dir.join(name)) else {
-        return false;
-    };
-    body.lines()
-        .map(str::trim_start)
-        .filter(|line| !line.starts_with('#') && line.starts_with("auth"))
-        .any(|line| {
-            line.contains("pam_peekin.so")
-                || ["system-auth", "password-auth"].iter().any(|stack| {
-                    line.split_whitespace().nth(2) == Some(stack)
-                        && pam_mentions_module(&pam_dir.join(stack))
-                })
-        })
 }
 
 fn check_services(report: &mut Report, config: &PeekinConfig, pam_dir: &Path) {
@@ -462,7 +439,9 @@ fn check_services(report: &mut Report, config: &PeekinConfig, pam_dir: &Path) {
         (FaceService::Polkit, "polkit-1"),
         (FaceService::Console, "login"),
     ] {
-        if config.service_enabled(service) && !service_reaches_module(pam_dir, pam_name) {
+        if config.service_enabled(service)
+            && !peekin_core::authselect::service_uses_module(pam_dir, pam_name)
+        {
             report.add(
                 Level::Warn,
                 "services",
@@ -758,30 +737,33 @@ fn check_sealed(
     }
 }
 
-/// Where pam_peekin.so reads the lid state (the ACPI button driver).
-const LID_STATE_DIR: &str = "/proc/acpi/button/lid";
 const POWER_SUPPLY_DIR: &str = "/sys/class/power_supply";
 
-/// `abort_if_lid_closed` relies on the ACPI lid state. A laptop (it has a
-/// battery) that does not expose it would scan with the lid closed.
-fn check_lid(report: &mut Report, config: &PeekinConfig, lid_dir: &Path, supplies: &Path) {
+/// `abort_if_lid_closed` reads the ACPI lid state or an input device's lid
+/// switch. A laptop (it has a battery) that offers neither would scan with
+/// the lid closed.
+fn check_lid(
+    report: &mut Report,
+    config: &PeekinConfig,
+    lid: &peekin_core::lid::Paths,
+    supplies: &Path,
+) {
     if !config.abort_if_lid_closed() {
         return;
     }
-    let lid_known = std::fs::read_dir(lid_dir)
-        .is_ok_and(|entries| entries.flatten().any(|e| e.path().join("state").is_file()));
+    let sources = peekin_core::lid::sources(lid);
     let battery = std::fs::read_dir(supplies).is_ok_and(|entries| {
         entries.flatten().any(|e| {
             std::fs::read_to_string(e.path().join("type")).is_ok_and(|t| t.trim() == "Battery")
         })
     });
-    if lid_known {
+    if !sources.is_empty() {
         report.add(
             Level::Ok,
             "lid",
             format!(
-                "face login is skipped while the lid is closed ({})",
-                lid_dir.display()
+                "face login is skipped while the lid is closed (read from {})",
+                sources.join(", ")
             ),
         );
     } else if battery {
@@ -789,9 +771,10 @@ fn check_lid(report: &mut Report, config: &PeekinConfig, lid_dir: &Path, supplie
             Level::Warn,
             "lid",
             format!(
-                "abort_if_lid_closed is on, but this laptop reports no lid state in {}: \
-                 face login cannot tell that the lid is closed and would scan anyway",
-                lid_dir.display()
+                "abort_if_lid_closed is on, but this laptop reports no lid state in {} and no \
+                 input device with a lid switch: face login cannot tell that the lid is closed \
+                 and would scan anyway",
+                lid.acpi.display()
             ),
         );
     }
@@ -847,7 +830,7 @@ pub fn run(paths: &PeekinPaths, user: &str) -> Report {
         check_lid(
             &mut report,
             config,
-            Path::new(LID_STATE_DIR),
+            &peekin_core::lid::Paths::system(),
             Path::new(POWER_SUPPLY_DIR),
         );
         check_camera(&mut report, config, account.as_ref());
@@ -992,8 +975,9 @@ mod tests {
     #[test]
     fn a_laptop_without_lid_state_is_warned_about() {
         let dir = temp("lid");
-        let (lid, supplies) = (dir.join("lid"), dir.join("supplies"));
-        std::fs::create_dir_all(&lid).unwrap();
+        let (lid, supplies) = (peekin_core::lid::Paths::under(&dir), dir.join("supplies"));
+        std::fs::create_dir_all(&lid.acpi).unwrap();
+        std::fs::create_dir_all(&lid.input_class).unwrap();
         std::fs::create_dir_all(supplies.join("AC")).unwrap();
         std::fs::write(supplies.join("AC/type"), "Mains\n").unwrap();
         let on = PeekinConfig::empty();
@@ -1016,9 +1000,17 @@ mod tests {
             check(&off).0.is_empty(),
             "nothing to check when switched off"
         );
-        // The state is there: fine.
-        std::fs::create_dir_all(lid.join("LID0")).unwrap();
-        std::fs::write(lid.join("LID0/state"), "state:      open\n").unwrap();
+        // An input device with a lid switch is a source too.
+        let switch = lid.input_class.join("event4/device/capabilities");
+        std::fs::create_dir_all(&switch).unwrap();
+        std::fs::write(switch.join("sw"), "1\n").unwrap();
+        let r = check(&on);
+        assert_eq!(r.worst(), Level::Ok, "{:?}", r.0);
+        assert!(r.0[0].message.contains("event4"), "{:?}", r.0);
+        std::fs::remove_dir_all(lid.input_class.join("event4")).unwrap();
+        // The ACPI state is there: fine.
+        std::fs::create_dir_all(lid.acpi.join("LID0")).unwrap();
+        std::fs::write(lid.acpi.join("LID0/state"), "state:      open\n").unwrap();
         assert_eq!(check(&on).worst(), Level::Ok);
         let _ = std::fs::remove_dir_all(dir);
     }

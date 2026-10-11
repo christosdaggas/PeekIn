@@ -14,6 +14,7 @@ pub mod fsutil;
 pub mod gtk_models;
 pub mod i18n;
 pub mod ir_profile;
+pub mod lid;
 pub mod lockout;
 pub mod lowlight;
 pub mod management;

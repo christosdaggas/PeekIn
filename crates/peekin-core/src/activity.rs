@@ -2,10 +2,11 @@
 //! Files are root-owned 0600 with an ACL letting their user read them; the
 //! directory is 0711. Never used for authentication decisions.
 
+use crate::models::FaceModel;
 use crate::paths::validate_username;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
@@ -132,6 +133,10 @@ fn read_acl(uid: u32) -> Vec<u8> {
 }
 
 /// Append `entry`, keeping the newest [`MAX_ENTRIES`]; `uid` may read the file.
+/// The new history is written to a temporary file and renamed into place, so
+/// a crash never leaves it empty or half written; the lock on the current
+/// file serialises writers, and one that finds the file replaced while it
+/// waited starts over on the new one.
 pub fn record(dir: &Path, user: &str, uid: u32, entry: &Entry) -> io::Result<()> {
     let path = file(dir, user)?;
     let meta = fs::symlink_metadata(dir)?;
@@ -144,57 +149,107 @@ pub fn record(dir: &Path, user: &str, uid: u32, entry: &Entry) -> io::Result<()>
             ),
         ));
     }
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(&path)?;
-    let meta = file.metadata()?;
-    if !meta.is_file() || meta.uid() != 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} is not a root-owned regular file", path.display()),
-        ));
+    for _ in 0..8 {
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&path)?;
+        let meta = file.metadata()?;
+        if !meta.is_file() || meta.uid() != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} is not a root-owned regular file", path.display()),
+            ));
+        }
+        // SAFETY: flock on a descriptor we own; released when it is closed.
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // Another writer may have replaced the file while this one waited.
+        match fs::symlink_metadata(&path) {
+            Ok(now) if now.ino() == meta.ino() && now.dev() == meta.dev() => {}
+            Ok(_) => continue,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e),
+        }
+        let mut raw = String::new();
+        (&mut file).take(MAX_BYTES).read_to_string(&mut raw)?;
+        let mut entries = parse(&raw);
+        entries.push(entry.clone());
+        let skip = entries.len().saturating_sub(MAX_ENTRIES);
+        let mut text = String::new();
+        for e in &entries[skip..] {
+            text.push_str(&serde_json::to_string(e).map_err(io::Error::other)?);
+            text.push('\n');
+        }
+        return replace_history(dir, user, &path, &text, uid);
     }
-    // SAFETY: flock on a descriptor we own; released when it is closed.
-    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
-        return Err(io::Error::last_os_error());
+    Err(io::Error::other(format!(
+        "{} kept being replaced by other writers",
+        path.display()
+    )))
+}
+
+/// Write `text` to a private temporary file next to `path`, give `uid` read
+/// access and rename it over `path`.
+fn replace_history(dir: &Path, user: &str, path: &Path, text: &str, uid: u32) -> io::Result<()> {
+    let tmp = dir.join(format!(".{user}.tmp{}", std::process::id()));
+    let _ = fs::remove_file(&tmp);
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&tmp)?;
+        file.write_all(text.as_bytes())?;
+        // Without ACL support the file stays root-only.
+        let acl = read_acl(uid);
+        // SAFETY: valid descriptor, NUL-terminated name and a live buffer.
+        let set = unsafe {
+            libc::fsetxattr(
+                file.as_raw_fd(),
+                c"system.posix_acl_access".as_ptr(),
+                acl.as_ptr().cast(),
+                acl.len(),
+                0,
+            )
+        };
+        let acl_error = (set != 0).then(io::Error::last_os_error);
+        file.sync_all()?;
+        fs::rename(&tmp, path)?;
+        fs::File::open(dir)?.sync_all()?;
+        match acl_error {
+            Some(error) => Err(io::Error::other(format!(
+                "history saved, but cannot let {user} read it: {error}"
+            ))),
+            None => Ok(()),
+        }
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
     }
-    let mut raw = String::new();
-    (&mut file).take(MAX_BYTES).read_to_string(&mut raw)?;
-    let mut entries = parse(&raw);
-    entries.push(entry.clone());
-    let skip = entries.len().saturating_sub(MAX_ENTRIES);
-    let mut text = String::new();
-    for e in &entries[skip..] {
-        text.push_str(&serde_json::to_string(e).map_err(io::Error::other)?);
-        text.push('\n');
-    }
-    file.rewind()?;
-    file.set_len(0)?;
-    file.write_all(text.as_bytes())?;
-    // Without ACL support the file stays root-only.
-    let acl = read_acl(uid);
-    // SAFETY: valid descriptor, NUL-terminated name and a live buffer.
-    let set = unsafe {
-        libc::fsetxattr(
-            file.as_raw_fd(),
-            c"system.posix_acl_access".as_ptr(),
-            acl.as_ptr().cast(),
-            acl.len(),
-            0,
-        )
-    };
-    if set != 0 {
-        return Err(io::Error::other(format!(
-            "history saved, but cannot let {user} read it: {}",
-            io::Error::last_os_error()
-        )));
-    }
-    Ok(())
+    result
+}
+
+/// Model IDs the history still refers to.
+pub fn model_ids(entries: &[Entry]) -> impl Iterator<Item = i64> + '_ {
+    entries.iter().filter_map(|e| e.model)
+}
+
+/// ID for a new face model of `user`: above every current model and every
+/// ID in the history under `dir`, so no old entry ever names the new model.
+/// A history that cannot be read (development trees) counts as empty.
+pub fn next_model_id(dir: &Path, user: &str, models: &[FaceModel]) -> i64 {
+    let entries = read(dir, user).unwrap_or_default();
+    let after_history = model_ids(&entries)
+        .max()
+        .map_or(0, |id| id.saturating_add(1));
+    FaceModel::next_id(models).max(after_history)
 }
 
 /// When each face model last matched: (model ID, unix time), newest first.
@@ -291,6 +346,37 @@ mod tests {
         let seen = rx.recv_timeout(Duration::from_secs(10)).unwrap();
         reader.join().unwrap().unwrap();
         assert_eq!(seen.iter().map(|e| e.time).collect::<Vec<_>>(), [1, 2]);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_new_model_never_takes_an_id_the_history_still_names() {
+        let dir = std::env::temp_dir().join(format!("peekin-activity-ids-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let model = |id| FaceModel {
+            id,
+            label: "x".into(),
+            time: 1,
+            format: None,
+            data: Vec::new(),
+        };
+        // No history: one above the highest model.
+        assert_eq!(next_model_id(&dir, "alice", &[model(0), model(1)]), 2);
+        // Model 2 was used, then removed: 2 is not reused.
+        let mut text = String::new();
+        for e in [
+            entry(10, Outcome::Success, Some(2)),
+            entry(20, Outcome::Rejected, None),
+            entry(30, Outcome::Success, Some(0)),
+        ] {
+            text.push_str(&serde_json::to_string(&e).unwrap());
+            text.push('\n');
+        }
+        fs::write(dir.join("alice"), text).unwrap();
+        assert_eq!(next_model_id(&dir, "alice", &[model(0), model(1)]), 3);
+        assert_eq!(next_model_id(&dir, "alice", &[model(5)]), 6);
+        assert_eq!(next_model_id(&dir, "bob", &[]), 0);
         let _ = fs::remove_dir_all(dir);
     }
 
